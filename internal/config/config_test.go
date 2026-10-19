@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -33,7 +34,9 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat() error = %v", err)
 	}
-	if info.Mode().Perm()&0o077 != 0 {
+	// Windows reports synthetic 0666 for files; the real protection comes from
+	// the user-profile ACL. Only assert POSIX permission bits on Unix.
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("config permissions = %o, want no group/other bits", info.Mode().Perm())
 	}
 }

@@ -43,6 +43,8 @@ Out of scope for v1:
 
 - Tokens are printed once at creation and stored as SHA-256 hashes by the hub.
 - Client config files should be readable only by the agent's OS user.
+- On Unix, `agentchat` writes config with mode `0600`. On Windows, the file
+  inherits the user-profile ACL; do not run agents under a shared account.
 - Do not put tokens in URLs. The WebSocket uses a short-lived ticket.
 - Rotate the admin token after onboarding a new machine.
 - Revoke an agent immediately when a machine is retired or compromised.
