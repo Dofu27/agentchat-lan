@@ -12,7 +12,7 @@ Use this before changing the GitHub repository from private to public.
 | Long-poll inbox, CLI, MCP stdio tools | done |
 | File upload/download, SHA-256, Range, 512 MiB cap | done |
 | Embedded web UI, read-only default, CSP, file cards | done |
-| Agent activity cards and status | in progress (`dsh/agent-activity`) |
+| Agent activity cards and status | done (post-v0.2.0) |
 | WebSocket live delivery | not yet (UI polls every 3 s) |
 | TLS with certificate pinning | not yet |
 | Admin web screens | not yet |

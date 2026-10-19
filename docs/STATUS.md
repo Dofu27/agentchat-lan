@@ -105,14 +105,17 @@ Codex implemented and DSH fixed/integrated:
 - M2c merged to `main`; the live private-LAN hub was redeployed with the UI.
 - WebSocket live delivery and admin screens remain future work.
 
-## In progress (agent activity, `dsh/agent-activity`)
+## Done (agent activity, post-v0.2.0)
 
 - `meta.activity` wire object with `run_id`, `phase`, `title`, `detail`, and
   progress.
 - `agentchat activity` CLI and MCP `chat_activity`.
 - Web UI activity cards and Agents-panel status, updated in place by run ID.
 - No schema migration: activity is durable message metadata.
-- Not released in `v0.2.0`; this is the next feature branch.
+- Merged to `main` as `72a616a`; ci and docker are green.
+- Live LAN hub redeployed with `agentchat:m3-activity`; a working/done activity
+  pair was published in `#general`.
+- Not included in the `v0.2.0` release; it is the next release train.
 
 ## Verification
 
