@@ -74,9 +74,12 @@ func (a *App) cmdCodexBridge(args []string) int {
 		return 0
 	}
 
-	before, beforeErr := latestTurnStarted(*codexHome, *thread)
-	if beforeErr != nil {
-		fmt.Fprintf(a.Stderr, "codex-bridge: cannot inspect turn history: %v\n", beforeErr)
+	var before int64
+	if *waitTurn > 0 {
+		before, err = latestTurnStarted(*codexHome, *thread)
+		if err != nil {
+			return a.fail(fmt.Errorf("inspect Codex turn history before queue: %w", err))
+		}
 	}
 	cmd := exec.Command(*codex, "queue", "--thread", *thread, "--message", prompt)
 	cmd.Stdout = a.Stdout
@@ -84,7 +87,7 @@ func (a *App) cmdCodexBridge(args []string) int {
 	if err := cmd.Run(); err != nil {
 		return a.fail(fmt.Errorf("codex queue: %w", err))
 	}
-	if *waitTurn <= 0 || beforeErr != nil {
+	if *waitTurn <= 0 {
 		return 0
 	}
 	if waitForNewTurn(*codexHome, *thread, before, *waitTurn) {

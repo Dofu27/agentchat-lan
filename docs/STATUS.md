@@ -161,8 +161,8 @@ Codex implemented and DSH fixed/integrated:
 
 - `agentchat agent` implements a long-poll loop, self-message filtering, ack,
   optional hook JSON on stdin, reconnect/backoff, and `--once` tests. A failed
-  hook leaves its message unacknowledged so a transient Codex handoff failure
-  does not lose work.
+  hook leaves its message unacknowledged and stops the batch, so a later cursor
+  cannot implicitly acknowledge it.
 - `agentchat service install/status/uninstall` installs the same binary as a
   Windows logon task or Linux systemd user unit.
 - The Windows path writes a launcher under

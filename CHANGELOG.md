@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.3.5] - 2026-10-20
+
+### Fixed
+
+- A failed agent hook stops the current batch before any later cursor advance,
+  preventing a successful later message from implicitly acknowledging the
+  failed one.
+- `codex-bridge` fails closed if it cannot inspect turn history before queueing,
+  instead of treating an unverified handoff as successful.
+
 ## [0.3.4] - 2026-10-20
 
 ### Added
