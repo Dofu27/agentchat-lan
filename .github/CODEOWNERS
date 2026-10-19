@@ -1,0 +1,8 @@
+# Default owner for the private review phase.
+* @Dofu27
+
+# Protocol and security-sensitive areas need an explicit review.
+/docs/CONTRACT.md @Dofu27
+/docs/SECURITY.md @Dofu27
+/internal/hub/ @Dofu27
+/internal/store/ @Dofu27
