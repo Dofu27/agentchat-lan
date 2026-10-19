@@ -30,6 +30,7 @@ var (
 	ErrInviteUsed    = errors.New("invite used")
 	ErrInviteInvalid = errors.New("invite invalid")
 	ErrInvalidTarget = errors.New("message target is not a room member")
+	ErrFileNotFound  = errors.New("file not found")
 )
 
 // Store owns a SQLite database. All public operations are safe for concurrent use.
@@ -118,8 +119,8 @@ CREATE TABLE IF NOT EXISTS mentions(
  agent_id TEXT NOT NULL REFERENCES agents(id), PRIMARY KEY(message_id,agent_id)
 );
 CREATE TABLE IF NOT EXISTS files(
- id TEXT PRIMARY KEY, sha256 TEXT NOT NULL UNIQUE, size INTEGER NOT NULL, mime TEXT NOT NULL,
- storage_path TEXT NOT NULL, created_at TEXT NOT NULL
+ id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', sha256 TEXT NOT NULL UNIQUE,
+ size INTEGER NOT NULL, mime TEXT NOT NULL, storage_path TEXT NOT NULL, created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS attachments(
  message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
@@ -143,7 +144,39 @@ INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(1,strftime('%
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("apply migration 1: %w", err)
 	}
+	if err := s.ensureFileNameColumn(ctx); err != nil {
+		return fmt.Errorf("apply file name migration: %w", err)
+	}
 	return nil
+}
+
+// ensureFileNameColumn upgrades databases created before the M2 file service.
+func (s *Store) ensureFileNameColumn(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(files)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	found := false
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, typ string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &dflt, &pk); err != nil {
+			return err
+		}
+		if name == "name" {
+			found = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if found {
+		return nil
+	}
+	_, err = s.db.ExecContext(ctx, `ALTER TABLE files ADD COLUMN name TEXT NOT NULL DEFAULT ''`)
+	return err
 }
 
 func (s *Store) ensureDefaultRoom(ctx context.Context) error {
@@ -226,6 +259,64 @@ type InviteInfo struct {
 	Name      string    `json:"name"`
 	ExpiresAt time.Time `json:"expires_at"`
 	Uses      int       `json:"uses"`
+}
+
+// StoredFile is durable file metadata and its store-relative blob path.
+type StoredFile struct {
+	Ref          protocol.FileRef
+	RelativePath string
+}
+
+// RegisterFile inserts metadata for an atomically installed blob. Content is
+// unique by SHA-256; concurrent duplicate uploads receive the existing row.
+func (s *Store) RegisterFile(ctx context.Context, ref protocol.FileRef, relativePath string) (StoredFile, bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if ref.ID == "" || ref.Size < 0 || len(ref.SHA256) != 64 || relativePath == "" {
+		return StoredFile{}, false, errors.New("invalid file metadata")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return StoredFile{}, false, err
+	}
+	defer tx.Rollback()
+	var existing StoredFile
+	err = tx.QueryRowContext(ctx, `SELECT id,name,size,sha256,mime,storage_path FROM files WHERE sha256=?`, ref.SHA256).Scan(&existing.Ref.ID, &existing.Ref.Name, &existing.Ref.Size, &existing.Ref.SHA256, &existing.Ref.Mime, &existing.RelativePath)
+	if err == nil {
+		return existing, false, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return StoredFile{}, false, err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO files(id,name,sha256,size,mime,storage_path,created_at) VALUES(?,?,?,?,?,?,?)`, ref.ID, ref.Name, ref.SHA256, ref.Size, ref.Mime, filepath.ToSlash(relativePath), time.Now().UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return StoredFile{}, false, err
+	}
+	if err = tx.Commit(); err != nil {
+		return StoredFile{}, false, err
+	}
+	return StoredFile{Ref: ref, RelativePath: filepath.ToSlash(relativePath)}, true, nil
+}
+
+// FileByID returns metadata without exposing its storage path to the API.
+func (s *Store) FileByID(ctx context.Context, id string) (StoredFile, error) {
+	var f StoredFile
+	err := s.db.QueryRowContext(ctx, `SELECT id,name,size,sha256,mime,storage_path FROM files WHERE id=?`, id).Scan(&f.Ref.ID, &f.Ref.Name, &f.Ref.Size, &f.Ref.SHA256, &f.Ref.Mime, &f.RelativePath)
+	if errors.Is(err, sql.ErrNoRows) {
+		return StoredFile{}, ErrFileNotFound
+	}
+	return f, err
+}
+
+// CanAccessFile restricts downloads to files attached to a room the agent can
+// access, preserving the hub's room-scoped authorization model.
+func (s *Store) CanAccessFile(ctx context.Context, agentID, fileID string) (bool, error) {
+	var allowed int
+	err := s.db.QueryRowContext(ctx, `SELECT 1 FROM attachments x JOIN messages m ON m.id=x.message_id JOIN memberships mb ON mb.room_id=m.room_id WHERE x.file_id=? AND mb.agent_id=? LIMIT 1`, fileID, agentID).Scan(&allowed)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (s *Store) CreateInvite(ctx context.Context, code string, in Invite, actor string) (time.Time, error) {
@@ -536,6 +627,18 @@ func (s *Store) SendMessage(ctx context.Context, agentID, roomID string, req pro
 			return SendResult{}, e
 		}
 	}
+	files := make([]protocol.FileRef, 0, len(req.Files))
+	for _, fileID := range req.Files {
+		var ref protocol.FileRef
+		err = tx.QueryRowContext(ctx, `SELECT id,name,size,sha256,mime FROM files WHERE id=?`, fileID).Scan(&ref.ID, &ref.Name, &ref.Size, &ref.SHA256, &ref.Mime)
+		if errors.Is(err, sql.ErrNoRows) {
+			return SendResult{}, ErrFileNotFound
+		}
+		if err != nil {
+			return SendResult{}, err
+		}
+		files = append(files, ref)
+	}
 	mentionIDs := make([]string, 0, len(mentions))
 	seen := map[string]bool{}
 	for _, name := range mentions {
@@ -570,10 +673,15 @@ func (s *Store) SendMessage(ctx context.Context, agentID, roomID string, req pro
 			return SendResult{}, err
 		}
 	}
+	for _, file := range files {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO attachments(message_id,file_id,display_name) VALUES(?,?,?)`, id, file.ID, file.Name); err != nil {
+			return SendResult{}, err
+		}
+	}
 	if err = tx.Commit(); err != nil {
 		return SendResult{}, err
 	}
-	m := protocol.Message{ID: id, Room: roomID, Seq: seq, From: sender, Kind: kind, Text: req.Text, ReplyTo: req.ReplyTo, Mentions: append([]string(nil), mentions...), Files: []protocol.FileRef{}, Meta: req.Meta, TS: now}
+	m := protocol.Message{ID: id, Room: roomID, Seq: seq, From: sender, Kind: kind, Text: req.Text, ReplyTo: req.ReplyTo, Mentions: append([]string(nil), mentions...), Files: files, Meta: req.Meta, TS: now}
 	return SendResult{Message: m}, nil
 }
 
@@ -602,7 +710,17 @@ func messageByClientID(ctx context.Context, q interface {
 		}
 		m.Mentions = append(m.Mentions, n)
 	}
-	return m, rows.Err()
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return m, err
+	}
+	if err = rows.Close(); err != nil {
+		return m, err
+	}
+	if err = loadAttachments(ctx, q, &m); err != nil {
+		return m, err
+	}
+	return m, nil
 }
 
 func (s *Store) History(ctx context.Context, agentID, roomID string, after, before int64, limit int) ([]protocol.Message, bool, error) {
@@ -653,6 +771,9 @@ func (s *Store) History(ctx context.Context, agentID, roomID string, after, befo
 	}
 	for i := range out {
 		if err = loadMentions(ctx, s.db, &out[i]); err != nil {
+			return nil, false, err
+		}
+		if err = loadAttachments(ctx, s.db, &out[i]); err != nil {
 			return nil, false, err
 		}
 	}
@@ -735,6 +856,9 @@ func (s *Store) Inbox(ctx context.Context, agentID string, limit int, roomFilter
 		if err = loadMentions(ctx, s.db, &out[i]); err != nil {
 			return nil, err
 		}
+		if err = loadAttachments(ctx, s.db, &out[i]); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -754,6 +878,25 @@ func loadMentions(ctx context.Context, q interface {
 			return err
 		}
 		m.Mentions = append(m.Mentions, name)
+	}
+	return rows.Err()
+}
+
+func loadAttachments(ctx context.Context, q interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}, m *protocol.Message) error {
+	rows, err := q.QueryContext(ctx, `SELECT f.id,x.display_name,f.size,f.sha256,f.mime FROM attachments x JOIN files f ON f.id=x.file_id WHERE x.message_id=? ORDER BY f.id`, m.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	m.Files = []protocol.FileRef{}
+	for rows.Next() {
+		var f protocol.FileRef
+		if err = rows.Scan(&f.ID, &f.Name, &f.Size, &f.SHA256, &f.Mime); err != nil {
+			return err
+		}
+		m.Files = append(m.Files, f)
 	}
 	return rows.Err()
 }

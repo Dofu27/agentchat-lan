@@ -13,6 +13,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,11 +33,15 @@ type Options struct {
 	RequestsPerMinute     int
 	Burst                 int
 	JoinRequestsPerMinute int
+	FileUploadsPerMinute  int
+	MaxFileSize           int64
+	FileDir               string
 	Logger                *log.Logger
 }
 
 type Server struct {
 	store    *store.Store
+	files    *fileService
 	opts     Options
 	notifyMu sync.Mutex
 	notify   chan struct{}
@@ -81,10 +86,19 @@ func New(st *store.Store, opts Options) *Server {
 	if opts.JoinRequestsPerMinute <= 0 {
 		opts.JoinRequestsPerMinute = 20
 	}
+	if opts.FileUploadsPerMinute <= 0 {
+		opts.FileUploadsPerMinute = 10
+	}
+	if opts.MaxFileSize <= 0 {
+		opts.MaxFileSize = protocol.MaxFileSize
+	}
+	if opts.FileDir == "" {
+		opts.FileDir = filepath.Join("data", "files")
+	}
 	if opts.Logger == nil {
 		opts.Logger = log.Default()
 	}
-	return &Server{store: st, opts: opts, notify: make(chan struct{}), buckets: map[string]bucket{}}
+	return &Server{store: st, files: &fileService{root: opts.FileDir, maxSize: opts.MaxFileSize}, opts: opts, notify: make(chan struct{}), buckets: map[string]bucket{}}
 }
 
 // Handler returns the contract HTTP handler. It listens on no socket itself.
@@ -100,6 +114,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/inbox", s.agentAuth(http.HandlerFunc(s.handleInbox)))
 	mux.Handle("POST /v1/ack", s.agentAuth(http.HandlerFunc(s.handleAck)))
 	mux.Handle("GET /v1/agents", s.agentAuth(http.HandlerFunc(s.handleAgents)))
+	mux.Handle("POST /v1/files", s.agentAuth(s.fileUploadRate(http.HandlerFunc(s.handleUpload))))
+	mux.Handle("GET /v1/files/{id}", s.agentAuth(http.HandlerFunc(s.handleDownload)))
+	mux.Handle("HEAD /v1/files/{id}", s.agentAuth(http.HandlerFunc(s.handleDownload)))
 	mux.Handle("POST /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleCreateInvite)))
 	mux.Handle("GET /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleListInvites)))
 	mux.Handle("DELETE /v1/admin/agents/{id}", s.adminAuth(http.HandlerFunc(s.handleRevokeAgent)))
@@ -257,9 +274,17 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "too many files", map[string]any{"max": protocol.MaxFilesPerMessage})
 		return
 	}
-	if len(req.Files) > 0 {
-		writeError(w, http.StatusBadRequest, "invalid_request", "file attachments are not available in this hub build", nil)
-		return
+	fileIDs := make(map[string]struct{}, len(req.Files))
+	for _, id := range req.Files {
+		if id == "" {
+			writeError(w, http.StatusBadRequest, "invalid_request", "file IDs must not be empty", nil)
+			return
+		}
+		if _, exists := fileIDs[id]; exists {
+			writeError(w, http.StatusBadRequest, "invalid_request", "duplicate file IDs are not allowed", nil)
+			return
+		}
+		fileIDs[id] = struct{}{}
 	}
 	if len(req.To) > protocol.MaxMentions {
 		writeError(w, http.StatusBadRequest, "invalid_request", "too many recipients", map[string]any{"max": protocol.MaxMentions})
@@ -616,6 +641,8 @@ func (s *Server) storeError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "conflict", "resource already exists", nil)
 	case errors.Is(err, store.ErrInvalidTarget):
 		writeError(w, http.StatusUnprocessableEntity, "validation_failed", "message target is not a room member", nil)
+	case errors.Is(err, store.ErrFileNotFound):
+		writeError(w, http.StatusBadRequest, "invalid_request", "one or more file IDs are invalid", nil)
 	default:
 		s.internalError(w, err)
 	}

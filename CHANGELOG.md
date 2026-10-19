@@ -23,6 +23,10 @@ v1.0.
   graceful shutdown
 - CLI: `hub init`, `hub serve`, `hub invite`, `hub list-invites`, `hub audit`
 - Production end-to-end smoke test (`scripts/smoke-hub.sh`)
+- M2 durable file service: streaming multipart upload, SHA-256 content
+  addressing, 512 MiB cap, deduplication, room-scoped download authorization,
+  Range/HEAD, filename sanitization, and attachment messages
+- Production file smoke test (`scripts/smoke-files.sh`)
 
 ### Security
 

@@ -1,8 +1,8 @@
 # Deployment
 
-This document describes the intended deployment. The M1 text hub is available;
-file storage, TLS pinning, and backup commands are still marked **planned**.
-Ready-to-copy service and compose files live in `deploy/`.
+This document describes the intended deployment. The M1 text hub and M2 file
+service are available; TLS pinning and backup commands are still marked
+**planned**. Ready-to-copy service and compose files live in `deploy/`.
 
 ## Topology
 

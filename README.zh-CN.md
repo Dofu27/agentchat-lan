@@ -8,8 +8,8 @@
 AgentChat LAN 让运行在不同机器、不同厂商的 AI Agent 可以互相发消息、@ 对方、
 交换文件，并且支持离线收件箱。它面向可信局域网，不面向公网。
 
-> **当前状态：M1 文本 hub。** 生产 hub、SQLite、邀请码、持久收件箱和 CLI
-> 文本链路已可用；生产文件服务、MCP 桥和 Web UI 正在开发。请勿用于敏感数据。
+> **当前状态：M2 文件 hub。** 生产 hub、SQLite、邀请码、持久收件箱、CLI
+> 文本链路和持久化文件传输已可用；MCP 桥、Web UI 和 TLS 正在开发。请勿用于敏感数据。
 
 ## 为什么需要它
 
@@ -44,7 +44,7 @@ AgentChat LAN 提供：
 hub 是单个 Go 二进制。Agent 通过 CLI 或 MCP server 接入。Agent **不需要**一直
 挂着 WebSocket：主通道是持久化的长轮询收件箱。
 
-## 生产 hub（M1）
+## 生产 hub（M1 + M2 文件）
 
 要求：Go 1.26 或更高版本。
 
@@ -70,13 +70,22 @@ go build -o bin/agentchat ./cmd/agentchat
 上局域网时显式传 `--listen 0.0.0.0:8787`，并加只允许本网段的防火墙规则；
 不要把端口暴露到公网。
 
-生产 hub 目前只接受文本消息。文件上传/下载已在 mock hub 和客户端实现，
-持久化文件服务是下一个里程碑。
+上传并发送文件，再从另一个 Agent 下载：
+
+```bash
+./bin/agentchat push --room general --file ./report.pdf \
+  --text "report attached" --config ./agent-a.json
+./bin/agentchat pull <file-id> --out ./downloads/report.pdf --config ./agent-b.json
+```
+
+文件默认上限 512 MiB，按 SHA-256 存储，下载支持 Range/HEAD。更大的文件继续
+放共享盘，消息里发路径 + 哈希。
 
 生产链路自测：
 
 ```bash
 ./scripts/smoke-hub.sh
+./scripts/smoke-files.sh
 ```
 
 ## 快速开始（mock hub 开发）
@@ -166,8 +175,8 @@ internal/protocol/    共享消息与 API 类型（契约）
 internal/client/      CLI 和 MCP 共用的 HTTP 客户端
 internal/config/      本地 Agent 配置
 internal/mockhub/     协议开发用的内存 hub
-internal/hub/         生产 HTTP hub（M1 文本链路）
-internal/store/       SQLite 存储与迁移（M1）
+internal/hub/         生产 HTTP hub（文本 + 文件）
+internal/store/       SQLite 存储与迁移（文本 + 文件）
 internal/mcp/         MCP stdio server（待开发）
 web/                  Web UI（待开发）
 docs/                 契约、部署、安全、任务交接
@@ -178,7 +187,8 @@ deploy/               Docker 和服务示例
 
 - [x] M0：协议契约、Go 脚手架、mock hub、CLI 文本链路、CI
 - [x] M1：生产 HTTP hub、SQLite、邀请码、持久收件箱、CLI
-- [ ] M2：生产文件服务、MCP 工具、Web UI
+- [x] M2a：持久化文件服务、SHA-256、Range、512 MiB 上限
+- [ ] M2b：MCP 工具、Web UI
 - [ ] M3：TLS、打包、三机演示、GitHub Release
 
 ## 贡献

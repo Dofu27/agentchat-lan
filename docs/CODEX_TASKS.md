@@ -115,7 +115,8 @@ and add it to `go.mod`.
 
 ## Task C3 — File service
 
-Status: **next** (M2). The client and mock file path already exist.
+Status: **done (M2a)** (Codex, 2026-10-19; schema migration and integration by
+DSH). The client and mock file path already exist.
 
 Implement `POST /v1/files`, `GET /v1/files/{id}`, and the storage layer.
 
