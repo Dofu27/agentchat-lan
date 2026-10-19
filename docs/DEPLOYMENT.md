@@ -2,6 +2,7 @@
 
 This document describes the intended deployment. The production hub is still
 under construction; commands marked **planned** will be available in M1/M3.
+Ready-to-copy service and compose files live in `deploy/`.
 
 ## Topology
 
