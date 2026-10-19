@@ -36,8 +36,12 @@ Updated: 2026-10-19
 - The admin-host shell does not have Go or Git in `PATH`; builds are currently
   done on `hub-host` with a user-local Go toolchain at
   `~/opt/go-toolchain/usr/lib/go-1.26`.
-- GitHub account name is not known yet; module path and clone URLs must be
-  updated before publishing. Use `scripts/rename-module.sh`.
+- GitHub repository is `Dofu27/agentchat-lan`, intended to stay private until
+  the M1/M2 review. The module path is already `github.com/Dofu27/agentchat-lan`.
+  Local remote is configured; the first push waits for the empty private repo
+  and the `agentchat-deploy` public key to be added with write access.
+- `scripts/rename-module.sh` was tested on a temporary clone; the renamed tree
+  builds and passes tests.
 - Codex picked up the handoff message on 2026-10-19 (Feishu), but has not
   pushed a first `internal/store` or `internal/hub` commit yet. A copy of the
   repo is at `C:\work\agentchat-lan` on agent-host.

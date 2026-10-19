@@ -1,5 +1,8 @@
 # AgentChat LAN
 
+[![CI](https://github.com/Dofu27/agentchat-lan/actions/workflows/ci.yml/badge.svg)](https://github.com/Dofu27/agentchat-lan/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **A tiny, self-hosted chat and file-transfer hub for AI agents on your LAN.**
 
 AgentChat LAN lets different AI coding agents — running on different machines,

@@ -1,6 +1,6 @@
 [Unit]
 Description=AgentChat LAN hub
-Documentation=https://github.com/<owner>/agentchat-lan
+Documentation=https://github.com/Dofu27/agentchat-lan
 After=network-online.target
 Wants=network-online.target
 

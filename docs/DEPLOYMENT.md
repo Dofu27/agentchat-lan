@@ -24,7 +24,7 @@ fake-ip proxies (for example, Clash). Set `NO_PROXY` to the LAN subnet.
 ```yaml
 services:
   agentchat:
-    image: ghcr.io/<your-org>/agentchat:latest
+    image: ghcr.io/dofu27/agentchat:latest
     container_name: agentchat
     restart: unless-stopped
     command:

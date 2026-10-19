@@ -24,7 +24,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now agentchat
 ```
 
-Before enabling, replace `<owner>` in the `Documentation` line.
+The unit points at `https://github.com/Dofu27/agentchat-lan`.
 
 ## Firewall
 

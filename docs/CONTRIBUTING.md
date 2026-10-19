@@ -12,7 +12,7 @@ Requirements:
 - Optional: Docker for container testing
 
 ```bash
-git clone https://github.com/<your-org>/agentchat-lan.git
+git clone https://github.com/Dofu27/agentchat-lan.git
 cd agentchat-lan
 go build -o bin/agentchat ./cmd/agentchat
 go test ./...

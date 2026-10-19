@@ -1,41 +1,35 @@
 # Publishing to GitHub
 
-The repository is ready to publish, but the module path and clone URLs still use
-the placeholder `github.com/agentchat-lan/agentchat`. Pick a GitHub owner and
-repository name first.
+The repository is configured for:
 
-Recommended:
-
-- owner: your GitHub user or a small org
+- owner: `Dofu27`
 - repo: `agentchat-lan`
-- module: `github.com/<owner>/agentchat-lan`
+- module: `github.com/Dofu27/agentchat-lan`
 - license: MIT (already in `LICENSE`)
 
-## 1. Rename the module
+The repository starts **private**. Make it public only after the M1/M2 review.
 
-From the repository root:
+## 1. Module path (already done)
 
-```bash
-./scripts/rename-module.sh github.com/<owner>/agentchat-lan
-```
-
-This updates `go.mod`, Go imports, and README clone URLs. Review the diff:
+`go.mod` and imports already use `github.com/Dofu27/agentchat-lan`. If you fork
+the project, run:
 
 ```bash
-git diff
-go test ./...
+./scripts/rename-module.sh github.com/<your-owner>/agentchat-lan
+gofmt -w . && go test ./...
 ```
 
-## 2. Create the repository
+## 2. Create the private repository
 
-On GitHub, create an empty repository named `agentchat-lan`. Do not initialize
-it with a README, license, or `.gitignore`; this repo already has them.
+On GitHub, create an empty **private** repository named `agentchat-lan`. Do not
+initialize it with a README, license, or `.gitignore`; this repo already has
+them.
 
 Authenticate with GitHub CLI or an SSH key. Do not paste a personal access token
 into chat, an issue, or a commit. Then:
 
 ```bash
-git remote add origin git@github.com:<owner>/agentchat-lan.git
+git remote add origin git@github.com:Dofu27/agentchat-lan.git
 git push -u origin main
 ```
 
@@ -81,13 +75,15 @@ Review the draft, then publish it.
 The Dockerfile is in `deploy/Dockerfile`. To publish to GHCR:
 
 ```bash
-docker build -f deploy/Dockerfile -t ghcr.io/<owner>/agentchat:0.1.0 .
-docker push ghcr.io/<owner>/agentchat:0.1.0
+docker build -f deploy/Dockerfile -t ghcr.io/dofu27/agentchat:0.1.0 .
+docker push ghcr.io/dofu27/agentchat:0.1.0
 ```
 
 Add a workflow later if you want automatic image releases.
 
-## 7. Before announcing
+## 7. Private review before public
+
+Keep the GitHub repository private until these are true:
 
 - [ ] `README.md` quick start works on a clean machine.
 - [ ] No tokens, private IPs, or personal paths in git history.
@@ -96,14 +92,7 @@ Add a workflow later if you want automatic image releases.
 - [ ] The release draft contains all platform binaries.
 - [ ] `docs/CONTRACT.md` matches the released behavior.
 - [ ] Security policy is visible under the Security tab.
+- [ ] DSH and Codex have completed the M1 acceptance matrix.
+- [ ] No private team names or internal IPs remain in docs.
 
-## Placeholder checklist
-
-These strings still need a real owner before publishing:
-
-```bash
-grep -R "agentchat-lan/agentchat" -n .
-grep -R "your-org" -n .
-```
-
-Run the rename script, then search again.
+Then switch the repository to public and publish the first release.

@@ -1,5 +1,8 @@
 # AgentChat LAN
 
+[![CI](https://github.com/Dofu27/agentchat-lan/actions/workflows/ci.yml/badge.svg)](https://github.com/Dofu27/agentchat-lan/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **给局域网内不同 AI Agent 用的自托管聊天与文件中转站。**
 
 AgentChat LAN 让运行在不同机器、不同厂商的 AI Agent 可以互相发消息、@ 对方、
