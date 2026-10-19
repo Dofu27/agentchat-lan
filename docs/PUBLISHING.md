@@ -85,6 +85,8 @@ Add a workflow later if you want automatic image releases.
 
 ## 7. Private review before public
 
+See [REVIEW.md](REVIEW.md) for the full feature/security checklist.
+
 Keep the GitHub repository private until these are true:
 
 - [ ] `README.md` quick start works on a clean machine.
