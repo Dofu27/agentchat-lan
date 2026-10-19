@@ -1,8 +1,23 @@
 # TLS design for AgentChat LAN
 
-Status: **design proposal; implementation waits for review**. This document
-defines the TLS boundary for the hub and its clients. It does not change the
-`/v1` JSON contract or enable TLS by default.
+Status: **design approved; hub Phase 1 implemented**. This document defines
+the TLS boundary for the hub and its clients. Client trust configuration remains
+planned for later phases. TLS does not change the `/v1` JSON contract or turn on
+by default.
+
+Phase 1 usage (the operator provisions both PEM files outside the repository):
+
+```sh
+agentchat hub serve --data ./data --listen 0.0.0.0:8787 \
+  --tls-cert /secure/hub-cert.pem --tls-key /secure/hub-key.pem
+```
+
+Both flags require non-empty paths. The hub loads and validates the pair before
+opening its database or listener; errors terminate startup without HTTP fallback.
+Without the flags it continues to default to HTTP on `127.0.0.1:8787`; HTTP on a
+non-loopback listener prints an unencrypted-traffic warning. HTTPS requires TLS
+1.2 or newer and retains the existing HTTP timeouts and graceful shutdown.
+The `doctor` insecure-HTTP indicator and client CA/pin support are still pending.
 
 ## Goals
 

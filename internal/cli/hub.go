@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -53,6 +55,7 @@ func (a *App) hubUsage() {
 Usage:
   agentchat hub init   --data <dir> [--admin-token-file <path>] [--json]
   agentchat hub serve  --data <dir> [--listen 127.0.0.1:8787]
+                       [--tls-cert <path> --tls-key <path>]
   agentchat hub invite --data <dir> [--room general] [--name <agent>]
                        [--ttl 24h] [--uses 1] [--json]
   agentchat hub list-invites --data <dir> [--json]
@@ -60,6 +63,7 @@ Usage:
 
 The database lives at <data>/agentchat.db. The default listener is loopback;
 pass --listen 0.0.0.0:8787 only on a trusted LAN with a firewall rule.
+Provide both TLS flags to serve HTTPS on any listen address (TLS 1.2+).
 `)
 }
 
@@ -117,9 +121,17 @@ func (a *App) hubInit(args []string) int {
 }
 
 func (a *App) hubServe(args []string) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return a.hubServeContext(ctx, args)
+}
+
+func (a *App) hubServeContext(ctx context.Context, args []string) int {
 	fs := a.newFlagSet("hub serve")
 	data := fs.String("data", "./data", "data directory")
 	listen := fs.String("listen", "127.0.0.1:8787", "listen address")
+	certFile := fs.String("tls-cert", "", "TLS certificate PEM file (requires --tls-key)")
+	keyFile := fs.String("tls-key", "", "TLS private key PEM file (requires --tls-cert)")
 	rpm := fs.Int("requests-per-minute", 60, "per-agent request budget")
 	burst := fs.Int("burst", 20, "per-agent burst")
 	uploadsPerMinute := fs.Int("uploads-per-minute", 10, "per-agent file upload budget")
@@ -131,8 +143,27 @@ func (a *App) hubServe(args []string) int {
 		return a.fail(fmt.Errorf("hub serve takes no positional arguments"))
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	var certSet, keySet bool
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "tls-cert":
+			certSet = true
+		case "tls-key":
+			keySet = true
+		}
+	})
+	if certSet != keySet || (certSet && (*certFile == "" || *keyFile == "")) {
+		return a.fail(fmt.Errorf("--tls-cert and --tls-key must be provided together with non-empty paths"))
+	}
+	var tlsConfig *tls.Config
+	if certSet {
+		// Validate before opening the database or listener; never fall back to HTTP.
+		cert, err := tls.LoadX509KeyPair(*certFile, *keyFile)
+		if err != nil {
+			return a.fail(fmt.Errorf("load hub TLS certificate/key: %w", err))
+		}
+		tlsConfig = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+	}
 
 	st, err := store.Open(ctx, hubDBPath(*data))
 	if err != nil {
@@ -153,7 +184,14 @@ func (a *App) hubServe(args []string) int {
 	if err != nil {
 		return a.fail(err)
 	}
-	fmt.Fprintf(a.Stdout, "hub listening on http://%s data=%s\n", ln.Addr().String(), *data)
+	scheme := "http"
+	if tlsConfig != nil {
+		ln = tls.NewListener(ln, tlsConfig)
+		scheme = "https"
+	} else if addr, ok := ln.Addr().(*net.TCPAddr); !ok || !addr.IP.IsLoopback() {
+		fmt.Fprintln(a.Stderr, "WARNING: non-loopback HTTP listener is insecure; tokens and traffic are unencrypted. Use --tls-cert and --tls-key to enable HTTPS.")
+	}
+	fmt.Fprintf(a.Stdout, "hub listening on %s://%s data=%s\n", scheme, ln.Addr().String(), *data)
 	if err := srv.Serve(ctx, ln); err != nil {
 		return a.fail(err)
 	}
