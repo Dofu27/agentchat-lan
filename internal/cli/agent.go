@@ -90,6 +90,11 @@ func (a *App) cmdAgent(args []string) int {
 				hookOK = false
 				hookFailed = true
 				fmt.Fprintf(a.Stderr, "agent: hook failed for seq %d: %v (message remains unacknowledged)\n", msg.Seq, err)
+				if *ack {
+					// Do not process later messages in this batch: a later
+					// cursor advance would implicitly acknowledge this one.
+					break
+				}
 			}
 			if *ack && hookOK {
 				advanceAck(acks, msg)
