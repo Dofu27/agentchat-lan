@@ -52,13 +52,17 @@ func (a *App) serviceInstall(args []string) int {
 	}
 
 	if runtime.GOOS == "windows" {
-		tr := quoteWindowsCommand(exe) + " " + quoteWindowsArgs(agentArgs)
+		launcher, err := writeWindowsLauncher(*name, exe, agentArgs)
+		if err != nil {
+			return a.fail(err)
+		}
+		tr := `cmd /c "` + launcher + `"`
 		cmd := exec.Command("schtasks", "/Create", "/TN", *name, "/SC", "ONLOGON", "/TR", tr, "/F")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return a.fail(fmt.Errorf("create scheduled task: %w: %s", err, strings.TrimSpace(string(out))))
 		}
-		fmt.Fprintf(a.Stdout, "installed scheduled task %s at logon\n", *name)
+		fmt.Fprintf(a.Stdout, "installed scheduled task %s at logon (launcher: %s)\n", *name, launcher)
 		return 0
 	}
 	if runtime.GOOS == "linux" {
@@ -108,6 +112,9 @@ func (a *App) serviceUninstall(args []string) int {
 		if err != nil {
 			return a.fail(fmt.Errorf("delete scheduled task: %w: %s", err, strings.TrimSpace(string(out))))
 		}
+		if launcher, pathErr := windowsLauncherPath(*name); pathErr == nil {
+			_ = os.Remove(launcher)
+		}
 		fmt.Fprintf(a.Stdout, "removed scheduled task %s\n", *name)
 		return 0
 	}
@@ -150,6 +157,32 @@ func (a *App) serviceStatus(args []string) int {
 		return 0
 	}
 	return a.fail(fmt.Errorf("service status is not implemented on %s", runtime.GOOS))
+}
+
+func writeWindowsLauncher(name, exe string, args []string) (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	dir = filepath.Join(dir, "AgentChat")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, name+".cmd")
+	line := quoteWindowsCommand(exe) + " " + quoteWindowsArgs(args) + "\r\n"
+	content := "@echo off\r\n" + line
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func windowsLauncherPath(name string) (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "AgentChat", name+".cmd"), nil
 }
 
 func userUnitPath(name string) (string, error) {
