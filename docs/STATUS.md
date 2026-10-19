@@ -100,6 +100,7 @@ Codex implemented and DSH fixed/integrated:
 - Strict CSP, `X-Content-Type-Options`, `Referrer-Policy`, and
   `X-Frame-Options` are applied to the UI routes.
 - `TestEmbeddedUIAndCSP` covers the shell, static JS, CSP, and 404 behavior.
+- M2c merged to `main`; the live private-LAN hub was redeployed with the UI.
 - WebSocket live delivery and admin screens remain future work.
 
 ## Verification
