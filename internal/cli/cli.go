@@ -1,0 +1,168 @@
+// Package cli implements the agentchat command-line interface.
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/agentchat-lan/agentchat/internal/client"
+	"github.com/agentchat-lan/agentchat/internal/config"
+)
+
+// App carries process-level dependencies so commands are testable.
+type App struct {
+	Version string
+	Stdout  io.Writer
+	Stderr  io.Writer
+}
+
+// Run executes the CLI and returns a process exit code.
+func Run(args []string, version string) int {
+	app := &App{
+		Version: version,
+		Stdout:  os.Stdout,
+		Stderr:  os.Stderr,
+	}
+	return app.Run(args)
+}
+
+// Run dispatches a command.
+func (a *App) Run(args []string) int {
+	if len(args) == 0 {
+		a.usage()
+		return 2
+	}
+
+	switch args[0] {
+	case "join":
+		return a.cmdJoin(args[1:])
+	case "send":
+		return a.cmdSend(args[1:])
+	case "inbox":
+		return a.cmdInbox(args[1:])
+	case "rooms":
+		return a.cmdRooms(args[1:])
+	case "who":
+		return a.cmdWho(args[1:])
+	case "me":
+		return a.cmdMe(args[1:])
+	case "config":
+		return a.cmdConfig(args[1:])
+	case "mock-hub":
+		return a.cmdMockHub(args[1:])
+	case "mcp":
+		return a.cmdMCP(args[1:])
+	case "hub":
+		return a.cmdHub(args[1:])
+	case "version", "--version", "-v":
+		fmt.Fprintf(a.Stdout, "agentchat %s\n", a.Version)
+		return 0
+	case "help", "--help", "-h":
+		a.usage()
+		return 0
+	default:
+		fmt.Fprintf(a.Stderr, "unknown command %q\n\n", args[0])
+		a.usage()
+		return 2
+	}
+}
+
+func (a *App) usage() {
+	fmt.Fprint(a.Stdout, `agentchat — LAN chat and file transfer for AI agents
+
+Usage:
+  agentchat <command> [flags]
+
+Commands:
+  join       Join a hub with an invite code and save a local config
+  send       Send a message to a room
+  inbox      Read unacknowledged messages (optionally long-poll)
+  rooms      List rooms
+  who        List known agents
+  me         Show the authenticated agent and limits
+  config     Show or locate the local config
+  mock-hub   Start the in-memory development hub
+  mcp        Start the MCP stdio server (planned)
+  hub        Start the production hub (planned)
+  version    Print the version
+
+Examples:
+  agentchat join http://127.0.0.1:8787 --name dsh --kind dsh
+  agentchat send --room general --text "hello"
+  agentchat inbox --wait 30 --json
+`)
+}
+
+func (a *App) newFlagSet(name string) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(a.Stderr)
+	return fs
+}
+
+func (a *App) parse(fs *flag.FlagSet, args []string) (int, bool) {
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0, false
+		}
+		return 2, false
+	}
+	return 0, true
+}
+
+func (a *App) fail(err error) int {
+	fmt.Fprintf(a.Stderr, "error: %v\n", err)
+	return 1
+}
+
+func (a *App) printJSON(v any) int {
+	enc := json.NewEncoder(a.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		return a.fail(err)
+	}
+	return 0
+}
+
+func loadConfig(path string) (*config.Config, error) {
+	return config.Load(path)
+}
+
+func newClient(cfg *config.Config) *client.Client {
+	return client.New(cfg.HubURL, cfg.Token)
+}
+
+func requestContext(seconds int) (context.Context, context.CancelFunc) {
+	if seconds < 1 {
+		seconds = 30
+	}
+	return context.WithTimeout(context.Background(), time.Duration(seconds)*time.Second)
+}
+
+func configPathOrEmpty(path string) string {
+	if path != "" {
+		return path
+	}
+	p, err := config.DefaultPath()
+	if err != nil {
+		return ""
+	}
+	return p
+}
+
+type stringList []string
+
+func (s *stringList) String() string {
+	return strings.Join(*s, ",")
+}
+
+func (s *stringList) Set(v string) error {
+	*s = append(*s, v)
+	return nil
+}

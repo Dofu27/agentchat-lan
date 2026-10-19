@@ -1,0 +1,27 @@
+services:
+  agentchat:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: agentchat-lan:dev
+    container_name: agentchat
+    restart: unless-stopped
+    command:
+      - hub
+      - --listen
+      - 0.0.0.0:8787
+      - --data
+      - /data
+    # Loopback by default. For a LAN, change to "<hub-ip>:8787:8787".
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    user: "65532:65532"

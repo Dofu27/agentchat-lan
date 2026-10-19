@@ -1,0 +1,26 @@
+# Build output
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+
+# Local runtime data
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+agentchat.local.toml
+/tmp/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
