@@ -40,7 +40,10 @@ Updated: 2026-10-19
   `~/opt/go-toolchain/usr/lib/go-1.26`.
 - GitHub is now pushed: private `Dofu27/agentchat-lan`, current `main`.
   An unauthenticated request returns 404, confirming the repository is not
-  public. The first Actions run still needs to be checked in the GitHub UI.
+  public. GitHub has already created Dependabot branches for `checkout`,
+  `setup-go`, `build-push-action`, `setup-buildx-action`, and
+  `goreleaser-action`; the first CI result still needs to be checked in the
+  GitHub Actions UI.
 - The module path is `github.com/Dofu27/agentchat-lan`.
   `scripts/rename-module.sh` was tested on a temporary clone; the renamed tree
   builds and passes tests.
