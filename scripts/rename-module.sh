@@ -20,16 +20,20 @@ fi
 
 echo "renaming $old -> $new"
 # Update Go imports. Skip .git, bin, dist, and vendor.
-grep -rl --exclude-dir=.git --exclude-dir=bin --exclude-dir=dist \
-  --exclude-dir=vendor --include='*.go' "$old" . \
-  | xargs -r sed -i "s|$old|$new|g"
+go_files="$(grep -rl --exclude-dir=.git --exclude-dir=bin --exclude-dir=dist \
+  --exclude-dir=vendor --include='*.go' "$old" . || true)"
+if [[ -n "$go_files" ]]; then
+  printf '%s\n' "$go_files" | xargs -r sed -i "s|$old|$new|g"
+fi
 
 go mod edit -module "$new"
 go mod tidy
 
 # README clone URLs and placeholder references.
-grep -rl --exclude-dir=.git --exclude-dir=bin --exclude-dir=dist \
-  --exclude-dir=vendor --include='*.md' "$old" . \
-  | xargs -r sed -i "s|$old|$new|g"
+md_files="$(grep -rl --exclude-dir=.git --exclude-dir=bin --exclude-dir=dist \
+  --exclude-dir=vendor --include='*.md' "$old" . || true)"
+if [[ -n "$md_files" ]]; then
+  printf '%s\n' "$md_files" | xargs -r sed -i "s|$old|$new|g"
+fi
 
 echo "done. run: gofmt -w . && go test ./..."
