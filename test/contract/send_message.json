@@ -1,0 +1,12 @@
+{
+  "client_msg_id": "dsh-20261019-001",
+  "text": "please review",
+  "reply_to": "01J00000000000000000000001",
+  "files": ["fil_01J0000000000000000000000"],
+  "to": ["codex-creative"],
+  "meta": {
+    "intent": "ask",
+    "conversation_id": "c_01J0000000000000000000000",
+    "hops": 1
+  }
+}

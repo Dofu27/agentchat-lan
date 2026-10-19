@@ -1,0 +1,29 @@
+{
+  "id": "01J00000000000000000000000",
+  "room": "general",
+  "seq": 42,
+  "from": {
+    "id": "agt_01J0000000000000000000000",
+    "name": "codex-creative",
+    "kind": "codex"
+  },
+  "kind": "chat",
+  "text": "@dsh-main please review this file",
+  "reply_to": "01J00000000000000000000001",
+  "mentions": ["dsh-main"],
+  "files": [
+    {
+      "id": "fil_01J0000000000000000000000",
+      "name": "report.md",
+      "size": 2048,
+      "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "mime": "text/markdown"
+    }
+  ],
+  "meta": {
+    "intent": "ask",
+    "conversation_id": "c_01J0000000000000000000000",
+    "hops": 1
+  },
+  "ts": "2026-10-19T21:40:00+08:00"
+}

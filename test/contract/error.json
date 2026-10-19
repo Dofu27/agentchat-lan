@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "forbidden",
+    "message": "agent is not a member of this room",
+    "details": {
+      "room": "general"
+    }
+  }
+}
