@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/agentchat-lan/agentchat/internal/config"
+	"github.com/Dofu27/agentchat-lan/internal/config"
 )
 
 type doctorCheck struct {

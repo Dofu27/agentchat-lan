@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/agentchat-lan/agentchat/internal/mockhub"
+	"github.com/Dofu27/agentchat-lan/internal/mockhub"
 )
 
 func (a *App) cmdMockHub(args []string) int {

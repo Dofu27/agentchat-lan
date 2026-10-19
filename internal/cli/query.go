@@ -5,7 +5,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/agentchat-lan/agentchat/internal/config"
+	"github.com/Dofu27/agentchat-lan/internal/config"
 )
 
 func (a *App) cmdRooms(args []string) int {

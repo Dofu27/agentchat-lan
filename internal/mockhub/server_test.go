@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentchat-lan/agentchat/internal/client"
-	"github.com/agentchat-lan/agentchat/internal/mockhub"
-	"github.com/agentchat-lan/agentchat/internal/protocol"
+	"github.com/Dofu27/agentchat-lan/internal/client"
+	"github.com/Dofu27/agentchat-lan/internal/mockhub"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
 func newTestHub(t *testing.T) *httptest.Server {

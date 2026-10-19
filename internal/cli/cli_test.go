@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/agentchat-lan/agentchat/internal/mockhub"
-	"github.com/agentchat-lan/agentchat/internal/protocol"
+	"github.com/Dofu27/agentchat-lan/internal/mockhub"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
 func TestCLITextAndFileFlow(t *testing.T) {

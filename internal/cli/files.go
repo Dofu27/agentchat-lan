@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentchat-lan/agentchat/internal/protocol"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
 func (a *App) cmdPush(args []string) int {

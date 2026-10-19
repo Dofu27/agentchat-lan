@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/agentchat-lan/agentchat/internal/protocol"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
 // APIError is returned for a non-2xx response.

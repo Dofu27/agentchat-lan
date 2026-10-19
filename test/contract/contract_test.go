@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/agentchat-lan/agentchat/internal/protocol"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
 func readJSON(t *testing.T, name string, dst any) {

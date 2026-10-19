@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/agentchat-lan/agentchat/internal/config"
-	"github.com/agentchat-lan/agentchat/internal/protocol"
+	"github.com/Dofu27/agentchat-lan/internal/config"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
 type joinOutput struct {

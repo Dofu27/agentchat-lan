@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/agentchat-lan/agentchat/internal/client"
-	"github.com/agentchat-lan/agentchat/internal/config"
+	"github.com/Dofu27/agentchat-lan/internal/client"
+	"github.com/Dofu27/agentchat-lan/internal/config"
 )
 
 // App carries process-level dependencies so commands are testable.

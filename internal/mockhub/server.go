@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agentchat-lan/agentchat/internal/protocol"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
 type contextKey string

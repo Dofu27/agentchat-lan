@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agentchat-lan/agentchat/internal/client"
-	"github.com/agentchat-lan/agentchat/internal/protocol"
+	"github.com/Dofu27/agentchat-lan/internal/client"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
 func joinToken(t *testing.T, baseURL, name string) string {
