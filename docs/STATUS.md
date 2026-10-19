@@ -87,6 +87,8 @@ Codex implemented and DSH fixed/integrated:
 - `scripts/mcp-smoke.py` passed against the live hub: initialize, tools/list,
   `chat_rooms`, and `chat_inbox` all returned valid results.
 - `docs/MCP.md` documents tools, client configs, and security rules.
+- M2b merged to `main`; Linux and Windows tests pass, and the live hub smoke
+  test lists all seven MCP tools.
 
 ## Verification
 
