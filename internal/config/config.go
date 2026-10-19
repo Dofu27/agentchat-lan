@@ -9,20 +9,24 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/Dofu27/agentchat-lan/internal/client"
 )
 
 // Config is stored locally on each agent machine. It contains a bearer token,
 // so the file must be readable only by the agent's OS user.
 type Config struct {
-	HubURL      string           `json:"hub_url"`
-	Token       string           `json:"token"`
-	AgentID     string           `json:"agent_id"`
-	AgentName   string           `json:"agent_name"`
-	AgentKind   string           `json:"agent_kind"`
-	DownloadDir string           `json:"download_dir,omitempty"`
-	Rooms       []string         `json:"rooms,omitempty"`
-	Cursors     map[string]int64 `json:"cursors,omitempty"`
-	UpdatedAt   time.Time        `json:"updated_at"`
+	HubURL         string           `json:"hub_url"`
+	Token          string           `json:"token"`
+	AgentID        string           `json:"agent_id"`
+	AgentName      string           `json:"agent_name"`
+	AgentKind      string           `json:"agent_kind"`
+	DownloadDir    string           `json:"download_dir,omitempty"`
+	TLSCAFile      string           `json:"tls_ca_file,omitempty"`
+	TLSFingerprint string           `json:"tls_fingerprint,omitempty"`
+	Rooms          []string         `json:"rooms,omitempty"`
+	Cursors        map[string]int64 `json:"cursors,omitempty"`
+	UpdatedAt      time.Time        `json:"updated_at"`
 }
 
 // DownloadDirectory returns the configured download directory. A relative
@@ -81,6 +85,12 @@ func Load(path string) (*Config, error) {
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
+	}
+	if cfg.TLSCAFile != "" && !filepath.IsAbs(cfg.TLSCAFile) {
+		cfg.TLSCAFile, err = filepath.Abs(filepath.Join(filepath.Dir(path), cfg.TLSCAFile))
+		if err != nil {
+			return nil, fmt.Errorf("resolve TLS CA file: %w", err)
+		}
 	}
 	return &cfg, nil
 }
@@ -156,7 +166,7 @@ func (c *Config) Validate() error {
 	if c.AgentName == "" {
 		return errors.New("config: agent_name is required")
 	}
-	return nil
+	return client.ValidateTLSOptions(c.HubURL, c.TLSOptions())
 }
 
 // Redacted returns a copy safe to print.
@@ -166,4 +176,9 @@ func (c *Config) Redacted() Config {
 		out.Token = "***redacted***"
 	}
 	return out
+}
+
+// TLSOptions returns the trust settings used by every client command.
+func (c *Config) TLSOptions() client.TLSOptions {
+	return client.TLSOptions{CAFile: c.TLSCAFile, Fingerprint: c.TLSFingerprint}
 }

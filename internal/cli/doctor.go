@@ -32,6 +32,9 @@ func (a *App) cmdDoctor(args []string) int {
 		return a.finishDoctor(checks, *jsonOut)
 	}
 	checks = append(checks, doctorCheck{Name: "config", OK: true, Detail: path})
+	if insecureHTTP(cfg.HubURL) {
+		checks = append(checks, doctorCheck{Name: "transport", OK: false, Detail: "insecure non-loopback HTTP: tokens and traffic are unencrypted; use HTTPS"})
+	}
 
 	if runtime.GOOS != "windows" {
 		if info, err := os.Stat(path); err == nil {
@@ -44,7 +47,12 @@ func (a *App) cmdDoctor(args []string) int {
 	ctx, cancel := requestContext(15)
 	defer cancel()
 
-	c := newClient(cfg)
+	c, err := a.newClient(cfg)
+	if err != nil {
+		checks = append(checks, doctorCheck{Name: "transport", OK: false, Detail: err.Error()})
+		return a.finishDoctor(checks, *jsonOut)
+	}
+	defer c.HTTP.CloseIdleConnections()
 	health, err := c.Health(ctx)
 	if err != nil {
 		checks = append(checks, doctorCheck{Name: "hub", OK: false, Detail: err.Error()})

@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Dofu27/agentchat-lan/internal/client"
 	"github.com/Dofu27/agentchat-lan/internal/config"
 	"github.com/Dofu27/agentchat-lan/internal/mcpserver"
 )
@@ -38,7 +37,12 @@ func (a *App) cmdMCP(args []string) int {
 
 	// stdout is reserved for MCP JSON-RPC; diagnostics go to stderr.
 	fmt.Fprintf(a.Stderr, "agentchat mcp: hub=%s agent=%s download_dir=%s\n", cfg.HubURL, cfg.AgentName, downloadDir)
-	if err := mcpserver.Run(ctx, client.New(cfg.HubURL, cfg.Token), downloadDir); err != nil {
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
+	if err := mcpserver.Run(ctx, c, downloadDir); err != nil {
 		return a.fail(err)
 	}
 	return 0

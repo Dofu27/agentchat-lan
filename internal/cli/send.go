@@ -39,7 +39,12 @@ func (a *App) cmdSend(args []string) int {
 	ctx, cancel := requestContext(30)
 	defer cancel()
 
-	msg, err := newClient(cfg).SendMessage(ctx, *room, protocol.SendMessageRequest{
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
+	msg, err := c.SendMessage(ctx, *room, protocol.SendMessageRequest{
 		ClientMsgID: *clientMsgID,
 		Text:        *text,
 		ReplyTo:     *replyTo,

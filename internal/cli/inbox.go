@@ -31,7 +31,11 @@ func (a *App) cmdInbox(args []string) int {
 	ctx, cancel := requestContext(*wait + 20)
 	defer cancel()
 
-	c := newClient(cfg)
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
 	resp, err := c.Inbox(ctx, *wait, *limit)
 	if err != nil {
 		return a.fail(err)

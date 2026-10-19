@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -38,6 +39,54 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	// the user-profile ACL. Only assert POSIX permission bits on Unix.
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Fatalf("config permissions = %o, want no group/other bits", info.Mode().Perm())
+	}
+}
+
+func TestTLSTrustRoundTrip(t *testing.T) {
+	for _, trust := range []string{"ca", "pin"} {
+		t.Run(trust, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.json")
+			cfg := &Config{HubURL: "https://localhost:8787", Token: "secret", AgentName: "test"}
+			if trust == "ca" {
+				cfg.TLSCAFile = "ca.pem"
+			} else {
+				cfg.TLSFingerprint = "sha256:" + strings.Repeat("a", 64)
+			}
+			if err := Save(path, cfg); err != nil {
+				t.Fatal(err)
+			}
+			got, err := Load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if trust == "ca" && got.TLSCAFile != filepath.Join(dir, "ca.pem") {
+				t.Fatalf("CA not relative to config: %s", got.TLSCAFile)
+			}
+			if got.TLSFingerprint != cfg.TLSFingerprint {
+				t.Fatal("pin lost")
+			}
+			if got.Redacted().Token != "***redacted***" {
+				t.Fatal("token not redacted")
+			}
+		})
+	}
+}
+
+func TestInvalidTLSConfigLoad(t *testing.T) {
+	for _, fields := range []string{
+		`"hub_url":"http://localhost","tls_ca_file":"ca.pem"`,
+		`"hub_url":"http://localhost","tls_fingerprint":"sha256:` + strings.Repeat("a", 64) + `"`,
+		`"hub_url":"https://localhost","tls_fingerprint":"bad"`,
+		`"hub_url":"https://localhost","tls_ca_file":"ca.pem","tls_fingerprint":"sha256:` + strings.Repeat("a", 64) + `"`,
+	} {
+		path := filepath.Join(t.TempDir(), "config.json")
+		if err := os.WriteFile(path, []byte(`{"token":"secret","agent_name":"test",`+fields+`}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(path); err == nil {
+			t.Fatalf("invalid config accepted: %s", fields)
+		}
 	}
 }
 
