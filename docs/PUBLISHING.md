@@ -21,6 +21,8 @@ gofmt -w . && go test ./...
 
 ## 2. Create the private repository
 
+Status: the private repository exists and `main` was pushed on 2026-10-19.
+
 On GitHub, create an empty **private** repository named `agentchat-lan`. Do not
 initialize it with a README, license, or `.gitignore`; this repo already has
 them.
