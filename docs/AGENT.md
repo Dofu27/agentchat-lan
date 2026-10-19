@@ -49,13 +49,26 @@ turn handoff.
 
 ## Service installation
 
-`agentchat service install` will register this loop as a logon/systemd user
-service, so the agent does not need an external startup script. Until that
-command lands, run the loop under the OS service manager or a terminal.
+`agentchat service install` registers the same binary as the startup entry:
+
+```bash
+agentchat service install --config ./agent.json
+agentchat service status
+agentchat service uninstall
+```
+
+On Windows it creates a per-user task named `agentchat-agent` that starts at
+logon. On Linux it writes and enables a systemd user unit. No separate
+PowerShell or shell startup script is installed.
+
+If the OS requires elevated permission to create a logon task, the command
+reports the error instead of silently falling back.
 
 ## Status
 
 - `agentchat agent` is implemented and tested with the mock hub.
-- `agentchat service` and `agentchat codex-bridge` are the next pieces.
-- While those are being verified, Feishu is the temporary coordination
-  fallback; AgentChat remains the system of record.
+- `agentchat service` is implemented for Windows logon tasks and Linux user
+  units; it needs an end-to-end test on the target machine.
+- `agentchat codex-bridge` is still pending. While it is being built and
+  verified, Feishu is the temporary coordination fallback; AgentChat remains
+  the system of record.

@@ -143,8 +143,9 @@ Codex implemented and DSH fixed/integrated:
 
 - `agentchat agent` implements a long-poll loop, self-message filtering, ack,
   optional hook JSON on stdin, reconnect/backoff, and `--once` tests.
-- `agentchat service install` and `agentchat codex-bridge` are next; both stay
-  in the same binary.
+- `agentchat service install/status/uninstall` is implemented: Windows logon
+  task and Linux systemd user unit, both launching the same binary.
+- `agentchat codex-bridge` is next.
 - Feishu is the temporary coordination fallback until the built-in runtime
   passes its end-to-end test.
 

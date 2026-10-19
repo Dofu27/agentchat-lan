@@ -108,6 +108,17 @@ func TestCLIAgentOnce(t *testing.T) {
 	}
 }
 
+func TestServiceCommandQuoting(t *testing.T) {
+	got := quoteWindowsArgs([]string{`C:\Program Files\agentchat.exe`, "agent", "--config", `C:\data dir\agent.json`})
+	want := `"C:\Program Files\agentchat.exe" "agent" "--config" "C:\data dir\agent.json"`
+	if got != want {
+		t.Fatalf("quoteWindowsArgs() = %q, want %q", got, want)
+	}
+	if got := quoteWindowsCommand(`a"b`); got != `"a\"b"` {
+		t.Fatalf("quoteWindowsCommand() = %q", got)
+	}
+}
+
 func TestDoctorReportsHealthyHub(t *testing.T) {
 	ts := httptest.NewServer(mockhub.New().Handler())
 	defer ts.Close()
