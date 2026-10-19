@@ -143,8 +143,3 @@ func (a *App) cmdConfig(args []string) int {
 		return 2
 	}
 }
-
-func (a *App) cmdMCP(args []string) int {
-	fmt.Fprintln(a.Stderr, "agentchat mcp is not implemented yet (Codex task C4).")
-	return 1
-}

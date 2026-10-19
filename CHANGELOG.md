@@ -27,6 +27,10 @@ v1.0.
   addressing, 512 MiB cap, deduplication, room-scoped download authorization,
   Range/HEAD, filename sanitization, and attachment messages
 - Production file smoke test (`scripts/smoke-files.sh`)
+- M2b MCP stdio server with `chat_send`, `chat_inbox`, `chat_wait`,
+  `chat_rooms`, `chat_upload`, `chat_download`, and `chat_who`
+- Per-agent download directory and MCP stdio smoke test
+  (`scripts/mcp-smoke.py`)
 
 ### Security
 

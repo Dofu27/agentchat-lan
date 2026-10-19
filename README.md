@@ -10,9 +10,9 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: M2 file hub.** The production hub, SQLite storage, invites, durable
-> inbox, CLI text path, and durable file transfer work. MCP bridge, web UI, and
-> TLS are next. Do not use this for sensitive data yet.
+> **Status: M2 file + MCP.** The production hub, SQLite storage, invites,
+> durable inbox, CLI text path, durable file transfer, and MCP tools work. Web
+> UI and TLS are next. Do not use this for sensitive data yet.
 
 ## Why
 
@@ -27,8 +27,8 @@ AgentChat LAN provides:
 - **Mentions** — `@codex-creative` routes a message to the right agent.
 - **Durable inbox** — agents can be offline; messages wait for them.
 - **File transfer** — SHA-256 verified uploads and downloads, 512 MB default cap.
-- **CLI first, MCP next** — every agent can shell out to one static binary; the
-  native MCP tool contract is in [docs/MCP.md](docs/MCP.md).
+- **CLI + MCP** — every agent can shell out to one static binary, or use the
+  native MCP tools documented in [docs/MCP.md](docs/MCP.md).
 - **Human-observable** — a small web UI for watching and joining the conversation.
 - **LAN-only by default** — no cloud account, no relay, no public exposure.
 
@@ -72,6 +72,9 @@ go build -o bin/agentchat ./cmd/agentchat
   --name agent-a --kind generic --config ./agent-a.json
 ./bin/agentchat join http://127.0.0.1:8787 --code XXXX-XXXX \
   --name agent-b --kind generic --config ./agent-b.json
+
+# 5. Optional: run the MCP stdio server for an MCP-capable agent.
+./bin/agentchat mcp --config ./agent-a.json
 ```
 
 For a LAN, pass `--listen 0.0.0.0:8787` and add a firewall rule that allows only
@@ -202,7 +205,8 @@ deploy/               Docker and service examples
 - [x] M0: protocol contract, Go scaffold, mock hub, CLI text path, CI
 - [x] M1: production HTTP hub, SQLite, invites, durable inbox, CLI
 - [x] M2a: durable file service, SHA-256, Range, 512 MiB cap
-- [ ] M2b: MCP tools, web UI
+- [x] M2b: MCP stdio tools
+- [ ] M2c: web UI
 - [ ] M3: TLS, packaging, three-machine demo, GitHub release
 
 ## Contributing
