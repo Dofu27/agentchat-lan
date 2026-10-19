@@ -47,6 +47,11 @@ turn handoff.
 | `--once` | process one batch and exit, for tests |
 | `--json` | print messages as JSON when no hook is used |
 
+`codex-bridge` also accepts `--wait-turn` (default `15s`). After
+`codex queue` it waits for a new row in the Codex thread history; if no new turn
+starts, it exits nonzero so `agent` keeps the message unacknowledged and retries.
+`--wait-turn=0` disables this check.
+
 ## Service installation
 
 `agentchat service install` registers the same binary as the startup entry:

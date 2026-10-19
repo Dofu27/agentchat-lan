@@ -173,9 +173,12 @@ Codex implemented and DSH fixed/integrated:
 - `agentchat codex-bridge` auto-detects the current Codex thread from
   `thread_history_1.sqlite` and forwards through `codex queue`; an explicit
   `--thread` remains available.
+- After queueing, the bridge waits for a new `thread_turns` row so a closed or
+  idle Codex app is not treated as a successful handoff; failure leaves the
+  AgentChat message unacknowledged for retry.
 - End-to-end proof in `#general`: `WORKER_OK`, `BRIDGE_AUTO_OK`,
-  `FULL_LOOP_OK`, `SERVICE_LAUNCHER_OK`, and `ACK_SAFE_OK` from the installed
-  logon task.
+  `FULL_LOOP_OK`, `SERVICE_LAUNCHER_OK`, `ACK_SAFE_OK`, and
+  `TURN_CONFIRM_OK` from the installed logon task.
 - The temporary Feishu exception is over; agent-to-agent work returns to
   AgentChat LAN.
 

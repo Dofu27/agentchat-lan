@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Dofu27/agentchat-lan/internal/config"
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
@@ -20,6 +21,7 @@ func (a *App) cmdCodexBridge(args []string) int {
 	codexHome := fs.String("codex-home", "", "Codex home containing thread_history_1.sqlite (default CODEX_HOME or ~/.codex)")
 	codex := fs.String("codex", envOr("CODEX_BIN", "codex"), "Codex executable")
 	messageText := fs.String("message", "", "message text for a manual test (otherwise read message JSON from stdin)")
+	waitTurn := fs.Duration("wait-turn", 15*time.Second, "wait for a new Codex turn after queueing; 0 disables the check")
 	dryRun := fs.Bool("dry-run", false, "print the prompt and command without invoking Codex")
 
 	codeExit, ok := a.parse(fs, args)
@@ -70,13 +72,28 @@ func (a *App) cmdCodexBridge(args []string) int {
 		return 0
 	}
 
+	before, beforeErr := latestTurnStarted(*codexHome, *thread)
+	if beforeErr != nil {
+		fmt.Fprintf(a.Stderr, "codex-bridge: cannot inspect turn history: %v\n", beforeErr)
+	}
 	cmd := exec.Command(*codex, "queue", "--thread", *thread, "--message", prompt)
 	cmd.Stdout = a.Stdout
 	cmd.Stderr = a.Stderr
 	if err := cmd.Run(); err != nil {
 		return a.fail(fmt.Errorf("codex queue: %w", err))
 	}
-	return 0
+	if *waitTurn <= 0 || beforeErr != nil {
+		return 0
+	}
+	deadline := time.Now().Add(*waitTurn)
+	for time.Now().Before(deadline) {
+		after, err := latestTurnStarted(*codexHome, *thread)
+		if err == nil && after > before {
+			return 0
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return a.fail(fmt.Errorf("codex queue accepted but no new turn started within %s; Codex may not be running", *waitTurn))
 }
 
 func codexBridgePrompt(agentchat, cfgPath string, msg protocol.Message) string {
