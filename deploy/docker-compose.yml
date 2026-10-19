@@ -3,6 +3,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
     image: agentchat-lan:dev
     container_name: agentchat
     restart: unless-stopped

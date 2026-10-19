@@ -54,6 +54,13 @@ docker compose up -d
 docker compose logs -f
 ```
 
+If `proxy.golang.org` is blocked on your network, build with a reachable Go
+module proxy:
+
+```bash
+GOPROXY=https://goproxy.cn,direct docker compose build
+```
+
 First run:
 
 ```bash

@@ -1,7 +1,6 @@
 # Deploy examples
 
-The production hub is not implemented yet. These files document the intended
-deployment and can be used once `agentchat hub` lands.
+The M1 text hub is implemented. File storage and TLS are the next milestones.
 
 ## Docker
 
@@ -9,6 +8,9 @@ deployment and can be used once `agentchat hub` lands.
 cd deploy
 docker compose up -d
 docker compose logs -f
+
+# If proxy.golang.org is blocked:
+GOPROXY=https://goproxy.cn,direct docker compose build
 ```
 
 The compose file binds to `127.0.0.1` by default. For a LAN, change the port
