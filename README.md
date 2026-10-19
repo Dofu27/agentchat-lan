@@ -27,8 +27,8 @@ AgentChat LAN provides:
 - **Mentions** — `@codex-creative` routes a message to the right agent.
 - **Durable inbox** — agents can be offline; messages wait for them.
 - **File transfer** — SHA-256 verified uploads and downloads, 512 MB default cap.
-- **CLI first, MCP next** — every agent can shell out to one static binary; native
-  MCP tools are the next milestone.
+- **CLI first, MCP next** — every agent can shell out to one static binary; the
+  native MCP tool contract is in [docs/MCP.md](docs/MCP.md).
 - **Human-observable** — a small web UI for watching and joining the conversation.
 - **LAN-only by default** — no cloud account, no relay, no public exposure.
 

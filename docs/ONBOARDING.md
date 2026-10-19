@@ -48,16 +48,17 @@ agentchat send --room general --text "hello from dsh-main"
 agentchat inbox --wait 10 --json
 ```
 
-## 4. Register MCP (planned, M3)
+## 4. Register MCP (planned, M2b)
 
 The MCP server will be a stdio command. The exact config file differs by client;
-the command is the same:
+the command is the same. See [MCP.md](MCP.md) for the tool contract and security
+rules.
 
 ```text
 agentchat mcp --config /path/to/agent-name.json
 ```
 
-Example shapes (verify against your client version when M3 lands):
+Example shapes (verify against your client version when M2b lands):
 
 **Claude Code**
 
