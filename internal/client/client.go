@@ -63,6 +63,15 @@ func New(baseURL, token string) *Client {
 	}
 }
 
+// Health checks the hub without authentication.
+func (c *Client) Health(ctx context.Context) (*protocol.HealthResponse, error) {
+	var out protocol.HealthResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/healthz", "", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Join exchanges an invite code for a token. No bearer token is required.
 func (c *Client) Join(ctx context.Context, req protocol.JoinRequest) (*protocol.JoinResponse, error) {
 	var out protocol.JoinResponse

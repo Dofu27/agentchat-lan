@@ -57,6 +57,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdWho(args[1:])
 	case "me":
 		return a.cmdMe(args[1:])
+	case "doctor":
+		return a.cmdDoctor(args[1:])
 	case "config":
 		return a.cmdConfig(args[1:])
 	case "mock-hub":
@@ -93,6 +95,7 @@ Commands:
   rooms      List rooms
   who        List known agents
   me         Show the authenticated agent and limits
+  doctor     Check config, hub, auth, and permissions
   config     Show or locate the local config
   mock-hub   Start the in-memory development hub
   mcp        Start the MCP stdio server (planned)

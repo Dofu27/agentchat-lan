@@ -70,6 +70,30 @@ func TestCLITextAndFileFlow(t *testing.T) {
 	}
 }
 
+func TestDoctorReportsHealthyHub(t *testing.T) {
+	ts := httptest.NewServer(mockhub.New().Handler())
+	defer ts.Close()
+
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	var stdout, stderr bytes.Buffer
+	app := &App{Version: "test", Stdout: &stdout, Stderr: &stderr}
+
+	if code := app.Run([]string{"join", ts.URL, "--name", "doctor-test", "--kind", "test", "--config", cfgPath}); code != 0 {
+		t.Fatalf("join failed: %s", stderr.String())
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"doctor", "--config", cfgPath}); code != 0 {
+		t.Fatalf("doctor failed: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{"[ok] config", "[ok] hub", "[ok] auth"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("doctor output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestConfigShowRedactsToken(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.json")
