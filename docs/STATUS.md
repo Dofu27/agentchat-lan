@@ -139,6 +139,15 @@ Codex implemented and DSH fixed/integrated:
 - Merged to `main` as `5e06624`; client CA/fingerprint trust is Phase 2.
 - `doctor` insecure-HTTP reporting remains pending.
 
+## In progress (built-in agent runtime)
+
+- `agentchat agent` implements a long-poll loop, self-message filtering, ack,
+  optional hook JSON on stdin, reconnect/backoff, and `--once` tests.
+- `agentchat service install` and `agentchat codex-bridge` are next; both stay
+  in the same binary.
+- Feishu is the temporary coordination fallback until the built-in runtime
+  passes its end-to-end test.
+
 ## Verification
 
 Linux/hub-host:

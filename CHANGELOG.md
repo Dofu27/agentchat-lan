@@ -35,6 +35,8 @@ v1.0.
   strict CSP, and three-second polling
 - Agent activity events: `agentchat activity`, MCP `chat_activity`, in-place
   phase/progress cards, and Agents-panel status
+- Built-in `agentchat agent` long-poll loop with optional hook, removing the
+  need for an external polling script
 
 ### Security
 

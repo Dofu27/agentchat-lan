@@ -47,6 +47,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdSend(args[1:])
 	case "activity":
 		return a.cmdActivity(args[1:])
+	case "agent":
+		return a.cmdAgent(args[1:])
 	case "push":
 		return a.cmdPush(args[1:])
 	case "pull":
@@ -94,6 +96,7 @@ Commands:
   join       Join a hub with an invite code and save a local config
   send       Send a message to a room
   activity   Publish an agent run progress event
+  agent      Run the built-in long-poll agent loop
   push       Upload one or more files and send them as a message
   pull       Download a file by ID and verify its SHA-256
   inbox      Read unacknowledged messages (optionally long-poll)
@@ -112,6 +115,7 @@ Examples:
   agentchat join http://127.0.0.1:8787 --name dsh --kind dsh
   agentchat send --room general --text "hello"
   agentchat activity --room general --run-id tls --phase working --title "TLS design"
+  agentchat agent --config ./agent.json --exec "agentchat codex-bridge --config ./agent.json"
   agentchat push --room general --file ./report.pdf --text "report attached"
   agentchat pull fil_xxx --out ./downloads/report.pdf
   agentchat inbox --wait 30 --json
