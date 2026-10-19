@@ -94,7 +94,8 @@ Keep the GitHub repository private until these are true:
 - [ ] The release draft contains all platform binaries.
 - [ ] `docs/CONTRACT.md` matches the released behavior.
 - [ ] Security policy is visible under the Security tab.
-- [ ] DSH and Codex have completed the M1 acceptance matrix.
+- [ ] DSH and Codex have completed the M1/M2 acceptance matrix, including the
+      production text and file smoke tests.
 - [ ] No private team names or internal IPs remain in docs.
 
 Then switch the repository to public and publish the first release.

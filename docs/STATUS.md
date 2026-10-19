@@ -47,6 +47,27 @@ DSH added:
   M1 merged to `main`, and the production smoke test passes on Linux and
   Windows.
 
+## Done (M2a files, 2026-10-19)
+
+Codex implemented and DSH fixed/integrated:
+
+- `internal/hub/files.go`: streaming multipart upload, SHA-256 while writing,
+  content-addressed blob install, dedupe, 512 MiB cap, sanitized filename,
+  upload rate limit, `GET`/`HEAD /v1/files/{id}`, Range via `http.ServeContent`,
+  `Content-Disposition`, and `X-Content-SHA256`.
+- `internal/store`: `files` metadata, `attachments`, room-scoped
+  `CanAccessFile`, and a migration adding the missing `files.name` column for
+  databases created before M2.
+- Attachment messages now resolve file IDs and return file metadata in inbox,
+  history, and send responses.
+- DSH wired `hub serve --data` to `FileDir=<data>/files`,
+  `MaxFileSize=512 MiB`, and `--uploads-per-minute`.
+- Tests cover upload/download, dedupe, sanitized traversal filename, Range,
+  HEAD, unauthorized and cross-room download, oversize upload, and missing
+  file field.
+- `scripts/smoke-files.sh` passes end-to-end: upload, attach, receive metadata,
+  download, and byte-for-byte comparison.
+
 ## Verification
 
 Linux/hub-host:
@@ -59,6 +80,7 @@ cd ~/work/agentchat-lan
 go test -race ./...
 go build -o bin/agentchat ./cmd/agentchat
 bash scripts/smoke-hub.sh
+bash scripts/smoke-files.sh
 ```
 
 Windows/agent-host:
@@ -68,10 +90,10 @@ cd C:\work\agentchat-lan
 go test ./...
 ```
 
-## Next (M2)
+## Next (M2b)
 
-- Codex: durable file service (`/v1/files`), MCP stdio server, WebSocket/web UI.
-- DSH: wire file CLI to the production service, onboarding, release automation.
+- Codex: MCP stdio server and Web UI/WebSocket delivery.
+- DSH: MCP client config, onboarding, file CLI polish, release automation.
 - Joint: contract review for the remaining open decisions, TLS, three-machine
   demo.
 

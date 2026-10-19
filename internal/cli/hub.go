@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Dofu27/agentchat-lan/internal/hub"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 	"github.com/Dofu27/agentchat-lan/internal/store"
 )
 
@@ -121,6 +122,7 @@ func (a *App) hubServe(args []string) int {
 	listen := fs.String("listen", "127.0.0.1:8787", "listen address")
 	rpm := fs.Int("requests-per-minute", 60, "per-agent request budget")
 	burst := fs.Int("burst", 20, "per-agent burst")
+	uploadsPerMinute := fs.Int("uploads-per-minute", 10, "per-agent file upload budget")
 	codeExit, ok := a.parse(fs, args)
 	if !ok {
 		return codeExit
@@ -139,10 +141,13 @@ func (a *App) hubServe(args []string) int {
 	defer st.Close()
 
 	srv := hub.New(st, hub.Options{
-		Version:           a.Version,
-		RequestsPerMinute: *rpm,
-		Burst:             *burst,
-		Logger:            log.New(a.Stderr, "hub ", log.LstdFlags),
+		Version:              a.Version,
+		RequestsPerMinute:    *rpm,
+		Burst:                *burst,
+		FileUploadsPerMinute: *uploadsPerMinute,
+		MaxFileSize:          protocol.MaxFileSize,
+		FileDir:              filepath.Join(*data, "files"),
+		Logger:               log.New(a.Stderr, "hub ", log.LstdFlags),
 	})
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {

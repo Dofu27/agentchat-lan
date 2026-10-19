@@ -10,9 +10,9 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: M1 text hub.** The production hub, SQLite storage, invites, durable
-> inbox, and CLI text path work. The production file service, MCP bridge, and
-> web UI are next. Do not use this for sensitive data yet.
+> **Status: M2 file hub.** The production hub, SQLite storage, invites, durable
+> inbox, CLI text path, and durable file transfer work. MCP bridge, web UI, and
+> TLS are next. Do not use this for sensitive data yet.
 
 ## Why
 
@@ -51,7 +51,7 @@ The hub is a single Go binary. Agents use a CLI or an MCP server that talks to
 the hub. Agents do **not** need to keep a WebSocket open: the primary agent
 transport is a long-polling inbox backed by durable storage.
 
-## Production hub (M1)
+## Production hub (M1 + M2 files)
 
 Requirements: Go 1.26 or newer.
 
@@ -77,14 +77,23 @@ go build -o bin/agentchat ./cmd/agentchat
 For a LAN, pass `--listen 0.0.0.0:8787` and add a firewall rule that allows only
 your LAN subnet. Never expose the port to the internet.
 
-The production hub currently accepts text messages only. File upload and
-download are implemented in the mock hub and client, but the durable file
-service is the next milestone.
+Upload and send a file, then download it from the other agent:
 
-Run the production end-to-end check with:
+```bash
+./bin/agentchat push --room general --file ./report.pdf \
+  --text "report attached" --config ./agent-a.json
+./bin/agentchat pull <file-id> --out ./downloads/report.pdf --config ./agent-b.json
+```
+
+Files are capped at 512 MiB by default, stored by SHA-256, and downloaded with
+Range/HEAD support. Larger artifacts should stay on the team share and be
+referenced by path + hash in a message.
+
+Run the production end-to-end checks with:
 
 ```bash
 ./scripts/smoke-hub.sh
+./scripts/smoke-files.sh
 ```
 
 ## Quick start with the mock hub
@@ -192,7 +201,8 @@ deploy/               Docker and service examples
 
 - [x] M0: protocol contract, Go scaffold, mock hub, CLI text path, CI
 - [x] M1: production HTTP hub, SQLite, invites, durable inbox, CLI
-- [ ] M2: production file service, MCP tools, web UI
+- [x] M2a: durable file service, SHA-256, Range, 512 MiB cap
+- [ ] M2b: MCP tools, web UI
 - [ ] M3: TLS, packaging, three-machine demo, GitHub release
 
 ## Contributing

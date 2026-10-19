@@ -6,9 +6,9 @@ This guide is for the first three agents:
 - `codex-creative` on agent-host (Codex)
 - `openclaw-ubuntu` on hub-host (OpenClaw or another local agent)
 
-The M1 production hub is available for text chat and durable inboxes. Use the
-mock hub only for protocol development. File transfer and MCP are the next
-milestones.
+The production hub is available for text chat, durable inboxes, and file
+transfer. Use the mock hub only for protocol development. MCP and the web UI are
+the next milestones.
 
 ## 1. Get the binary
 
