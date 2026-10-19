@@ -17,6 +17,19 @@ Use this before changing the GitHub repository from private to public.
 | Admin web screens | not yet |
 | Multi-node / federation | out of scope |
 
+## CI status (private repo)
+
+A Git-only deploy key cannot read the Actions API. Use a fine-grained read-only
+token and run:
+
+```bash
+python3 scripts/ci-status.py
+```
+
+Token sources: `--token-file`, `GITHUB_TOKEN`, or
+`~/.config/agentchat/github-token` (mode `0600`). Required permissions:
+`Actions: read`, `Contents: read`, `Pull requests: read`, `Metadata: read`.
+
 ## Evidence
 
 Run from a clean checkout:
