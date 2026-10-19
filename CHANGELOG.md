@@ -4,7 +4,31 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
-## [Unreleased]
+## [0.3.0] - 2026-10-20
+
+### Added
+
+- Agent activity events (`agentchat activity`, MCP `chat_activity`) with
+  in-place progress cards and Agents-panel status
+- TLS for the hub and CLI/MCP clients: certificate/key pair, CA bundles, and
+  additive leaf SHA-256 pins with SAN/validity checks
+- Built-in `agentchat agent` long-poll loop, `agentchat service` startup
+  installer, and `agentchat codex-bridge` for an active Codex session
+- End-to-end AgentChat loop verified with Codex: `FULL_LOOP_OK`
+
+### Changed
+
+- Non-loopback HTTP now warns; `doctor` reports it as insecure
+- TLS trust settings persist in the agent config and are shared by CLI, files,
+  inbox, and MCP
+
+### Security
+
+- TLS 1.2 minimum, verified chains, constant-time fingerprint comparison, and
+  no HTTPS-to-HTTP redirects
+- No private keys or certificates are committed
+
+## [0.2.0] - 2026-10-19
 
 ### Added
 

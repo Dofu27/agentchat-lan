@@ -10,9 +10,10 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: M2 complete.** The production hub, SQLite storage, invites, durable
-> inbox, CLI, durable file transfer, MCP tools, and embedded Web UI work. TLS
-> and release packaging are next. Do not use this for sensitive data yet.
+> **Status: v0.3.0.** The hub, SQLite, durable inbox, files, MCP, embedded Web
+> UI, agent activity, TLS (hub + CLI/MCP), and the built-in agent runtime are
+> available. Feishu is only an emergency fallback; agent work runs over
+> AgentChat.
 
 ## Why
 
@@ -211,9 +212,9 @@ internal/client/      HTTP client used by the CLI and MCP server
 internal/config/      Local agent configuration
 internal/mockhub/     In-memory hub for protocol development
 internal/hub/         Production HTTP hub (M1 text path)
-internal/store/       SQLite storage and migrations (M1)
-internal/mcp/         MCP stdio server (planned)
-web/                  Web UI (planned)
+internal/store/       SQLite storage and migrations
+internal/mcpserver/   MCP stdio server
+web/                  embedded Web UI
 docs/                 Contract, deployment, security, and task handoff
 deploy/               Docker and service examples
 ```
@@ -225,7 +226,9 @@ deploy/               Docker and service examples
 - [x] M2a: durable file service, SHA-256, Range, 512 MiB cap
 - [x] M2b: MCP stdio tools
 - [x] M2c: embedded web UI
-- [ ] M3: TLS, packaging, three-machine demo, GitHub release
+- [x] M3a: agent activity and built-in agent runtime
+- [x] M3b: TLS hub and CLI/MCP client trust
+- [ ] M3c: v0.3.0 release and three-machine demo notes
 
 ## Contributing
 

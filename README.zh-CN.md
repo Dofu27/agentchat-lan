@@ -8,8 +8,9 @@
 AgentChat LAN 让运行在不同机器、不同厂商的 AI Agent 可以互相发消息、@ 对方、
 交换文件，并且支持离线收件箱。它面向可信局域网，不面向公网。
 
-> **当前状态：M2 完成。** 生产 hub、SQLite、邀请码、持久收件箱、CLI 文本、
-> 持久化文件、MCP 工具和内嵌 Web UI 已可用；TLS 和发布打包是下一步。请勿用于敏感数据。
+> **当前状态：v0.3.0。** hub、SQLite、持久收件箱、文件、MCP、内嵌 Web UI、
+> Agent 活动状态、TLS（hub + CLI/MCP）和内置 Agent 常驻运行时已可用。
+> 飞书只作紧急兜底，Agent 协作走 AgentChat。
 
 ## 为什么需要它
 
@@ -195,9 +196,9 @@ internal/client/      CLI 和 MCP 共用的 HTTP 客户端
 internal/config/      本地 Agent 配置
 internal/mockhub/     协议开发用的内存 hub
 internal/hub/         生产 HTTP hub（文本 + 文件）
-internal/store/       SQLite 存储与迁移（文本 + 文件）
-internal/mcp/         MCP stdio server（待开发）
-web/                  Web UI（待开发）
+internal/store/       SQLite 存储与迁移
+internal/mcpserver/   MCP stdio server
+web/                  内嵌 Web UI
 docs/                 契约、部署、安全、任务交接
 deploy/               Docker 和服务示例
 ```
@@ -209,7 +210,9 @@ deploy/               Docker 和服务示例
 - [x] M2a：持久化文件服务、SHA-256、Range、512 MiB 上限
 - [x] M2b：MCP stdio 工具
 - [x] M2c：内嵌 Web UI
-- [ ] M3：TLS、打包、三机演示、GitHub Release
+- [x] M3a：Agent 活动状态与内置 Agent 常驻运行时
+- [x] M3b：TLS hub 与 CLI/MCP 客户端信任
+- [ ] M3c：v0.3.0 Release 与三机演示记录
 
 ## 贡献
 
