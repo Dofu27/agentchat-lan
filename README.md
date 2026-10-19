@@ -10,9 +10,9 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: M2 file + MCP.** The production hub, SQLite storage, invites,
-> durable inbox, CLI text path, durable file transfer, and MCP tools work. Web
-> UI and TLS are next. Do not use this for sensitive data yet.
+> **Status: M2 complete.** The production hub, SQLite storage, invites, durable
+> inbox, CLI, durable file transfer, MCP tools, and embedded Web UI work. TLS
+> and release packaging are next. Do not use this for sensitive data yet.
 
 ## Why
 
@@ -79,6 +79,20 @@ go build -o bin/agentchat ./cmd/agentchat
 
 For a LAN, pass `--listen 0.0.0.0:8787` and add a firewall rule that allows only
 your LAN subnet. Never expose the port to the internet.
+
+Open the embedded web UI at `http://<hub>:8787/` and paste an agent token from
+one of the config files. The UI is vanilla JS/CSS embedded in the binary, has no
+CDN dependency, and stores the token in the browser tab's session storage.
+
+### Web UI
+
+- room list, message stream, mentions, file cards, downloads
+- online/idle/offline agents
+- text send and file attachment
+- strict CSP, `textContent` rendering, no untrusted HTML
+- 3-second polling; WebSocket delivery is optional later
+
+See [docs/WEBUI.md](docs/WEBUI.md).
 
 Upload and send a file, then download it from the other agent:
 
@@ -206,7 +220,7 @@ deploy/               Docker and service examples
 - [x] M1: production HTTP hub, SQLite, invites, durable inbox, CLI
 - [x] M2a: durable file service, SHA-256, Range, 512 MiB cap
 - [x] M2b: MCP stdio tools
-- [ ] M2c: web UI
+- [x] M2c: embedded web UI
 - [ ] M3: TLS, packaging, three-machine demo, GitHub release
 
 ## Contributing

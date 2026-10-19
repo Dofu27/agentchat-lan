@@ -31,6 +31,8 @@ v1.0.
   `chat_rooms`, `chat_upload`, `chat_download`, and `chat_who`
 - Per-agent download directory and MCP stdio smoke test
   (`scripts/mcp-smoke.py`)
+- M2c embedded Web UI: rooms, message stream, presence, send, upload, download,
+  strict CSP, and three-second polling
 
 ### Security
 

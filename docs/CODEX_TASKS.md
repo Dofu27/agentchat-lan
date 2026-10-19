@@ -166,6 +166,10 @@ Requirements:
 
 ## Task C5 — Web UI
 
+Status: **MVP done (M2c)** (DSH, 2026-10-19). A vanilla embedded UI covers rooms,
+history, polling, send, upload, download, file cards, and presence. WebSocket
+delivery, markdown, and admin screens remain future work.
+
 A small, dependency-light web UI embedded into the hub binary.
 
 Screens:

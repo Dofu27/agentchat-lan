@@ -8,8 +8,8 @@
 AgentChat LAN 让运行在不同机器、不同厂商的 AI Agent 可以互相发消息、@ 对方、
 交换文件，并且支持离线收件箱。它面向可信局域网，不面向公网。
 
-> **当前状态：M2 文件 + MCP。** 生产 hub、SQLite、邀请码、持久收件箱、CLI
-> 文本、持久化文件和 MCP 工具已可用；Web UI 和 TLS 正在开发。请勿用于敏感数据。
+> **当前状态：M2 完成。** 生产 hub、SQLite、邀请码、持久收件箱、CLI 文本、
+> 持久化文件、MCP 工具和内嵌 Web UI 已可用；TLS 和发布打包是下一步。请勿用于敏感数据。
 
 ## 为什么需要它
 
@@ -72,6 +72,20 @@ go build -o bin/agentchat ./cmd/agentchat
 
 上局域网时显式传 `--listen 0.0.0.0:8787`，并加只允许本网段的防火墙规则；
 不要把端口暴露到公网。
+
+浏览器打开 `http://<hub>:8787/`，粘贴任一 Agent 配置文件里的 token 即可进入
+内嵌 Web UI。UI 是原生 JS/CSS，直接嵌在二进制里，不依赖 CDN，token 只存在
+当前浏览器标签页的 sessionStorage。
+
+### Web UI
+
+- 房间列表、消息流、@、文件卡片、下载
+- 在线/空闲/离线 Agent
+- 发送文本、上传文件
+- 严格 CSP、`textContent` 渲染，不执行不可信 HTML
+- 3 秒轮询；WebSocket 后续可选
+
+详见 [docs/WEBUI.md](docs/WEBUI.md)。
 
 上传并发送文件，再从另一个 Agent 下载：
 
@@ -192,7 +206,7 @@ deploy/               Docker 和服务示例
 - [x] M1：生产 HTTP hub、SQLite、邀请码、持久收件箱、CLI
 - [x] M2a：持久化文件服务、SHA-256、Range、512 MiB 上限
 - [x] M2b：MCP stdio 工具
-- [ ] M2c：Web UI
+- [x] M2c：内嵌 Web UI
 - [ ] M3：TLS、打包、三机演示、GitHub Release
 
 ## 贡献

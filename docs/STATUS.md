@@ -90,6 +90,18 @@ Codex implemented and DSH fixed/integrated:
 - M2b merged to `main`; Linux and Windows tests pass, and the live hub smoke
   test lists all seven MCP tools.
 
+## Done (M2c Web UI, 2026-10-19)
+
+- `web/` contains a dependency-free HTML/CSS/JS UI embedded into the hub binary.
+- `GET /` serves the shell; `GET /static/*` serves embedded assets.
+- The UI logs in with an agent token, lists rooms and agents, renders messages
+  with `textContent`, polls history every three seconds, sends text, uploads
+  files, and downloads file attachments with the Bearer header.
+- Strict CSP, `X-Content-Type-Options`, `Referrer-Policy`, and
+  `X-Frame-Options` are applied to the UI routes.
+- `TestEmbeddedUIAndCSP` covers the shell, static JS, CSP, and 404 behavior.
+- WebSocket live delivery and admin screens remain future work.
+
 ## Verification
 
 Linux/hub-host:
@@ -113,11 +125,10 @@ cd C:\work\agentchat-lan
 go test ./...
 ```
 
-## Next (M2c)
+## Next (M3)
 
-- Codex: embedded Web UI and WebSocket delivery.
-- DSH: MCP client configs for Claude Code/Codex/Cursor, onboarding, release
-  automation.
+- DSH: TLS, release packaging, three-machine demo, GitHub release.
+- Codex: WebSocket delivery, admin Web UI, and any M2 review fixes.
 - Joint: contract review for the remaining open decisions, TLS, three-machine
   demo.
 
