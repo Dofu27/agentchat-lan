@@ -10,63 +10,74 @@ Updated: 2026-10-19
 - Local agent config with user-only permissions
 - HTTP client
 - In-memory mock hub implementing text plus file upload/download
-- CLI: `join`, `send`, `push`, `pull`, `inbox`, `history`, `rooms`, `who`, `me`, `doctor`, `config`, `mock-hub`
+- CLI: `join`, `send`, `push`, `pull`, `inbox`, `history`, `rooms`, `who`,
+  `me`, `doctor`, `config`, `mock-hub`
 - Client-side SHA-256 upload/download with atomic install
 - Tests for protocol, config, mock hub, idempotency, ack, long-poll, files,
   CLI flows, doctor, and history
 - CI matrix with Linux race tests, Windows tests, cross-builds, and Docker build
 - GitHub issue/PR templates and publishing checklist
 - English and Chinese README, deployment, security, contributing docs
-- Codex handoff sent on 2026-10-19; Go 1.26.8 installed user-locally on
-  agent-host, and the repo copy there passes `go test ./...` on Windows
 - Shared-drive snapshot, source mirror, Git bundle, and Windows binary in
   `/mnt/teamshare/agentchat`
 
-## Next (M1)
+## Done (M1, 2026-10-19)
 
-- Codex: production hub, SQLite store, auth/invites, durable inbox, WebSocket
-- DSH: review Codex's store/hub API against the contract; add black-box tests
-- Joint: contract review; resolve open decisions in `docs/DECISIONS.md`
+Codex implemented and DSH reviewed/integrated:
 
-## Next (M2)
+- `internal/store`: SQLite schema/migrations, WAL, foreign keys, transactional
+  invite/join/message/ack/room/audit operations, hashed credentials, per-room
+  sequence, idempotency, durable ack cursors, history, and inbox queries.
+- `internal/hub`: contract HTTP routes for health/readiness, join, agent and
+  admin auth, invites, rooms, revocation, audit, history, long-poll inbox,
+  idempotent send, rate limits, request IDs, and bounded graceful shutdown.
+- `internal/hub` and `internal/store` tests include two-agent delivery, restart
+  durability, offline backlog, ack, idempotency, auth boundaries, rate limits,
+  long-poll wakeup, and graceful shutdown.
 
-- Codex: production file service, MCP server, web UI
-- DSH: onboarding docs, CLI polish, release automation
+DSH added:
 
-## Blockers
-
-- The admin-host shell does not have Go or Git in `PATH`; builds are done on
-  `hub-host` with a user-local Go toolchain at
-  `~/opt/go-toolchain/usr/lib/go-1.26`.
-- GitHub is now pushed: private `Dofu27/agentchat-lan`, current `main`.
-  An unauthenticated request returns 404, confirming the repository is not
-  public. GitHub has already created Dependabot branches for `checkout`,
-  `setup-go`, `build-push-action`, `setup-buildx-action`, and
-  `goreleaser-action`; the first CI result still needs to be checked in the
-  GitHub Actions UI.
-- The module path is `github.com/Dofu27/agentchat-lan`.
-  `scripts/rename-module.sh` was tested on a temporary clone; the renamed tree
-  builds and passes tests.
-- Codex received two handoff messages on 2026-10-19 (Feishu) and has a working
-  Go toolchain, but has not pushed a first `internal/store` or `internal/hub`
-  commit yet. A copy of the repo is at
-  `C:\work\agentchat-lan` on agent-host.
+- CLI wiring: `agentchat hub init`, `hub serve`, `hub invite`,
+  `hub list-invites`, `hub audit`.
+- `agentchat hub init --admin-token-file` writes the admin token with mode
+  `0600` (POSIX) and refuses to overwrite it.
+- `scripts/smoke-hub.sh`: production end-to-end test covering init, invite,
+  two-agent join, send/inbox/ack, hub restart, and durable backlog.
+- Module path `github.com/Dofu27/agentchat-lan`; private GitHub repo pushed.
 
 ## Verification
 
-On hub-host:
+Linux/hub-host:
 
 ```bash
 export GOROOT="$HOME/opt/go-toolchain/usr/lib/go-1.26"
 export PATH="$GOROOT/bin:$PATH"
+export GOPROXY=https://goproxy.cn,direct
 cd ~/work/agentchat-lan
 go test -race ./...
 go build -o bin/agentchat ./cmd/agentchat
+bash scripts/smoke-hub.sh
 ```
 
-On agent-host:
+Windows/agent-host:
 
 ```powershell
 cd C:\work\agentchat-lan
 go test ./...
 ```
+
+## Next (M2)
+
+- Codex: durable file service (`/v1/files`), MCP stdio server, WebSocket/web UI.
+- DSH: wire file CLI to the production service, onboarding, release automation.
+- Joint: contract review for the remaining open decisions, TLS, three-machine
+  demo.
+
+## Blockers / pending
+
+- `go test -race` is not available on the Windows host (no C compiler for CGO);
+  Windows runs normal `go test ./...`. Linux race tests pass.
+- The private GitHub Actions result still needs a manual check in the browser;
+  the deploy key can read/write Git but not the Actions API.
+- Dependabot opened five action-version branches; they are intentionally not
+  merged during M1.

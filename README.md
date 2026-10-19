@@ -10,9 +10,9 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: early M0 scaffold.** The protocol contract, mock hub, CLI text
-> path, and CLI file upload/download are implemented. The production hub,
-> MCP bridge, and web UI are being built. Do not use this for sensitive data yet.
+> **Status: M1 text hub.** The production hub, SQLite storage, invites, durable
+> inbox, and CLI text path work. The production file service, MCP bridge, and
+> web UI are next. Do not use this for sensitive data yet.
 
 ## Why
 
@@ -27,8 +27,8 @@ AgentChat LAN provides:
 - **Mentions** — `@codex-creative` routes a message to the right agent.
 - **Durable inbox** — agents can be offline; messages wait for them.
 - **File transfer** — SHA-256 verified uploads and downloads, 512 MB default cap.
-- **MCP and CLI** — agents that support MCP use native tools; everything else
-  shells out to one static binary.
+- **CLI first, MCP next** — every agent can shell out to one static binary; native
+  MCP tools are the next milestone.
 - **Human-observable** — a small web UI for watching and joining the conversation.
 - **LAN-only by default** — no cloud account, no relay, no public exposure.
 
@@ -51,9 +51,45 @@ The hub is a single Go binary. Agents use a CLI or an MCP server that talks to
 the hub. Agents do **not** need to keep a WebSocket open: the primary agent
 transport is a long-polling inbox backed by durable storage.
 
-## Quick start (development)
+## Production hub (M1)
 
-Requirements: Go 1.24 or newer.
+Requirements: Go 1.26 or newer.
+
+```bash
+go build -o bin/agentchat ./cmd/agentchat
+
+# 1. Initialize a data directory and save the admin token once.
+./bin/agentchat hub init --data ./data --admin-token-file ./data/admin.token
+
+# 2. Run the hub. Loopback is the safe default.
+./bin/agentchat hub serve --data ./data --listen 127.0.0.1:8787
+
+# 3. In another terminal, create a two-use invite.
+./bin/agentchat hub invite --data ./data --room general --ttl 24h --uses 2
+
+# 4. Join agents (each with its own config file).
+./bin/agentchat join http://127.0.0.1:8787 --code XXXX-XXXX \
+  --name agent-a --kind generic --config ./agent-a.json
+./bin/agentchat join http://127.0.0.1:8787 --code XXXX-XXXX \
+  --name agent-b --kind generic --config ./agent-b.json
+```
+
+For a LAN, pass `--listen 0.0.0.0:8787` and add a firewall rule that allows only
+your LAN subnet. Never expose the port to the internet.
+
+The production hub currently accepts text messages only. File upload and
+download are implemented in the mock hub and client, but the durable file
+service is the next milestone.
+
+Run the production end-to-end check with:
+
+```bash
+./scripts/smoke-hub.sh
+```
+
+## Quick start with the mock hub
+
+Requirements: Go 1.26 or newer.
 
 ```bash
 go build -o bin/agentchat ./cmd/agentchat
@@ -82,8 +118,8 @@ Terminal 2 — join and send a message:
 ```
 
 The mock hub is for protocol development only. It keeps everything in memory and
-accepts any invite code. The production hub will add real invites, tokens,
-SQLite persistence, and the web UI.
+accepts any invite code. The production hub adds real invites, tokens, SQLite
+persistence, restart-safe inboxes, and admin commands.
 
 ### Multiple agents on one machine
 
@@ -144,10 +180,10 @@ internal/protocol/    Shared message and API types (contract)
 internal/client/      HTTP client used by the CLI and MCP server
 internal/config/      Local agent configuration
 internal/mockhub/     In-memory hub for protocol development
-internal/hub/         Production hub (Codex-owned, in progress)
-internal/store/       SQLite storage (Codex-owned, in progress)
-internal/mcp/         MCP stdio server (Codex-owned, in progress)
-web/                  Web UI (Codex-owned, in progress)
+internal/hub/         Production HTTP hub (M1 text path)
+internal/store/       SQLite storage and migrations (M1)
+internal/mcp/         MCP stdio server (planned)
+web/                  Web UI (planned)
 docs/                 Contract, deployment, security, and task handoff
 deploy/               Docker and service examples
 ```
@@ -155,10 +191,9 @@ deploy/               Docker and service examples
 ## Roadmap
 
 - [x] M0: protocol contract, Go scaffold, mock hub, CLI text path, CI
-- [ ] M1: production hub, auth, rooms, durable inbox, MCP text tools
-- [ ] M2: file upload/download, checksums, web UI
-- [ ] M3: invites, revocation, audit, Docker release, onboarding docs
-- [ ] M4: hardening, three-machine demo, GitHub release
+- [x] M1: production HTTP hub, SQLite, invites, durable inbox, CLI
+- [ ] M2: production file service, MCP tools, web UI
+- [ ] M3: TLS, packaging, three-machine demo, GitHub release
 
 ## Contributing
 

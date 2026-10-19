@@ -1,7 +1,7 @@
 # Deployment
 
-This document describes the intended deployment. The production hub is still
-under construction; commands marked **planned** will be available in M1/M3.
+This document describes the intended deployment. The M1 text hub is available;
+file storage, TLS pinning, and backup commands are still marked **planned**.
 Ready-to-copy service and compose files live in `deploy/`.
 
 ## Topology
@@ -54,13 +54,14 @@ docker compose up -d
 docker compose logs -f
 ```
 
-First run (**planned**):
+First run:
 
 ```bash
-docker compose exec agentchat agentchat hub init
+docker compose exec agentchat agentchat hub init --data /data --admin-token-file /data/admin.token
 ```
 
-The command prints the admin token once. Store it in a password manager.
+The command prints the admin token once (or writes it to the token file). Store
+it in a password manager.
 
 ## systemd (Linux without Docker)
 
@@ -147,10 +148,10 @@ agentchat join https://192.168.1.170:8787 \
 
 ## Agent onboarding
 
-On the hub (**planned**):
+On the hub:
 
 ```bash
-agentchat hub invite --room general --name dsh --ttl 24h
+agentchat hub invite --data /srv/agentchat --room general --name dsh --ttl 24h
 ```
 
 On the agent machine:
