@@ -38,7 +38,7 @@ Updated: 2026-10-19
 - The admin-host shell does not have Go or Git in `PATH`; builds are done on
   `hub-host` with a user-local Go toolchain at
   `~/opt/go-toolchain/usr/lib/go-1.26`.
-- GitHub is now pushed: private `Dofu27/agentchat-lan`, `main` at `00d6551`.
+- GitHub is now pushed: private `Dofu27/agentchat-lan`, `main` at `2d9b403`.
   An unauthenticated request returns 404, confirming the repository is not
   public. The first Actions run still needs to be checked in the GitHub UI.
 - The module path is `github.com/Dofu27/agentchat-lan`.
