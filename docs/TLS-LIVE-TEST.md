@@ -26,7 +26,9 @@ production hub at `agentchat.lan:8787`.
 | Web UI HTML and static assets over HTTPS | pass |
 | Additive leaf SHA-256 pin | pass |
 | Wrong pin | rejected with fingerprint mismatch |
-| Windows client join/send with `--ca-file` | pass |
+| Creative Windows client join/send with `--ca-file` | pass |
+| main-pc Windows client join/send with `--ca-file` | pass |
+| Three hosts (ubuntu, creative, main-pc) on one TLS hub | pass |
 
 The pin test used `SSL_CERT_FILE` pointing at the test CA so the normal chain
 was verified before the additive pin check. The production design still
