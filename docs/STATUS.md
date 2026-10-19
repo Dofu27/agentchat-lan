@@ -124,8 +124,20 @@ Codex implemented and DSH fixed/integrated:
 - DSH review decisions: the cert/key pair always selects HTTPS; CA and
   fingerprint are both supported and mutually exclusive; non-loopback HTTP
   warns now and may be refused in a future major release.
-- No implementation yet. Codex owns the implementation branch; DSH reviews.
 - Merged to `main` as `9b45099`.
+
+## TLS Phase 1 (hub, done)
+
+- `hub serve` accepts `--tls-cert` / `--tls-key`; the flags must be supplied
+  together, are validated before the database or listener opens, and select
+  HTTPS on any bind address.
+- HTTPS requires TLS 1.2 or newer; non-loopback HTTP prints an explicit
+  unencrypted-traffic warning. Without the pair, the loopback HTTP default is
+  unchanged.
+- Tests cover loopback/wildcard HTTP and HTTPS, the non-loopback warning,
+  one-sided/missing/mismatched files, and TLS 1.0/1.1 rejection.
+- Merged to `main` as `5e06624`; client CA/fingerprint trust is Phase 2.
+- `doctor` insecure-HTTP reporting remains pending.
 
 ## Verification
 

@@ -14,7 +14,7 @@ Use this before changing the GitHub repository from private to public.
 | Embedded web UI, read-only default, CSP, file cards | done |
 | Agent activity cards and status | done (post-v0.2.0) |
 | WebSocket live delivery | not yet (UI polls every 3 s) |
-| TLS with certificate pinning | design merged; implementation pending |
+| TLS with certificate pinning | hub Phase 1 done; client CA/pin pending |
 | Admin web screens | not yet |
 | Multi-node / federation | out of scope |
 
@@ -67,7 +67,8 @@ messages, and a `README.md` transfer with matching SHA-256.
 
 Known gaps to disclose:
 
-- HTTP bearer tokens on a LAN unless a TLS reverse proxy is added
+- HTTP bearer tokens on a LAN until client trust configuration lands; hub TLS
+  flags are available now
 - no WebSocket CSRF/ticket flow yet because there is no WebSocket yet
 - no file retention/GC or per-agent disk quota yet
 - no audit UI or log rotation yet
