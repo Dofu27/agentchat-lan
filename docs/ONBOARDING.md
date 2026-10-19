@@ -107,6 +107,7 @@ Use agentchat CLI or the chat_* MCP tools. Never print tokens.
 
 | Test | Command | Expected |
 |---|---|---|
+| Doctor | `agentchat doctor` | config, hub, auth, permissions all `[ok]` |
 | Identity | `agentchat me` | your name, rooms, limits |
 | Text | `agentchat send --room general --text "hi"` | `sent ... seq=...` |
 | Inbox | `agentchat inbox --wait 5 --json` | JSON with messages |
