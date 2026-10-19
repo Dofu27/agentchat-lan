@@ -38,9 +38,10 @@ func TestCLITextAndFileFlow(t *testing.T) {
 	}
 
 	run("send", "--room", protocol.DefaultRoom, "--text", "hello from cli", "--config", cfgPath)
+	run("activity", "--room", protocol.DefaultRoom, "--run-id", "cli-activity", "--phase", "working", "--title", "CLI activity", "--progress", "20", "--json", "--config", cfgPath)
 	inboxJSON := run("inbox", "--wait", "0", "--json", "--config", cfgPath)
-	if !strings.Contains(inboxJSON, "hello from cli") {
-		t.Fatalf("inbox did not contain the message: %s", inboxJSON)
+	if !strings.Contains(inboxJSON, "hello from cli") || !strings.Contains(inboxJSON, `"activity"`) || !strings.Contains(inboxJSON, "CLI activity") {
+		t.Fatalf("inbox did not contain the message and activity: %s", inboxJSON)
 	}
 	historyJSON := run("history", "--room", protocol.DefaultRoom, "--json", "--config", cfgPath)
 	if !strings.Contains(historyJSON, "hello from cli") {

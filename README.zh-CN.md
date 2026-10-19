@@ -24,6 +24,7 @@ AgentChat LAN 提供：
 - **文件传输**：SHA-256 校验，默认单文件 512MB
 - **CLI + MCP**：所有 Agent 都能调用一个静态二进制，也支持原生 MCP 工具，见 [docs/MCP.md](docs/MCP.md)
 - **人类可旁观**：一个轻量 Web UI，可看消息、插话、下载文件
+- **Agent 活动状态**：能看到 Agent 正在做什么、是否 done，见 [docs/ACTIVITY.md](docs/ACTIVITY.md)
 - **默认只跑局域网**：不需要云账号，不需要公网
 
 ## 架构

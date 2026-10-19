@@ -13,6 +13,7 @@
     polling: false,
     selectedFile: null,
     writeEnabled: false,
+    activities: new Map(),
   };
 
   const login = $("login");
@@ -106,7 +107,60 @@
     return card;
   }
 
+  function activityElement(message) {
+    const activity = message.meta.activity;
+    const article = document.createElement("article");
+    article.className = "activity-card phase-" + activity.phase;
+
+    const head = document.createElement("div");
+    head.className = "activity-head";
+    const author = document.createElement("span");
+    author.className = "message-author";
+    author.textContent = (message.from && message.from.name) || "unknown";
+    const phase = document.createElement("span");
+    phase.className = "activity-phase";
+    phase.textContent = activity.phase;
+    const time = document.createElement("span");
+    time.className = "message-time";
+    time.textContent = new Date(message.ts).toLocaleString();
+    head.appendChild(author);
+    head.appendChild(phase);
+    head.appendChild(time);
+
+    const title = document.createElement("div");
+    title.className = "activity-title";
+    title.textContent = activity.title || "";
+
+    article.appendChild(head);
+    article.appendChild(title);
+
+    if (activity.detail) {
+      const detail = document.createElement("div");
+      detail.className = "activity-detail";
+      detail.textContent = activity.detail;
+      article.appendChild(detail);
+    }
+
+    if (typeof activity.progress === "number") {
+      const progress = document.createElement("div");
+      progress.className = "activity-progress";
+      const bar = document.createElement("div");
+      bar.className = "activity-bar";
+      bar.style.width = Math.max(0, Math.min(100, activity.progress)) + "%";
+      progress.appendChild(bar);
+      const label = document.createElement("span");
+      label.className = "activity-percent";
+      label.textContent = activity.progress + "%";
+      article.appendChild(progress);
+      article.appendChild(label);
+    }
+    return article;
+  }
+
   function messageElement(message) {
+    if (message.meta && message.meta.activity) {
+      return activityElement(message);
+    }
     const article = document.createElement("article");
     article.className = "message";
 
@@ -147,7 +201,21 @@
     if (message.seq && message.seq <= state.lastSeq) return;
     const box = $("messages");
     const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
-    box.appendChild(messageElement(message));
+    const activity = message.meta && message.meta.activity;
+    if (activity) {
+      const key = ((message.from && message.from.name) || "unknown") + ":" + activity.run_id;
+      const previous = state.activities.get(key);
+      const element = activityElement(message);
+      if (previous && previous.element && previous.element.parentNode) {
+        previous.element.replaceWith(element);
+      } else {
+        box.appendChild(element);
+      }
+      state.activities.set(key, { element, message });
+      renderAgents();
+    } else {
+      box.appendChild(messageElement(message));
+    }
     if (message.seq) state.lastSeq = Math.max(state.lastSeq, message.seq);
     if (nearBottom) box.scrollTop = box.scrollHeight;
   }
@@ -167,6 +235,15 @@
     }
   }
 
+  function latestActivityFor(agentName) {
+    let latest = null;
+    for (const entry of state.activities.values()) {
+      if (!entry.message.from || entry.message.from.name !== agentName) continue;
+      if (!latest || new Date(entry.message.ts) > new Date(latest.message.ts)) latest = entry;
+    }
+    return latest;
+  }
+
   function renderAgents() {
     const list = $("agent-list");
     list.replaceChildren();
@@ -175,11 +252,19 @@
       const name = document.createElement("span");
       name.className = "agent-name";
       name.textContent = agent.name;
+      const activity = latestActivityFor(agent.name);
       const status = document.createElement("span");
-      status.className = "agent-status " + (agent.status === "online" ? "online" : "offline");
-      status.textContent = agent.status;
+      const phase = activity && activity.message.meta.activity.phase;
+      status.className = "agent-status " + (phase || (agent.status === "online" ? "online" : "offline"));
+      status.textContent = phase || agent.status;
       li.appendChild(name);
       li.appendChild(status);
+      if (activity) {
+        const task = document.createElement("div");
+        task.className = "agent-activity";
+        task.textContent = activity.message.meta.activity.title || "";
+        li.appendChild(task);
+      }
       list.appendChild(li);
     }
   }
@@ -197,6 +282,7 @@
   async function selectRoom(roomID) {
     state.room = roomID;
     state.lastSeq = 0;
+    state.activities.clear();
     const room = state.rooms.find((r) => r.id === roomID);
     $("room-title").textContent = "#" + roomID;
     $("room-topic").textContent = room && room.topic ? room.topic : "";

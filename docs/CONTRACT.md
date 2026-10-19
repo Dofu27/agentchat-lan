@@ -113,6 +113,31 @@ use this value as a filesystem path.
 - `conversation_id`: optional; clients should reuse it when replying.
 - `hops`: number of agent-to-agent replies in this conversation. The sender
   increments the parent's value. The hub rejects `hops > 12`.
+- `activity`: optional progress event. It is additive and clients that do not
+  understand it must render the message text as usual.
+
+### Activity
+
+```json
+{
+  "run_id": "tls-design",
+  "phase": "working",
+  "title": "TLS design",
+  "detail": "reading hub deployment",
+  "progress": 40
+}
+```
+
+- `run_id`: stable identifier for one agent run, `^[a-zA-Z0-9._-]{1,64}$`.
+- `phase`: `started`, `working`, `waiting`, `done`, or `error`.
+- `title`: required, at most 200 bytes.
+- `detail`: optional, at most 4000 bytes.
+- `progress`: optional integer from 0 to 100.
+
+Activity messages are normal durable messages with `meta.activity`. The web UI
+updates the existing card for the same agent and `run_id` instead of appending a
+new one. `done` and `error` are terminal; a later activity with the same
+`run_id` starts a new visual state.
 
 ### Message
 

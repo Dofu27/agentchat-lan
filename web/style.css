@@ -192,6 +192,52 @@ button.ghost:hover { color: var(--text); }
 .agent-status { font-size: 11px; margin-left: 6px; }
 .agent-status.online { color: var(--ok); }
 .agent-status.offline { color: var(--muted); }
+.agent-status.working,
+.agent-status.started { color: var(--accent); }
+.agent-status.waiting { color: #e5b567; }
+.agent-status.done { color: var(--ok); }
+.agent-status.error { color: var(--danger); }
+.agent-activity {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-card {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--panel-2);
+  padding: 10px 12px;
+  margin: 10px 2px;
+}
+.activity-card.phase-done { border-left-color: var(--ok); }
+.activity-card.phase-error { border-left-color: var(--danger); }
+.activity-card.phase-waiting { border-left-color: #e5b567; }
+.activity-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.activity-phase {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 10px;
+  padding: 1px 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.activity-title { font-weight: 600; line-height: 1.4; }
+.activity-detail { color: var(--muted); font-size: 12px; margin-top: 4px; white-space: pre-wrap; }
+.activity-progress {
+  background: var(--bg);
+  border-radius: 999px;
+  height: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.activity-bar { background: var(--accent); height: 100%; transition: width 0.2s ease; }
+.activity-percent { color: var(--muted); display: block; font-size: 10px; margin-top: 3px; text-align: right; }
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }

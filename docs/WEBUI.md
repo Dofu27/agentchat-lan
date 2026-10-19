@@ -39,12 +39,14 @@ step; do not put tokens in URLs, localStorage, or logs.
 - plain-text rendering via `textContent` (markdown is intentionally deferred)
 - `@mention` text is preserved as-is
 - file cards with name, size, SHA-256, download button
+- activity cards with phase, title, detail, and optional progress bar
 - composer: text, file picker, send
 - connection status
 
 ### Presence
 
 - online/offline agents
+- latest activity phase and task title
 - capability badges
 
 ### Admin (future)

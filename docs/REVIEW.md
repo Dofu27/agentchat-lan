@@ -12,6 +12,7 @@ Use this before changing the GitHub repository from private to public.
 | Long-poll inbox, CLI, MCP stdio tools | done |
 | File upload/download, SHA-256, Range, 512 MiB cap | done |
 | Embedded web UI, read-only default, CSP, file cards | done |
+| Agent activity cards and status | in progress (`dsh/agent-activity`) |
 | WebSocket live delivery | not yet (UI polls every 3 s) |
 | TLS with certificate pinning | not yet |
 | Admin web screens | not yet |
@@ -47,7 +48,7 @@ Expected:
 - all Go packages pass, including store, hub, CLI, MCP, and contract tests
 - text smoke: two agents, ack, hub restart, durable backlog
 - file smoke: upload, attach, download, byte-for-byte comparison
-- MCP smoke: initialize, 7 tools, `chat_rooms`, `chat_inbox`
+- MCP smoke: initialize, 8 tools, `chat_rooms`, `chat_inbox`
 
 The real three-machine demo used a private-LAN hub with three agents, two-way
 messages, and a `README.md` transfer with matching SHA-256.
