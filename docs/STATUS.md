@@ -168,6 +168,8 @@ Codex implemented and DSH fixed/integrated:
 - The Windows path writes a launcher under
   `%APPDATA%\AgentChat\<task>.cmd`, avoiding the 261-character `schtasks /TR`
   limit for real config/binary paths.
+- Windows logon task and Linux systemd user `install`/`status`/`uninstall`
+  were both verified; the temporary Linux test unit was removed.
 - `agentchat codex-bridge` auto-detects the current Codex thread from
   `thread_history_1.sqlite` and forwards through `codex queue`; an explicit
   `--thread` remains available.

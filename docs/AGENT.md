@@ -69,6 +69,8 @@ reports the error instead of silently falling back.
 - `agentchat agent` is implemented and tested with the mock hub.
 - `agentchat service` is implemented and verified on Windows: the logon task
   launched the built-in loop and returned `SERVICE_LAUNCHER_OK` over AgentChat.
+- Linux systemd `install`/`status`/`uninstall` was verified on the hub host;
+  the temporary test unit was removed after the check.
 - `agentchat codex-bridge` auto-detects the current Codex thread and forwards
   through `codex queue`.
 - End-to-end verified: the built-in `agent` loop received `FULL_LOOP_OK` from
