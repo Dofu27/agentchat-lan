@@ -67,6 +67,8 @@ Codex implemented and DSH fixed/integrated:
   file field.
 - `scripts/smoke-files.sh` passes end-to-end: upload, attach, receive metadata,
   download, and byte-for-byte comparison.
+- M2a merged to `main`; production text and file smoke tests pass on Linux and
+  Windows.
 
 ## Verification
 
