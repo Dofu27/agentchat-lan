@@ -31,7 +31,8 @@ go test ./...
 On GitHub, create an empty repository named `agentchat-lan`. Do not initialize
 it with a README, license, or `.gitignore`; this repo already has them.
 
-Then:
+Authenticate with GitHub CLI or an SSH key. Do not paste a personal access token
+into chat, an issue, or a commit. Then:
 
 ```bash
 git remote add origin git@github.com:<owner>/agentchat-lan.git
