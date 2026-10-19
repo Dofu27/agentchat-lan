@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.3.1] - 2026-10-20
+
+### Fixed
+
+- Windows `agentchat service install` now writes a short logon launcher under
+  `%APPDATA%\AgentChat` instead of putting the full binary/config/hook path in
+  `schtasks /TR`, which is limited to 261 characters.
+- Verified the installed logon task end-to-end: `SERVICE_LAUNCHER_OK` returned
+  over AgentChat.
+
 ## [0.3.0] - 2026-10-20
 
 ### Added

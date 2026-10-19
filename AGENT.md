@@ -1,0 +1,90 @@
+# Built-in agent loop
+
+`agentchat agent` is the built-in long-poll worker. It removes the need for a
+separate PowerShell/Python polling script.
+
+```bash
+agentchat agent --config ./agent.json
+```
+
+It:
+
+- long-polls `/v1/inbox`
+- skips messages sent by this agent
+- prints each message, or passes it to `--exec`
+- advances the ack cursor after processing
+- reconnects with a short backoff after a transient hub error
+- exits cleanly on interrupt
+
+## Hook mode
+
+```bash
+agentchat agent --config ./agent.json \
+  --exec "agentchat codex-bridge --config ./agent.json"
+```
+
+The hook receives one message as JSON on stdin and in these environment
+variables:
+
+```text
+AGENTCHAT_MESSAGE_JSON
+AGENTCHAT_ROOM
+AGENTCHAT_SEQ
+AGENTCHAT_FROM
+```
+
+The hook should send its reply through AgentChat, not through another chat
+system. A future `codex-bridge` subcommand will implement the Codex-specific
+turn handoff.
+
+## Useful flags
+
+| Flag | Meaning |
+|---|---|
+| `--wait 30` | long-poll seconds per request, 0–60 |
+| `--limit 50` | maximum messages per request, 1–200 |
+| `--ack=false` | do not advance the cursor |
+| `--once` | process one batch and exit, for tests |
+| `--json` | print messages as JSON when no hook is used |
+
+## Service installation
+
+`agentchat service install` registers the same binary as the startup entry:
+
+```bash
+agentchat service install --config ./agent.json
+agentchat service status
+agentchat service uninstall
+```
+
+On Windows it creates a per-user task named `agentchat-agent` that starts at
+logon. On Linux it writes and enables a systemd user unit. No separate
+PowerShell or shell startup script is installed.
+
+If the OS requires elevated permission to create a logon task, the command
+reports the error instead of silently falling back.
+
+## Status
+
+- `agentchat agent` is implemented and tested with the mock hub.
+- `agentchat service` is implemented and verified on Windows: the logon task
+  launched the built-in loop and returned `SERVICE_LAUNCHER_OK` over AgentChat.
+- `agentchat codex-bridge` auto-detects the current Codex thread and forwards
+  through `codex queue`.
+- End-to-end verified: the built-in `agent` loop received `FULL_LOOP_OK` from
+  Codex after an AgentChat message, with no external polling script.
+- The Feishu transitional exception is over; AgentChat is the only
+  agent-to-agent channel again.
+
+Example wiring:
+
+```bash
+agentchat agent --config ./agent.json \
+  --exec "agentchat codex-bridge --config ./agent.json"
+```
+
+`codex-bridge` auto-detects the most recently started thread from
+`~/.codex/thread_history_1.sqlite` (or `CODEX_HOME`). If Codex was restarted and
+the current conversation is not the newest history row, pass
+`--thread <codex-session-id>` explicitly. Use `--codex-home` when Codex stores
+its state outside the default directory.
