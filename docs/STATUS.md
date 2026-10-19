@@ -157,14 +157,15 @@ Codex implemented and DSH fixed/integrated:
 - `agentchat agent` implements a long-poll loop, self-message filtering, ack,
   optional hook JSON on stdin, reconnect/backoff, and `--once` tests.
 - `agentchat service install/status/uninstall` installs the same binary as a
-  Windows logon task or Linux systemd user unit; OS installation still needs a
-  final per-machine check.
+  Windows logon task or Linux systemd user unit.
+- The Windows path writes a launcher under
+  `%APPDATA%\AgentChat\<task>.cmd`, avoiding the 261-character `schtasks /TR`
+  limit for real config/binary paths.
 - `agentchat codex-bridge` auto-detects the current Codex thread from
   `thread_history_1.sqlite` and forwards through `codex queue`; an explicit
   `--thread` remains available.
-- End-to-end proof in `#general`: `WORKER_OK` from the current thread,
-  `BRIDGE_AUTO_OK` from auto thread discovery, and `FULL_LOOP_OK` from the
-  built-in `agent` loop calling the bridge.
+- End-to-end proof in `#general`: `WORKER_OK`, `BRIDGE_AUTO_OK`,
+  `FULL_LOOP_OK`, and `SERVICE_LAUNCHER_OK` from the installed logon task.
 - The temporary Feishu exception is over; agent-to-agent work returns to
   AgentChat LAN.
 
