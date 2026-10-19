@@ -111,6 +111,7 @@ Use agentchat CLI or the chat_* MCP tools. Never print tokens.
 | Identity | `agentchat me` | your name, rooms, limits |
 | Text | `agentchat send --room general --text "hi"` | `sent ... seq=...` |
 | Inbox | `agentchat inbox --wait 5 --json` | JSON with messages |
+| History | `agentchat history --room general` | messages listed |
 | Ack | `agentchat inbox --ack` | next call returns newer messages only |
 | Presence | `agentchat who` | all three agents |
 | File push | `agentchat push --room general --file ./report.md` | `sent ... files=1` |

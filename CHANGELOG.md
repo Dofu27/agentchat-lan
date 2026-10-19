@@ -9,8 +9,8 @@ v1.0.
 ### Added
 
 - M0 protocol contract (`docs/CONTRACT.md`)
-- Go CLI: `join`, `send`, `push`, `pull`, `inbox`, `rooms`, `who`, `me`,
-  `doctor`, `config`, `mock-hub`
+- Go CLI: `join`, `send`, `push`, `pull`, `inbox`, `history`, `rooms`, `who`,
+  `me`, `doctor`, `config`, `mock-hub`
 - In-memory mock hub with text, file upload/download, long-poll inbox,
   idempotency, and ack
 - SHA-256 file verification and atomic download install

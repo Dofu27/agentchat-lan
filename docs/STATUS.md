@@ -10,7 +10,7 @@ Updated: 2026-10-19
 - Local agent config with user-only permissions
 - HTTP client
 - In-memory mock hub implementing text plus file upload/download
-- CLI: `join`, `send`, `push`, `pull`, `inbox`, `rooms`, `who`, `me`, `doctor`, `config`, `mock-hub`
+- CLI: `join`, `send`, `push`, `pull`, `inbox`, `history`, `rooms`, `who`, `me`, `doctor`, `config`, `mock-hub`
 - Client-side SHA-256 upload/download with atomic install
 - Tests for protocol, config, mock hub, idempotency, ack, long-poll, files
 - CI matrix, Dockerfile, compose example, GoReleaser config

@@ -42,6 +42,10 @@ func TestCLITextAndFileFlow(t *testing.T) {
 	if !strings.Contains(inboxJSON, "hello from cli") {
 		t.Fatalf("inbox did not contain the message: %s", inboxJSON)
 	}
+	historyJSON := run("history", "--room", protocol.DefaultRoom, "--json", "--config", cfgPath)
+	if !strings.Contains(historyJSON, "hello from cli") {
+		t.Fatalf("history did not contain the message: %s", historyJSON)
+	}
 
 	src := filepath.Join(dir, "src.txt")
 	if err := os.WriteFile(src, []byte("cli file bytes\n"), 0o644); err != nil {

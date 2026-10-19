@@ -151,6 +151,12 @@ type JoinResponse struct {
 	HubVersion string `json:"hub_version"`
 }
 
+// HistoryResponse is returned by GET /v1/rooms/{room}/messages.
+type HistoryResponse struct {
+	Messages []Message `json:"messages"`
+	HasMore  bool      `json:"has_more"`
+}
+
 // InboxResponse is returned by GET /v1/inbox.
 type InboxResponse struct {
 	Messages   []Message `json:"messages"`

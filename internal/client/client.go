@@ -91,6 +91,19 @@ func (c *Client) SendMessage(ctx context.Context, room string, req protocol.Send
 	return &out, nil
 }
 
+// History fetches room messages after a sequence number.
+func (c *Client) History(ctx context.Context, room string, afterSeq int64, limit int) (*protocol.HistoryResponse, error) {
+	q := url.Values{}
+	q.Set("after_seq", strconv.FormatInt(afterSeq, 10))
+	q.Set("limit", strconv.Itoa(limit))
+	var out protocol.HistoryResponse
+	path := "/v1/rooms/" + url.PathEscape(room) + "/messages?" + q.Encode()
+	if err := c.doJSON(ctx, http.MethodGet, path, c.Token, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Inbox fetches unacknowledged messages, optionally long-polling.
 func (c *Client) Inbox(ctx context.Context, waitSeconds, limit int) (*protocol.InboxResponse, error) {
 	q := url.Values{}

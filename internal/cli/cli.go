@@ -51,6 +51,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdPull(args[1:])
 	case "inbox":
 		return a.cmdInbox(args[1:])
+	case "history":
+		return a.cmdHistory(args[1:])
 	case "rooms":
 		return a.cmdRooms(args[1:])
 	case "who":
@@ -92,6 +94,7 @@ Commands:
   push       Upload one or more files and send them as a message
   pull       Download a file by ID and verify its SHA-256
   inbox      Read unacknowledged messages (optionally long-poll)
+  history    Read room history
   rooms      List rooms
   who        List known agents
   me         Show the authenticated agent and limits
