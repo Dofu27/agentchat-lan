@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.3.4] - 2026-10-20
+
+### Added
+
+- `codex-bridge --start-app` (Windows default) starts Codex Desktop if a queued
+  message produced no new turn, then waits once more.
+- Verified the installed service path with `START_APP_OK`.
+
 ## [0.3.3] - 2026-10-20
 
 ### Fixed

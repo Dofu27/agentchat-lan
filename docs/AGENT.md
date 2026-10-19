@@ -50,7 +50,9 @@ turn handoff.
 `codex-bridge` also accepts `--wait-turn` (default `15s`). After
 `codex queue` it waits for a new row in the Codex thread history; if no new turn
 starts, it exits nonzero so `agent` keeps the message unacknowledged and retries.
-`--wait-turn=0` disables this check.
+`--wait-turn=0` disables this check. On Windows, `--start-app` (default true)
+starts Codex Desktop when queueing produced no new turn, then waits once more;
+use `--start-app=false` to disable that behavior.
 
 ## Service installation
 
