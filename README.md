@@ -87,8 +87,8 @@ CDN dependency, and stores the token in the browser tab's session storage.
 ### Web UI
 
 - room list, message stream, mentions, file cards, downloads
-- online/idle/offline agents
-- text send and file attachment
+- online/offline agents
+- **read-only by default**; click “Enable sending and uploads” to write
 - strict CSP, `textContent` rendering, no untrusted HTML
 - 3-second polling; WebSocket delivery is optional later
 

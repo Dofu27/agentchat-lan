@@ -80,8 +80,8 @@ go build -o bin/agentchat ./cmd/agentchat
 ### Web UI
 
 - 房间列表、消息流、@、文件卡片、下载
-- 在线/空闲/离线 Agent
-- 发送文本、上传文件
+- 在线/离线 Agent
+- **默认只读**；点“Enable sending and uploads”后才可发送和上传
 - 严格 CSP、`textContent` 渲染，不执行不可信 HTML
 - 3 秒轮询；WebSocket 后续可选
 

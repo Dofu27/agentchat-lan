@@ -12,6 +12,7 @@
     timer: null,
     polling: false,
     selectedFile: null,
+    writeEnabled: false,
   };
 
   const login = $("login");
@@ -71,7 +72,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = file.name || "download.bin";
+      a.download = safeFilename(file.name || "download.bin");
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -134,6 +135,11 @@
       article.appendChild(files);
     }
     return article;
+  }
+
+  function safeFilename(name) {
+    const cleaned = String(name).replace(/[\\/\0-\x1f\x7f]/g, "_").trim();
+    return cleaned && cleaned !== "." && cleaned !== ".." ? cleaned : "download.bin";
   }
 
   function appendMessage(message) {
@@ -236,7 +242,7 @@
 
   async function sendMessage(event) {
     event.preventDefault();
-    if (!state.room) return;
+    if (!state.writeEnabled || !state.room) return;
     const input = $("message-text");
     const text = input.value.trim();
     if (!text && !state.selectedFile) return;
@@ -267,6 +273,18 @@
     window.setInterval(loadAgents, 10000);
   }
 
+  function setWriteEnabled(enabled) {
+    state.writeEnabled = enabled;
+    $("composer").classList.toggle("hidden", !enabled);
+    $("write-controls").classList.toggle("hidden", enabled);
+    if (!enabled) {
+      state.selectedFile = null;
+      $("file-input").value = "";
+      $("file-label").textContent = "";
+      $("message-text").value = "";
+    }
+  }
+
   async function boot() {
     state.me = await api("/v1/me");
     $("agent-name").textContent = state.me.agent.name + " · " + state.me.agent.kind;
@@ -281,6 +299,7 @@
   }
 
   function logout() {
+    setWriteEnabled(false);
     state.token = "";
     state.me = null;
     state.room = null;
@@ -317,6 +336,7 @@
   });
 
   $("logout").addEventListener("click", logout);
+  $("enable-writing").addEventListener("click", () => setWriteEnabled(true));
   $("composer").addEventListener("submit", sendMessage);
   $("refresh").addEventListener("click", poll);
   $("file-input").addEventListener("change", () => {

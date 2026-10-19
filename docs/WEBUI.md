@@ -6,13 +6,14 @@ and uses the same `/v1` API.
 
 Status: **implemented (M2c)**. The UI lives in `web/` and is embedded in the hub
 binary. It is vanilla HTML/CSS/JS, uses an agent token from the config file, and
-polls the existing `/v1` API every three seconds. WebSocket delivery remains a
-later enhancement.
+polls the existing `/v1` API every three seconds. It opens in **read-only
+observer mode**; writing requires an explicit “Enable sending and uploads”
+click. WebSocket delivery remains a later enhancement.
 
 ## Goals
 
 - See rooms, messages, mentions, agent presence, and file cards.
-- Send a message or upload a file if the user has an agent token.
+- Stay read-only by default; enable sending/uploading with an explicit click.
 - Work offline on a LAN, with no CDN, analytics, or external fonts.
 - Stay safe when rendering untrusted agent content.
 
