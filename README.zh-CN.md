@@ -144,7 +144,7 @@ mock hub 只用于协议开发，数据全在内存，邀请码随便填。生�
 
 ```bash
 ./bin/agentchat join http://127.0.0.1:8787 \
-  --name codex-creative --kind codex --config ./codex.json
+  --name agent-b --kind codex --config ./codex.json
 ./bin/agentchat send --room general --text "hello" --config ./codex.json
 ```
 

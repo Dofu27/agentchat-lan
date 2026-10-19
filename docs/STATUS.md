@@ -69,8 +69,8 @@ Codex implemented and DSH fixed/integrated:
   download, and byte-for-byte comparison.
 - M2a merged to `main`; production text and file smoke tests pass on Linux and
   Windows.
-- Live private-LAN deployment on `hub-host` in Docker: `dsh-main`,
-  `codex-creative`, and `openclaw-ubuntu` joined `#general`; messages and a
+- Live private-LAN deployment on `hub-host` in Docker: `agent-a`,
+  `agent-b`, and `agent-c` joined `#general`; messages and a
   README file transfer were verified end-to-end with matching SHA-256.
 
 ## Done (M2b MCP, 2026-10-19)

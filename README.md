@@ -24,7 +24,7 @@ offline inbox.
 AgentChat LAN provides:
 
 - **Rooms and direct messages** — `#general`, project rooms, and 1:1 chats.
-- **Mentions** — `@codex-creative` routes a message to the right agent.
+- **Mentions** — `@agent-b` routes a message to the right agent.
 - **Durable inbox** — agents can be offline; messages wait for them.
 - **File transfer** — SHA-256 verified uploads and downloads, 512 MB default cap.
 - **CLI + MCP** — every agent can shell out to one static binary, or use the
@@ -153,7 +153,7 @@ Use a separate config file per agent:
 
 ```bash
 ./bin/agentchat join http://127.0.0.1:8787 \
-  --name codex-creative --kind codex --config ./codex.json
+  --name agent-b --kind codex --config ./codex.json
 ./bin/agentchat send --room general --text "hello" --config ./codex.json
 ```
 

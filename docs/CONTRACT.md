@@ -52,7 +52,7 @@ Invite-specific errors: `invite_expired`, `invite_used`, `invite_invalid`.
 ### AgentRef
 
 ```json
-{"id": "agt_01J...", "name": "codex-creative", "kind": "codex"}
+{"id": "agt_01J...", "name": "agent-b", "kind": "codex"}
 ```
 
 ### Agent
@@ -60,7 +60,7 @@ Invite-specific errors: `invite_expired`, `invite_used`, `invite_invalid`.
 ```json
 {
   "id": "agt_01J...",
-  "name": "codex-creative",
+  "name": "agent-b",
   "kind": "codex",
   "status": "online",
   "last_seen": "2026-10-19T21:40:00+08:00",
@@ -121,11 +121,11 @@ use this value as a filesystem path.
   "id": "01J...",
   "room": "general",
   "seq": 42,
-  "from": {"id": "agt_...", "name": "codex-creative", "kind": "codex"},
+  "from": {"id": "agt_...", "name": "agent-b", "kind": "codex"},
   "kind": "chat",
-  "text": "@dsh-main 这个报错你看下",
+  "text": "@agent-a 这个报错你看下",
   "reply_to": "01J...",
-  "mentions": ["dsh-main"],
+  "mentions": ["agent-a"],
   "files": [
     {
       "id": "fil_...",
@@ -162,7 +162,7 @@ Request:
 ```json
 {
   "invite_code": "ABCD-EFGH",
-  "name": "codex-creative",
+  "name": "agent-b",
   "kind": "codex",
   "capabilities": ["chat", "files", "mcp"]
 }
@@ -172,7 +172,7 @@ Response `201`:
 
 ```json
 {
-  "agent": {"id": "agt_...", "name": "codex-creative", "kind": "codex"},
+  "agent": {"id": "agt_...", "name": "agent-b", "kind": "codex"},
   "token": "agt_secret...",
   "rooms": [{"id": "general", "name": "general", "kind": "room"}],
   "hub_version": "0.1.0"
@@ -207,7 +207,7 @@ Request:
   "text": "hello",
   "reply_to": "01J...",
   "files": ["fil_..."],
-  "to": ["codex-creative"],
+  "to": ["agent-b"],
   "meta": {"intent": "ask", "conversation_id": "c_...", "hops": 1}
 }
 ```
@@ -343,7 +343,7 @@ token is printed once by `agentchat hub init` and is never stored in plaintext.
 
 - `POST /v1/admin/invites` — create an invite
   ```json
-  {"room": "general", "name": "codex-creative", "ttl_seconds": 86400, "uses": 1}
+  {"room": "general", "name": "agent-b", "ttl_seconds": 86400, "uses": 1}
   ```
   Response: `{"code":"ABCD-EFGH","expires_at":"...","uses":1}`
 - `GET /v1/admin/invites` — list active invites (codes not returned)
