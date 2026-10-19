@@ -43,7 +43,9 @@ DSH added:
   `0600` (POSIX) and refuses to overwrite it.
 - `scripts/smoke-hub.sh`: production end-to-end test covering init, invite,
   two-agent join, send/inbox/ack, hub restart, and durable backlog.
-- Module path `github.com/Dofu27/agentchat-lan`; private GitHub repo pushed.
+- Module path `github.com/Dofu27/agentchat-lan`; private GitHub repo pushed,
+  M1 merged to `main`, and the production smoke test passes on Linux and
+  Windows.
 
 ## Verification
 
