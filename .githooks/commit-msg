@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+# Append a machine-readable Agent trailer when the author forgot one.
+set -eu
+
+msg_file="$1"
+
+if grep -qE '^Agent: (dsh|codex)$' "$msg_file"; then
+    exit 0
+fi
+
+agent="$(git config --get agent.identity || true)"
+if [ -z "$agent" ]; then
+    case "$(git config --get user.name || true)" in
+        DSH) agent=dsh ;;
+        Codex) agent=codex ;;
+    esac
+fi
+
+if [ -z "$agent" ]; then
+    echo "commit-msg: set agent.identity to 'dsh' or 'codex'" >&2
+    exit 1
+fi
+
+printf '\nAgent: %s\n' "$agent" >> "$msg_file"

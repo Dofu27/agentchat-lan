@@ -47,6 +47,9 @@ editing the other owner's package.
 7. **Keep the dependency graph small.** Standard library first; justify every
    new module in the PR.
 8. **Run `gofmt`, `go vet`, and `go test ./...` before pushing.**
+9. **Attribute every commit.** Run `bash scripts/setup-attribution.sh codex`
+   once, keep the generated `Agent: codex` trailer, and use `codex/...`
+   branches. See [ATTRIBUTION.md](ATTRIBUTION.md).
 9. **Use `context.Context` and explicit timeouts** for all network and DB work.
 10. **Errors are for humans; logs are for operators.** Do not leak tokens.
 

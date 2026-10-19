@@ -35,8 +35,12 @@ Run the mock hub:
 
 ## Branch and commit style
 
-- Branch from `main`: `feat/...`, `fix/...`, `docs/...`.
+- Branch from `main`: `feat/...`, `fix/...`, `docs/...`; agents use
+  `dsh/...` or `codex/...`.
 - Commit messages: imperative mood, short subject, body for *why*.
+- Run `bash scripts/setup-attribution.sh dsh` or `... codex` once; every commit
+  must carry `Agent: dsh` or `Agent: codex`. See
+  [ATTRIBUTION.md](ATTRIBUTION.md).
 - Keep the diff scoped; do not reformat unrelated files.
 - Do not force-push `main`.
 
