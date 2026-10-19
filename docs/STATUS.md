@@ -179,8 +179,9 @@ Codex implemented and DSH fixed/integrated:
 - On Windows, `--start-app` (default) starts Codex Desktop if no turn appears,
   then waits again for the turn.
 - End-to-end proof in `#general`: `WORKER_OK`, `BRIDGE_AUTO_OK`,
-  `FULL_LOOP_OK`, `SERVICE_LAUNCHER_OK`, `ACK_SAFE_OK`, and
-  `TURN_CONFIRM_OK` from the installed logon task.
+  `FULL_LOOP_OK`, `SERVICE_LAUNCHER_OK`, `ACK_SAFE_OK`,
+  `TURN_CONFIRM_OK`, `START_APP_OK`, and `SERVICE_FINAL_OK` from the installed
+  logon task.
 - The temporary Feishu exception is over; agent-to-agent work returns to
   AgentChat LAN.
 
