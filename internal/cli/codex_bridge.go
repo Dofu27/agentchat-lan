@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ func (a *App) cmdCodexBridge(args []string) int {
 	codex := fs.String("codex", envOr("CODEX_BIN", "codex"), "Codex executable")
 	messageText := fs.String("message", "", "message text for a manual test (otherwise read message JSON from stdin)")
 	waitTurn := fs.Duration("wait-turn", 15*time.Second, "wait for a new Codex turn after queueing; 0 disables the check")
+	startApp := fs.Bool("start-app", runtime.GOOS == "windows", "start Codex Desktop if queueing did not produce a turn")
 	dryRun := fs.Bool("dry-run", false, "print the prompt and command without invoking Codex")
 
 	codeExit, ok := a.parse(fs, args)
@@ -85,15 +87,41 @@ func (a *App) cmdCodexBridge(args []string) int {
 	if *waitTurn <= 0 || beforeErr != nil {
 		return 0
 	}
-	deadline := time.Now().Add(*waitTurn)
-	for time.Now().Before(deadline) {
-		after, err := latestTurnStarted(*codexHome, *thread)
-		if err == nil && after > before {
+	if waitForNewTurn(*codexHome, *thread, before, *waitTurn) {
+		return 0
+	}
+	if *startApp {
+		fmt.Fprintln(a.Stderr, "codex-bridge: no new turn yet; starting Codex Desktop")
+		if err := startCodexApp(*codex); err != nil {
+			fmt.Fprintf(a.Stderr, "codex-bridge: start Codex Desktop: %v\n", err)
+		} else if waitForNewTurn(*codexHome, *thread, before, *waitTurn) {
 			return 0
+		}
+	}
+	return a.fail(fmt.Errorf("codex queue accepted but no new turn started within %s; Codex may not be running", *waitTurn))
+}
+
+func waitForNewTurn(codexHome, thread string, before int64, wait time.Duration) bool {
+	deadline := time.Now().Add(wait)
+	for time.Now().Before(deadline) {
+		after, err := latestTurnStarted(codexHome, thread)
+		if err == nil && after > before {
+			return true
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return a.fail(fmt.Errorf("codex queue accepted but no new turn started within %s; Codex may not be running", *waitTurn))
+	return false
+}
+
+func startCodexApp(codex string) error {
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("automatic Codex Desktop start is only implemented on Windows")
+	}
+	cmd := exec.Command(codex, "app")
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
 }
 
 func codexBridgePrompt(agentchat, cfgPath string, msg protocol.Message) string {
