@@ -71,11 +71,13 @@ func (a *App) cmdAgent(args []string) int {
 		}
 
 		acks := make(map[string]int64)
+		hookFailed := false
 		for _, msg := range resp.Messages {
 			if cfg.AgentID != "" && msg.From.ID == cfg.AgentID {
 				advanceAck(acks, msg)
 				continue
 			}
+			hookOK := true
 			if strings.TrimSpace(*execHook) == "" {
 				if *jsonOut {
 					if code := a.printJSON(msg); code != 0 {
@@ -85,9 +87,11 @@ func (a *App) cmdAgent(args []string) int {
 					printMessage(a, msg)
 				}
 			} else if err := runAgentHook(ctx, *execHook, msg, a); err != nil {
-				fmt.Fprintf(a.Stderr, "agent: hook failed for seq %d: %v\n", msg.Seq, err)
+				hookOK = false
+				hookFailed = true
+				fmt.Fprintf(a.Stderr, "agent: hook failed for seq %d: %v (message remains unacknowledged)\n", msg.Seq, err)
 			}
-			if *ack {
+			if *ack && hookOK {
 				advanceAck(acks, msg)
 			}
 		}
@@ -100,6 +104,12 @@ func (a *App) cmdAgent(args []string) int {
 			}
 		}
 		if *once {
+			if hookFailed {
+				return 1
+			}
+			return 0
+		}
+		if hookFailed && !sleepContext(ctx, 2*time.Second) {
 			return 0
 		}
 	}
