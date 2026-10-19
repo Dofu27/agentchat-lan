@@ -150,6 +150,11 @@ Codex implemented and DSH fixed/integrated:
   non-loopback HTTP as insecure.
 - Tests cover CA trust, pin match/mismatch, unknown CA, wrong host, expired and
   not-yet-valid certificates, join persistence, HTTPS chat/files, and MCP trust.
+- Live isolated HTTPS test on port 8788 passed CLI join/send/activity/files,
+  MCP, Web UI assets, both CA and additive pin trust, and a Windows client;
+  see [TLS-LIVE-TEST.md](TLS-LIVE-TEST.md).
+- Production hub is still HTTP on 8787; switching it to HTTPS is deployment
+  work, not a code gap.
 - Merged to `main` as `23fade3` from `17ef841`.
 
 ## Done (built-in agent runtime)
