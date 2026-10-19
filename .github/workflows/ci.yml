@@ -32,11 +32,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {goos: linux, goarch: amd64}
-          - {goos: linux, goarch: arm64}
-          - {goos: windows, goarch: amd64}
-          - {goos: darwin, goarch: amd64}
-          - {goos: darwin, goarch: arm64}
+          - {goos: linux, goarch: amd64, ext: ""}
+          - {goos: linux, goarch: arm64, ext: ""}
+          - {goos: windows, goarch: amd64, ext: ".exe"}
+          - {goos: darwin, goarch: amd64, ext: ""}
+          - {goos: darwin, goarch: arm64, ext: ""}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -47,8 +47,9 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          EXT: ${{ matrix.ext }}
           CGO_ENABLED: "0"
         run: |
           mkdir -p dist
           go build -trimpath -ldflags "-s -w -X main.version=ci" \
-            -o "dist/agentchat-${GOOS}-${GOARCH}" ./cmd/agentchat
+            -o "dist/agentchat-${GOOS}-${GOARCH}${EXT}" ./cmd/agentchat

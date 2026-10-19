@@ -51,7 +51,8 @@ func New(baseURL, token string) *Client {
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		Token:   token,
 		HTTP: &http.Client{
-			Timeout: 45 * time.Second,
+			// Must exceed the maximum inbox long-poll (60s) plus overhead.
+			Timeout: 90 * time.Second,
 		},
 	}
 }

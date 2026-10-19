@@ -5,7 +5,6 @@ package protocol
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"regexp"
@@ -25,6 +24,9 @@ const (
 
 	// MaxFilesPerMessage is the maximum number of attachments on one message.
 	MaxFilesPerMessage = 8
+
+	// MaxMentions is the maximum number of explicit recipients on one message.
+	MaxMentions = 16
 
 	// MaxFileSize is the default per-file cap (512 MiB).
 	MaxFileSize int64 = 512 << 20
@@ -276,9 +278,4 @@ func NewID() string {
 		v.Rsh(v, 5)
 	}
 	return string(out)
-}
-
-// MarshalJSON is a small helper for tests and fixtures.
-func MarshalJSON(v any) ([]byte, error) {
-	return json.Marshal(v)
 }

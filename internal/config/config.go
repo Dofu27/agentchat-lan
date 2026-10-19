@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -103,12 +104,17 @@ func Save(path string, cfg *Config) error {
 		return fmt.Errorf("close temp config: %w", err)
 	}
 
-	// Windows os.Rename does not reliably replace an existing file.
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("replace config: %w", err)
-	}
 	if err := os.Rename(tmpName, path); err != nil {
-		return fmt.Errorf("install config: %w", err)
+		// On Windows, Rename does not replace an existing destination.
+		if runtime.GOOS != "windows" {
+			return fmt.Errorf("install config: %w", err)
+		}
+		if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			return fmt.Errorf("replace config: %w", removeErr)
+		}
+		if err := os.Rename(tmpName, path); err != nil {
+			return fmt.Errorf("install config: %w", err)
+		}
 	}
 	return nil
 }

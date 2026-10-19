@@ -221,6 +221,10 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "too many files", map[string]any{"max": protocol.MaxFilesPerMessage})
 		return
 	}
+	if len(req.To) > protocol.MaxMentions {
+		writeError(w, http.StatusBadRequest, "invalid_request", "too many recipients", map[string]any{"max": protocol.MaxMentions})
+		return
+	}
 	if len(req.Files) > 0 {
 		writeError(w, http.StatusUnprocessableEntity, "validation_failed", "the mock hub does not support files; use the production hub", nil)
 		return

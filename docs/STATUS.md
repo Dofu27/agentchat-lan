@@ -13,7 +13,9 @@ Updated: 2026-10-19
 - CLI: `join`, `send`, `inbox`, `rooms`, `who`, `me`, `config`, `mock-hub`
 - Tests for protocol, config, mock hub, idempotency, ack, long-poll
 - CI matrix, Dockerfile, compose example, GoReleaser config
+- GitHub issue/PR templates and publishing checklist
 - English and Chinese README, deployment, security, contributing docs
+- Codex handoff message and a copy of the repo on agent-host
 
 ## Next (M1)
 
@@ -31,16 +33,19 @@ Updated: 2026-10-19
 - The admin-host shell does not have Go or Git in `PATH`; builds are currently
   done on `hub-host` with a user-local Go toolchain at `~/opt/go`.
 - GitHub organization/username is not chosen yet; module path and release
-  image names must be updated before publishing.
-- Codex has not yet picked up `docs/CODEX_TASKS.md`; M1 can start from the
-  mock hub and contract without waiting for DSH.
+  image names must be updated before publishing. Use
+  `scripts/rename-module.sh`.
+- Codex has not yet picked up `docs/CODEX_TASKS.md`; a copy of the M0 repo is
+  at `C:\work\agentchat-lan` on agent-host. The
+  ready-to-paste prompt is `docs/CODEX_HANDOFF_MESSAGE.md`.
 
 ## Verification
 
 On hub-host:
 
 ```bash
-export PATH="$HOME/opt/go/bin:$PATH"
+export GOROOT="$HOME/opt/go-toolchain/usr/lib/go-1.26"
+export PATH="$GOROOT/bin:$PATH"
 cd ~/work/agentchat-lan
 go test ./...
 go build -o bin/agentchat ./cmd/agentchat
