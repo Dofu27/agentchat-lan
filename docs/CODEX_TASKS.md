@@ -156,6 +156,7 @@ Tools:
 - `chat_upload`
 - `chat_download`
 - `chat_who`
+- `chat_activity`
 
 Requirements:
 

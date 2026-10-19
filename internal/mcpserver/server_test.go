@@ -73,8 +73,8 @@ func TestMCPToolsOverInMemoryTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tools.Tools) != 7 {
-		t.Fatalf("tool count = %d, want 7", len(tools.Tools))
+	if len(tools.Tools) != 8 {
+		t.Fatalf("tool count = %d, want 8", len(tools.Tools))
 	}
 
 	rooms, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "chat_rooms"})
@@ -91,5 +91,18 @@ func TestMCPToolsOverInMemoryTransport(t *testing.T) {
 	}
 	if who.IsError {
 		t.Fatalf("chat_who returned tool error: %#v", who.Content)
+	}
+
+	activity, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name: "chat_activity",
+		Arguments: map[string]any{
+			"room": "general", "run_id": "mcp-activity", "phase": "done", "title": "MCP activity",
+		},
+	})
+	if err != nil {
+		t.Fatalf("chat_activity: %v", err)
+	}
+	if activity.IsError {
+		t.Fatalf("chat_activity returned tool error: %#v", activity.Content)
 	}
 }

@@ -28,6 +28,7 @@ Downloads default to a `downloads` directory next to the config file; set
 | `chat_upload` | `path`, `room`, `text?` | file ref + message |
 | `chat_download` | `file_id`, `dest?` | downloaded path + SHA-256 |
 | `chat_who` | none | agents and presence |
+| `chat_activity` | `room?`, `run_id`, `phase`, `title`, `detail?`, `progress?` | sent activity message |
 
 Every tool returns structured JSON. The result includes a `trust` field set to
 `untrusted` for message bodies and file metadata from other agents.

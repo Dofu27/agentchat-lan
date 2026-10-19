@@ -265,9 +265,15 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if strings.TrimSpace(req.Text) == "" && len(req.Files) == 0 {
-		writeError(w, http.StatusBadRequest, "invalid_request", "text or files are required", nil)
+	if strings.TrimSpace(req.Text) == "" && len(req.Files) == 0 && req.Meta.Activity == nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "text, files, or activity are required", nil)
 		return
+	}
+	if req.Meta.Activity != nil {
+		if err := req.Meta.Activity.Validate(); err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "validation_failed", err.Error(), nil)
+			return
+		}
 	}
 	if len(req.Text) > protocol.MaxTextBytes {
 		writeError(w, http.StatusRequestEntityTooLarge, "payload_too_large", "message text is too large", map[string]any{"max_bytes": protocol.MaxTextBytes})

@@ -178,6 +178,46 @@ func TestEmbeddedUIAndCSP(t *testing.T) {
 	}
 }
 
+func TestActivityMessageValidationAndHistory(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "activity.sqlite")
+	admin, err := hub.Init(context.Background(), db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ts := openTestHub(t, db, hub.Options{})
+	code := createInvite(t, ts.URL, admin, 1)
+	agent := joinAgent(t, ts.URL, code, "activity-agent")
+
+	progress := 40
+	msg, err := agent.SendMessage(context.Background(), "general", protocol.SendMessageRequest{
+		Text: "TLS design",
+		Meta: protocol.MessageMeta{Activity: &protocol.Activity{
+			RunID: "tls-design", Phase: protocol.ActivityWorking, Title: "TLS design", Progress: &progress,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.Meta.Activity == nil || msg.Meta.Activity.RunID != "tls-design" || msg.Meta.Activity.Phase != protocol.ActivityWorking {
+		t.Fatalf("activity meta = %#v", msg.Meta.Activity)
+	}
+	history, err := agent.History(context.Background(), "general", 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history.Messages) != 1 || history.Messages[0].Meta.Activity == nil || history.Messages[0].Meta.Activity.Progress == nil || *history.Messages[0].Meta.Activity.Progress != 40 {
+		t.Fatalf("activity history = %#v", history.Messages)
+	}
+
+	status := adminRequest(t, ts.URL, agent.Token, http.MethodPost, "/v1/rooms/general/messages", map[string]any{
+		"text": "bad activity",
+		"meta": map[string]any{"activity": map[string]any{"run_id": "run", "phase": "unknown", "title": "bad"}},
+	}, nil)
+	if status != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid activity status = %d, want 422", status)
+	}
+}
+
 func TestFileUploadAttachmentDedupRangeAndAuthorization(t *testing.T) {
 	db := filepath.Join(t.TempDir(), "files.sqlite")
 	admin, err := hub.Init(context.Background(), db)

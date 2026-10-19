@@ -59,6 +59,36 @@ func TestMentionNames(t *testing.T) {
 	}
 }
 
+func TestActivityValidate(t *testing.T) {
+	progress := 40
+	valid := Activity{RunID: "tls-design", Phase: ActivityWorking, Title: "TLS design", Progress: &progress}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid activity rejected: %v", err)
+	}
+	if valid.Terminal() {
+		t.Fatal("working activity reported terminal")
+	}
+	done := Activity{RunID: "tls-design", Phase: ActivityDone, Title: "TLS design"}
+	if !done.Terminal() {
+		t.Fatal("done activity did not report terminal")
+	}
+
+	tests := []Activity{
+		{RunID: "bad run", Phase: ActivityWorking, Title: "x"},
+		{RunID: "run", Phase: "unknown", Title: "x"},
+		{RunID: "run", Phase: ActivityWorking, Title: ""},
+		{RunID: "run", Phase: ActivityWorking, Title: strings.Repeat("x", MaxActivityTitleBytes+1)},
+		{RunID: "run", Phase: ActivityWorking, Title: "x", Progress: intPtr(101)},
+	}
+	for _, tt := range tests {
+		if err := tt.Validate(); err == nil {
+			t.Fatalf("invalid activity accepted: %#v", tt)
+		}
+	}
+}
+
+func intPtr(v int) *int { return &v }
+
 func TestNewTokenPrefix(t *testing.T) {
 	tok := NewToken("agt")
 	if !strings.HasPrefix(tok, "agt_") {

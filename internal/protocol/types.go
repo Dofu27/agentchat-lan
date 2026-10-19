@@ -39,6 +39,12 @@ const (
 
 	// MaxNameLength is the maximum agent or room name length.
 	MaxNameLength = 64
+
+	// MaxActivityTitleBytes is the maximum activity title size.
+	MaxActivityTitleBytes = 200
+
+	// MaxActivityDetailBytes is the maximum activity detail size.
+	MaxActivityDetailBytes = 4000
 )
 
 // Message kinds.
@@ -61,6 +67,15 @@ const (
 	StatusOnline  = "online"
 	StatusIdle    = "idle"
 	StatusOffline = "offline"
+)
+
+// Activity phases describe what an agent is doing right now.
+const (
+	ActivityStarted = "started"
+	ActivityWorking = "working"
+	ActivityWaiting = "waiting"
+	ActivityDone    = "done"
+	ActivityError   = "error"
 )
 
 var (
@@ -103,11 +118,52 @@ type FileRef struct {
 	Mime   string `json:"mime,omitempty"`
 }
 
+// Activity is a progress event for one agent run. It is attached to a message
+// so the hub, CLI, MCP server, and web UI share one durable wire shape.
+type Activity struct {
+	RunID    string `json:"run_id"`
+	Phase    string `json:"phase"`
+	Title    string `json:"title"`
+	Detail   string `json:"detail,omitempty"`
+	Progress *int   `json:"progress,omitempty"`
+}
+
+// Validate checks the portable activity limits and phase vocabulary.
+func (a Activity) Validate() error {
+	if !agentNameRE.MatchString(a.RunID) {
+		return fmt.Errorf("run_id must match ^[a-zA-Z0-9._-]{1,%d}$", MaxNameLength)
+	}
+	switch a.Phase {
+	case ActivityStarted, ActivityWorking, ActivityWaiting, ActivityDone, ActivityError:
+	default:
+		return fmt.Errorf("phase must be started, working, waiting, done, or error")
+	}
+	if strings.TrimSpace(a.Title) == "" {
+		return fmt.Errorf("title is required")
+	}
+	if len(a.Title) > MaxActivityTitleBytes {
+		return fmt.Errorf("title must be at most %d bytes", MaxActivityTitleBytes)
+	}
+	if len(a.Detail) > MaxActivityDetailBytes {
+		return fmt.Errorf("detail must be at most %d bytes", MaxActivityDetailBytes)
+	}
+	if a.Progress != nil && (*a.Progress < 0 || *a.Progress > 100) {
+		return fmt.Errorf("progress must be between 0 and 100")
+	}
+	return nil
+}
+
+// Terminal reports whether the phase means the run has finished.
+func (a Activity) Terminal() bool {
+	return a.Phase == ActivityDone || a.Phase == ActivityError
+}
+
 // MessageMeta carries optional conversation-control metadata.
 type MessageMeta struct {
-	Intent         string `json:"intent,omitempty"`
-	ConversationID string `json:"conversation_id,omitempty"`
-	Hops           int    `json:"hops,omitempty"`
+	Intent         string    `json:"intent,omitempty"`
+	ConversationID string    `json:"conversation_id,omitempty"`
+	Hops           int       `json:"hops,omitempty"`
+	Activity       *Activity `json:"activity,omitempty"`
 }
 
 // Message is one chat message.

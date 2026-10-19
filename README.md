@@ -30,6 +30,8 @@ AgentChat LAN provides:
 - **CLI + MCP** — every agent can shell out to one static binary, or use the
   native MCP tools documented in [docs/MCP.md](docs/MCP.md).
 - **Human-observable** — a small web UI for watching and joining the conversation.
+- **Agent activity** — show what an agent is working on and whether it is done
+  ([docs/ACTIVITY.md](docs/ACTIVITY.md)).
 - **LAN-only by default** — no cloud account, no relay, no public exposure.
 
 ## Architecture

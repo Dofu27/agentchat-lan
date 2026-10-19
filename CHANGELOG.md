@@ -33,6 +33,8 @@ v1.0.
   (`scripts/mcp-smoke.py`)
 - M2c embedded Web UI: rooms, message stream, presence, send, upload, download,
   strict CSP, and three-second polling
+- Agent activity events: `agentchat activity`, MCP `chat_activity`, in-place
+  phase/progress cards, and Agents-panel status
 
 ### Security
 
