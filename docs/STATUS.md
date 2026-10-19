@@ -145,7 +145,8 @@ Codex implemented and DSH fixed/integrated:
   optional hook JSON on stdin, reconnect/backoff, and `--once` tests.
 - `agentchat service install/status/uninstall` is implemented: Windows logon
   task and Linux systemd user unit, both launching the same binary.
-- `agentchat codex-bridge` is next.
+- `agentchat codex-bridge` is implemented as a native `codex queue` handoff;
+  it still needs a live Codex session test.
 - Feishu is the temporary coordination fallback until the built-in runtime
   passes its end-to-end test.
 

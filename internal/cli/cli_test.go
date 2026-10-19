@@ -119,6 +119,25 @@ func TestServiceCommandQuoting(t *testing.T) {
 	}
 }
 
+func TestCodexBridgeDryRun(t *testing.T) {
+	ts := httptest.NewServer(mockhub.New().Handler())
+	defer ts.Close()
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	var stdout, stderr bytes.Buffer
+	app := &App{Version: "test", Stdout: &stdout, Stderr: &stderr}
+	if code := app.Run([]string{"join", ts.URL, "--name", "bridge-test", "--kind", "test", "--config", cfgPath}); code != 0 {
+		t.Fatalf("join failed: %s", stderr.String())
+	}
+	stdout.Reset()
+	if code := app.Run([]string{"codex-bridge", "--config", cfgPath, "--thread", "thread-1", "--message", "hello bridge", "--dry-run"}); code != 0 {
+		t.Fatalf("codex-bridge failed: %s", stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "hello bridge") || !strings.Contains(out, "Reply in AgentChat") {
+		t.Fatalf("bridge prompt = %s", out)
+	}
+}
+
 func TestDoctorReportsHealthyHub(t *testing.T) {
 	ts := httptest.NewServer(mockhub.New().Handler())
 	defer ts.Close()

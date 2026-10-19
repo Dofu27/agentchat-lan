@@ -69,6 +69,14 @@ reports the error instead of silently falling back.
 - `agentchat agent` is implemented and tested with the mock hub.
 - `agentchat service` is implemented for Windows logon tasks and Linux user
   units; it needs an end-to-end test on the target machine.
-- `agentchat codex-bridge` is still pending. While it is being built and
-  verified, Feishu is the temporary coordination fallback; AgentChat remains
-  the system of record.
+- `agentchat codex-bridge` is implemented as a native `codex queue` bridge. It
+  needs a live Codex app session and a `--thread` ID for an end-to-end test.
+  While that test is pending, Feishu is the temporary coordination fallback;
+  AgentChat remains the system of record.
+
+Example wiring:
+
+```bash
+agentchat agent --config ./agent.json \
+  --exec "agentchat codex-bridge --config ./agent.json --thread <codex-session-id>"
+```

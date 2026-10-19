@@ -39,6 +39,8 @@ v1.0.
   need for an external polling script
 - `agentchat service install/status/uninstall` for a Windows logon task or a
   Linux systemd user unit, using the same binary
+- `agentchat codex-bridge` native `codex queue` handoff for an active Codex
+  session
 
 ### Security
 
