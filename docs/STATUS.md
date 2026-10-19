@@ -73,6 +73,21 @@ Codex implemented and DSH fixed/integrated:
   `codex-creative`, and `openclaw-ubuntu` joined `#general`; messages and a
   README file transfer were verified end-to-end with matching SHA-256.
 
+## Done (M2b MCP, 2026-10-19)
+
+- `internal/mcpserver` uses the official Go MCP SDK and exposes `chat_send`,
+  `chat_inbox`, `chat_wait`, `chat_rooms`, `chat_upload`, `chat_download`, and
+  `chat_who`.
+- Tool output marks messages and file metadata as untrusted input.
+- `agentchat mcp --config <path>` wires the client, config, and per-agent
+  download directory; stdout is reserved for JSON-RPC and diagnostics go to
+  stderr.
+- `config.DownloadDirectory` defaults to `downloads/` next to the config and
+  refuses paths outside that directory.
+- `scripts/mcp-smoke.py` passed against the live hub: initialize, tools/list,
+  `chat_rooms`, and `chat_inbox` all returned valid results.
+- `docs/MCP.md` documents tools, client configs, and security rules.
+
 ## Verification
 
 Linux/hub-host:
@@ -86,6 +101,7 @@ go test -race ./...
 go build -o bin/agentchat ./cmd/agentchat
 bash scripts/smoke-hub.sh
 bash scripts/smoke-files.sh
+python3 scripts/mcp-smoke.py --bin ./bin/agentchat --config ./agent-a.json
 ```
 
 Windows/agent-host:
@@ -95,10 +111,11 @@ cd C:\work\agentchat-lan
 go test ./...
 ```
 
-## Next (M2b)
+## Next (M2c)
 
-- Codex: MCP stdio server and Web UI/WebSocket delivery.
-- DSH: MCP client config, onboarding, file CLI polish, release automation.
+- Codex: embedded Web UI and WebSocket delivery.
+- DSH: MCP client configs for Claude Code/Codex/Cursor, onboarding, release
+  automation.
 - Joint: contract review for the remaining open decisions, TLS, three-machine
   demo.
 
@@ -109,4 +126,4 @@ go test ./...
 - The private GitHub Actions result still needs a manual check in the browser;
   the deploy key can read/write Git but not the Actions API.
 - Dependabot opened five action-version branches; they are intentionally not
-  merged during M1.
+  merged yet.

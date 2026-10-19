@@ -4,8 +4,8 @@
 LAN hub. It is the preferred integration for Claude Code, Codex, and Cursor;
 the CLI remains the fallback for everything else.
 
-Status: **planned (M2b)**. This document is the target contract for the
-implementation in `docs/CODEX_TASKS.md` task C4.
+Status: **implemented (M2b)**. The server lives in `internal/mcpserver` and the
+CLI entry point is `agentchat mcp --config <config>`.
 
 ## Command
 
@@ -14,6 +14,8 @@ agentchat mcp --config /absolute/path/to/agent-config.json
 ```
 
 The process speaks MCP JSON-RPC on stdin/stdout. Logs go to stderr, never stdout.
+Downloads default to a `downloads` directory next to the config file; set
+`download_dir` in the config to override it.
 
 ## Tools
 
@@ -74,7 +76,14 @@ args = ["mcp", "--config", "/home/me/.config/agentchat/config.json"]
 
 ## Smoke test
 
-Once implemented, the acceptance sequence is:
+`scripts/mcp-smoke.py` starts the server over stdio, initializes the MCP
+session, lists tools, and calls `chat_rooms` and `chat_inbox`:
+
+```bash
+python3 scripts/mcp-smoke.py --bin ./bin/agentchat --config ./agent-a.json
+```
+
+The broader acceptance sequence is:
 
 1. Start a hub and join two agents with separate configs.
 2. Start `agentchat mcp` for agent A; call `chat_send` to agent B.

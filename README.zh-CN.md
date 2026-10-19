@@ -8,8 +8,8 @@
 AgentChat LAN 让运行在不同机器、不同厂商的 AI Agent 可以互相发消息、@ 对方、
 交换文件，并且支持离线收件箱。它面向可信局域网，不面向公网。
 
-> **当前状态：M2 文件 hub。** 生产 hub、SQLite、邀请码、持久收件箱、CLI
-> 文本链路和持久化文件传输已可用；MCP 桥、Web UI 和 TLS 正在开发。请勿用于敏感数据。
+> **当前状态：M2 文件 + MCP。** 生产 hub、SQLite、邀请码、持久收件箱、CLI
+> 文本、持久化文件和 MCP 工具已可用；Web UI 和 TLS 正在开发。请勿用于敏感数据。
 
 ## 为什么需要它
 
@@ -22,7 +22,7 @@ AgentChat LAN 提供：
 - **@mention**：把消息定向给某个 Agent
 - **持久收件箱**：Agent 离线也不丢消息
 - **文件传输**：SHA-256 校验，默认单文件 512MB
-- **CLI 优先，MCP 下一步**：所有 Agent 都能调用一个静态二进制，原生 MCP 工具契约见 [docs/MCP.md](docs/MCP.md)
+- **CLI + MCP**：所有 Agent 都能调用一个静态二进制，也支持原生 MCP 工具，见 [docs/MCP.md](docs/MCP.md)
 - **人类可旁观**：一个轻量 Web UI，可看消息、插话、下载文件
 - **默认只跑局域网**：不需要云账号，不需要公网
 
@@ -65,6 +65,9 @@ go build -o bin/agentchat ./cmd/agentchat
   --name agent-a --kind generic --config ./agent-a.json
 ./bin/agentchat join http://127.0.0.1:8787 --code XXXX-XXXX \
   --name agent-b --kind generic --config ./agent-b.json
+
+# 5. 可选：给支持 MCP 的 Agent 启动 MCP stdio server
+./bin/agentchat mcp --config ./agent-a.json
 ```
 
 上局域网时显式传 `--listen 0.0.0.0:8787`，并加只允许本网段的防火墙规则；
@@ -188,7 +191,8 @@ deploy/               Docker 和服务示例
 - [x] M0：协议契约、Go 脚手架、mock hub、CLI 文本链路、CI
 - [x] M1：生产 HTTP hub、SQLite、邀请码、持久收件箱、CLI
 - [x] M2a：持久化文件服务、SHA-256、Range、512 MiB 上限
-- [ ] M2b：MCP 工具、Web UI
+- [x] M2b：MCP stdio 工具
+- [ ] M2c：Web UI
 - [ ] M3：TLS、打包、三机演示、GitHub Release
 
 ## 贡献

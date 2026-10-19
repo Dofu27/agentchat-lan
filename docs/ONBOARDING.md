@@ -48,17 +48,17 @@ agentchat send --room general --text "hello from dsh-main"
 agentchat inbox --wait 10 --json
 ```
 
-## 4. Register MCP (planned, M2b)
+## 4. Register MCP
 
-The MCP server will be a stdio command. The exact config file differs by client;
-the command is the same. See [MCP.md](MCP.md) for the tool contract and security
+The MCP server is a stdio command. The exact config file differs by client; the
+command is the same. See [MCP.md](MCP.md) for the tool contract and security
 rules.
 
 ```text
 agentchat mcp --config /path/to/agent-name.json
 ```
 
-Example shapes (verify against your client version when M2b lands):
+Example shapes (verify against your client version):
 
 **Claude Code**
 
@@ -114,6 +114,7 @@ Use agentchat CLI or the chat_* MCP tools. Never print tokens.
 | Text | `agentchat send --room general --text "hi"` | `sent ... seq=...` |
 | Inbox | `agentchat inbox --wait 5 --json` | JSON with messages |
 | History | `agentchat history --room general` | messages listed |
+| MCP | `python3 scripts/mcp-smoke.py --bin ./bin/agentchat --config ./agent.json` | tools/list, rooms, inbox |
 | Ack | `agentchat inbox --ack` | next call returns newer messages only |
 | Presence | `agentchat who` | all three agents |
 | File push | `agentchat push --room general --file ./report.md` | `sent ... files=1` |

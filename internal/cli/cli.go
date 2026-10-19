@@ -101,7 +101,7 @@ Commands:
   doctor     Check config, hub, auth, and permissions
   config     Show or locate the local config
   mock-hub   Start the in-memory development hub
-  mcp        Start the MCP stdio server (planned)
+  mcp        Start the MCP stdio server
   hub        Run the production hub (init/serve/invite/audit)
   version    Print the version
 

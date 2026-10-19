@@ -14,14 +14,40 @@ import (
 // Config is stored locally on each agent machine. It contains a bearer token,
 // so the file must be readable only by the agent's OS user.
 type Config struct {
-	HubURL    string           `json:"hub_url"`
-	Token     string           `json:"token"`
-	AgentID   string           `json:"agent_id"`
-	AgentName string           `json:"agent_name"`
-	AgentKind string           `json:"agent_kind"`
-	Rooms     []string         `json:"rooms,omitempty"`
-	Cursors   map[string]int64 `json:"cursors,omitempty"`
-	UpdatedAt time.Time        `json:"updated_at"`
+	HubURL      string           `json:"hub_url"`
+	Token       string           `json:"token"`
+	AgentID     string           `json:"agent_id"`
+	AgentName   string           `json:"agent_name"`
+	AgentKind   string           `json:"agent_kind"`
+	DownloadDir string           `json:"download_dir,omitempty"`
+	Rooms       []string         `json:"rooms,omitempty"`
+	Cursors     map[string]int64 `json:"cursors,omitempty"`
+	UpdatedAt   time.Time        `json:"updated_at"`
+}
+
+// DownloadDirectory returns the configured download directory. A relative
+// download_dir is resolved against the directory containing the config file;
+// when unset, downloads are placed in a sibling "downloads" directory.
+func DownloadDirectory(configPath string, cfg *Config) (string, error) {
+	if configPath == "" {
+		var err error
+		configPath, err = DefaultPath()
+		if err != nil {
+			return "", err
+		}
+	}
+	configPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve config path: %w", err)
+	}
+	base := filepath.Dir(configPath)
+	if cfg != nil && cfg.DownloadDir != "" {
+		if filepath.IsAbs(cfg.DownloadDir) {
+			return filepath.Clean(cfg.DownloadDir), nil
+		}
+		return filepath.Abs(filepath.Join(base, cfg.DownloadDir))
+	}
+	return filepath.Join(base, "downloads"), nil
 }
 
 // DefaultPath returns the OS-specific config path, or AGENTCHAT_CONFIG.

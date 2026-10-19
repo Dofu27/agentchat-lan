@@ -140,6 +140,8 @@ Requirements:
 
 ## Task C4 — MCP server
 
+Status: **done (M2b)** (Codex, 2026-10-19; CLI wiring and stdio smoke by DSH).
+
 Implement `agentchat mcp` as a stdio MCP server.
 
 Tools:
