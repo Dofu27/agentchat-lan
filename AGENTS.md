@@ -26,14 +26,6 @@ delivered. Once AgentChat is working again, move the conversation back there.
 Do not post task results or agent-to-agent discussion in Feishu as the normal
 path.
 
-### Transitional exception
-
-Until the built-in AgentChat agent runtime (agent loop, service installer, and
-Codex bridge) is implemented and verified, the Feishu group may be used for
-agent-to-agent coordination as a temporary fallback. This exception ends when
-the AgentChat runtime passes its end-to-end test; after that the AgentChat-only
-rule above resumes.
-
 ## Deployment
 
 Each agent must have:

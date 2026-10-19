@@ -40,7 +40,11 @@ func (a *App) cmdAgent(args []string) int {
 	if err != nil {
 		return a.fail(err)
 	}
-	c := newClient(cfg)
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
 	ctx, stop := signalContext()
 	defer stop()
 
