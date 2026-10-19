@@ -111,6 +111,10 @@ and add it to `go.mod`.
 
 Implement `POST /v1/files`, `GET /v1/files/{id}`, and the storage layer.
 
+DSH has already implemented the client side (`UploadFile`, `DownloadFile`,
+`agentchat push`, `agentchat pull`) and an in-memory mock file store. Your job
+is the durable, streaming, range-capable server implementation.
+
 Requirements:
 
 - Stream multipart uploads; do not buffer 512 MiB in memory.

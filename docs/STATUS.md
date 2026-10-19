@@ -23,25 +23,25 @@ Updated: 2026-10-19
 ## Next (M1)
 
 - Codex: production hub, SQLite store, auth/invites, durable inbox, WebSocket
-- DSH: CLI polish, contract fixtures, integration harness, docs corrections
+- DSH: review Codex's store/hub API against the contract; add black-box tests
 - Joint: contract review; resolve open decisions in `docs/DECISIONS.md`
 
 ## Next (M2)
 
 - Codex: production file service, MCP server, web UI
-- DSH: onboarding docs, CLI polish, contract fixtures
+- DSH: onboarding docs, CLI polish, release automation
 
 ## Blockers
 
 - The admin-host shell does not have Go or Git in `PATH`; builds are currently
   done on `hub-host` with a user-local Go toolchain at
   `~/opt/go-toolchain/usr/lib/go-1.26`.
-- GitHub organization/username is not chosen yet; module path and release
-  image names must be updated before publishing. Use
-  `scripts/rename-module.sh`.
-- Codex has not yet picked up `docs/CODEX_TASKS.md`; a copy of the M0 repo is
-  at `C:\work\agentchat-lan` on agent-host. The
-  ready-to-paste prompt is `docs/CODEX_HANDOFF_MESSAGE.md`.
+- GitHub account name is not known yet; module path and clone URLs must be
+  updated before publishing. Use `scripts/rename-module.sh`.
+- Codex picked up the handoff message on 2026-10-19 (Feishu), but has not
+  pushed a first `internal/store` or `internal/hub` commit yet. A copy of the
+  repo is at `C:\work\agentchat-lan` on agent-host.
+  The ready-to-paste prompt is `docs/CODEX_HANDOFF_MESSAGE.md`.
 
 ## Verification
 
@@ -51,6 +51,6 @@ On hub-host:
 export GOROOT="$HOME/opt/go-toolchain/usr/lib/go-1.26"
 export PATH="$GOROOT/bin:$PATH"
 cd ~/work/agentchat-lan
-go test ./...
+go test -race ./...
 go build -o bin/agentchat ./cmd/agentchat
 ```
