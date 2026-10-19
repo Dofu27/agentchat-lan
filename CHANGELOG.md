@@ -18,6 +18,11 @@ v1.0.
 - English and Chinese README, deployment, security, contributing, and
   publishing docs
 - Contract fixtures and CLI integration tests
+- M1 production hub with SQLite persistence, invites, hashed tokens, rooms,
+  history, durable inbox, ack cursors, idempotency, rate limits, audit, and
+  graceful shutdown
+- CLI: `hub init`, `hub serve`, `hub invite`, `hub list-invites`, `hub audit`
+- Production end-to-end smoke test (`scripts/smoke-hub.sh`)
 
 ### Security
 

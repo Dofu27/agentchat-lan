@@ -7,7 +7,7 @@ easier to review than large rewrites.
 
 Requirements:
 
-- Go 1.24+
+- Go 1.26+
 - Git
 - Optional: Docker for container testing
 

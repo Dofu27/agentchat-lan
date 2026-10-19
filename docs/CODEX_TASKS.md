@@ -52,6 +52,10 @@ editing the other owner's package.
 
 ## Task C1 — Production hub
 
+Status: **MVP done** (Codex, 2026-10-19; CLI wiring by DSH). TLS,
+`--public-url`, and WebSocket delivery are deferred to M2/M3; the agent inbox
+uses HTTP long-poll today.
+
 Implement `agentchat hub` with:
 
 - `--listen`, `--data`, `--public-url`, `--tls-cert`, `--tls-key`,
@@ -78,6 +82,8 @@ Acceptance:
 - `go test -race ./...` passes.
 
 ## Task C2 — SQLite store
+
+Status: **done** (Codex, 2026-10-19).
 
 Implement a `Store` interface with a SQLite driver and migrations.
 
@@ -108,6 +114,8 @@ Use `modernc.org/sqlite` (pure Go) or another CGO-free driver. Pin the version
 and add it to `go.mod`.
 
 ## Task C3 — File service
+
+Status: **next** (M2). The client and mock file path already exist.
 
 Implement `POST /v1/files`, `GET /v1/files/{id}`, and the storage layer.
 

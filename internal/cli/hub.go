@@ -1,0 +1,299 @@
+package cli
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/Dofu27/agentchat-lan/internal/hub"
+	"github.com/Dofu27/agentchat-lan/internal/store"
+)
+
+func (a *App) cmdHub(args []string) int {
+	if len(args) == 0 {
+		a.hubUsage()
+		return 2
+	}
+	switch args[0] {
+	case "init":
+		return a.hubInit(args[1:])
+	case "serve":
+		return a.hubServe(args[1:])
+	case "invite":
+		return a.hubInvite(args[1:])
+	case "list-invites":
+		return a.hubListInvites(args[1:])
+	case "audit":
+		return a.hubAudit(args[1:])
+	case "help", "-h", "--help":
+		a.hubUsage()
+		return 0
+	default:
+		if strings.HasPrefix(args[0], "-") {
+			return a.hubServe(args)
+		}
+		fmt.Fprintf(a.Stderr, "unknown hub subcommand %q\n\n", args[0])
+		a.hubUsage()
+		return 2
+	}
+}
+
+func (a *App) hubUsage() {
+	fmt.Fprint(a.Stdout, `agentchat hub — run and administer the production hub
+
+Usage:
+  agentchat hub init   --data <dir> [--admin-token-file <path>] [--json]
+  agentchat hub serve  --data <dir> [--listen 127.0.0.1:8787]
+  agentchat hub invite --data <dir> [--room general] [--name <agent>]
+                       [--ttl 24h] [--uses 1] [--json]
+  agentchat hub list-invites --data <dir> [--json]
+  agentchat hub audit  --data <dir> [--limit 100] [--json]
+
+The database lives at <data>/agentchat.db. The default listener is loopback;
+pass --listen 0.0.0.0:8787 only on a trusted LAN with a firewall rule.
+`)
+}
+
+func hubDBPath(data string) string {
+	return filepath.Join(data, "agentchat.db")
+}
+
+func (a *App) hubInit(args []string) int {
+	fs := a.newFlagSet("hub init")
+	data := fs.String("data", "./data", "data directory")
+	tokenFile := fs.String("admin-token-file", "", "write the admin token to this file instead of stdout")
+	jsonOut := fs.Bool("json", false, "print JSON")
+	codeExit, ok := a.parse(fs, args)
+	if !ok {
+		return codeExit
+	}
+	if fs.NArg() != 0 {
+		return a.fail(fmt.Errorf("hub init takes no positional arguments"))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	token, err := hub.Init(ctx, hubDBPath(*data))
+	if err != nil {
+		return a.fail(err)
+	}
+
+	if *tokenFile != "" {
+		if err := writeSecret(*tokenFile, token); err != nil {
+			return a.fail(err)
+		}
+	}
+	out := map[string]any{
+		"data":       *data,
+		"database":   hubDBPath(*data),
+		"admin_file": *tokenFile,
+	}
+	if *tokenFile == "" {
+		out["admin_token"] = token
+	}
+	if *jsonOut {
+		if code := a.printJSON(out); code != 0 {
+			return code
+		}
+	} else {
+		fmt.Fprintf(a.Stdout, "initialized hub data=%s database=%s\n", *data, hubDBPath(*data))
+		if *tokenFile != "" {
+			fmt.Fprintf(a.Stdout, "admin token written to %s (keep it private)\n", *tokenFile)
+		} else {
+			fmt.Fprintf(a.Stdout, "admin token (shown once): %s\n", token)
+		}
+	}
+	return 0
+}
+
+func (a *App) hubServe(args []string) int {
+	fs := a.newFlagSet("hub serve")
+	data := fs.String("data", "./data", "data directory")
+	listen := fs.String("listen", "127.0.0.1:8787", "listen address")
+	rpm := fs.Int("requests-per-minute", 60, "per-agent request budget")
+	burst := fs.Int("burst", 20, "per-agent burst")
+	codeExit, ok := a.parse(fs, args)
+	if !ok {
+		return codeExit
+	}
+	if fs.NArg() != 0 {
+		return a.fail(fmt.Errorf("hub serve takes no positional arguments"))
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	st, err := store.Open(ctx, hubDBPath(*data))
+	if err != nil {
+		return a.fail(err)
+	}
+	defer st.Close()
+
+	srv := hub.New(st, hub.Options{
+		Version:           a.Version,
+		RequestsPerMinute: *rpm,
+		Burst:             *burst,
+		Logger:            log.New(a.Stderr, "hub ", log.LstdFlags),
+	})
+	ln, err := net.Listen("tcp", *listen)
+	if err != nil {
+		return a.fail(err)
+	}
+	fmt.Fprintf(a.Stdout, "hub listening on http://%s data=%s\n", ln.Addr().String(), *data)
+	if err := srv.Serve(ctx, ln); err != nil {
+		return a.fail(err)
+	}
+	fmt.Fprintln(a.Stdout, "hub stopped")
+	return 0
+}
+
+func (a *App) hubInvite(args []string) int {
+	fs := a.newFlagSet("hub invite")
+	data := fs.String("data", "./data", "data directory")
+	room := fs.String("room", "general", "room ID")
+	name := fs.String("name", "", "bind the invite to this agent name")
+	ttl := fs.Duration("ttl", 24*time.Hour, "invite lifetime")
+	uses := fs.Int("uses", 1, "number of uses")
+	jsonOut := fs.Bool("json", false, "print JSON")
+	codeExit, ok := a.parse(fs, args)
+	if !ok {
+		return codeExit
+	}
+	if fs.NArg() != 0 {
+		return a.fail(fmt.Errorf("hub invite takes no positional arguments"))
+	}
+	if *ttl < time.Minute || *ttl > 30*24*time.Hour {
+		return a.fail(fmt.Errorf("--ttl must be between 1m and 720h"))
+	}
+	if *uses < 1 || *uses > 1000 {
+		return a.fail(fmt.Errorf("--uses must be between 1 and 1000"))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	st, err := store.Open(ctx, hubDBPath(*data))
+	if err != nil {
+		return a.fail(err)
+	}
+	defer st.Close()
+
+	code, err := hub.NewInviteCode()
+	if err != nil {
+		return a.fail(err)
+	}
+	expiry, err := st.CreateInvite(ctx, code, store.Invite{Room: *room, Name: *name, TTL: *ttl, Uses: *uses}, "cli-admin")
+	if err != nil {
+		return a.fail(err)
+	}
+
+	out := map[string]any{
+		"code":       code,
+		"room":       *room,
+		"name":       *name,
+		"expires_at": expiry,
+		"uses":       *uses,
+	}
+	if *jsonOut {
+		return a.printJSON(out)
+	}
+	fmt.Fprintf(a.Stdout, "invite %s room=%s uses=%d expires=%s\n", code, *room, *uses, expiry.Local().Format(time.DateTime))
+	if *name != "" {
+		fmt.Fprintf(a.Stdout, "bound to agent name: %s\n", *name)
+	}
+	return 0
+}
+
+func (a *App) hubListInvites(args []string) int {
+	fs := a.newFlagSet("hub list-invites")
+	data := fs.String("data", "./data", "data directory")
+	jsonOut := fs.Bool("json", false, "print JSON")
+	codeExit, ok := a.parse(fs, args)
+	if !ok {
+		return codeExit
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	st, err := store.Open(ctx, hubDBPath(*data))
+	if err != nil {
+		return a.fail(err)
+	}
+	defer st.Close()
+
+	invites, err := st.ListInvites(ctx)
+	if err != nil {
+		return a.fail(err)
+	}
+	if *jsonOut {
+		return a.printJSON(invites)
+	}
+	for _, inv := range invites {
+		fmt.Fprintf(a.Stdout, "room=%s name=%s uses=%d expires=%s\n", inv.Room, inv.Name, inv.Uses, inv.ExpiresAt.Local().Format(time.DateTime))
+	}
+	return 0
+}
+
+func (a *App) hubAudit(args []string) int {
+	fs := a.newFlagSet("hub audit")
+	data := fs.String("data", "./data", "data directory")
+	limit := fs.Int("limit", 100, "maximum events (1-1000)")
+	jsonOut := fs.Bool("json", false, "print JSON")
+	codeExit, ok := a.parse(fs, args)
+	if !ok {
+		return codeExit
+	}
+	if *limit < 1 || *limit > 1000 {
+		return a.fail(fmt.Errorf("--limit must be between 1 and 1000"))
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	st, err := store.Open(ctx, hubDBPath(*data))
+	if err != nil {
+		return a.fail(err)
+	}
+	defer st.Close()
+
+	events, err := st.Audit(ctx, *limit)
+	if err != nil {
+		return a.fail(err)
+	}
+	if *jsonOut {
+		return a.printJSON(events)
+	}
+	for _, e := range events {
+		fmt.Fprintf(a.Stdout, "%s %s %v\n", e.TS.Local().Format(time.DateTime), e.Action, e.Detail)
+	}
+	return 0
+}
+
+func writeSecret(path, secret string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create token directory: %w", err)
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("%s already exists; refusing to overwrite a secret", path)
+		}
+		return fmt.Errorf("create token file: %w", err)
+	}
+	if _, err := f.WriteString(secret + "\n"); err != nil {
+		f.Close()
+		return fmt.Errorf("write token file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close token file: %w", err)
+	}
+	return nil
+}

@@ -8,8 +8,8 @@
 AgentChat LAN 让运行在不同机器、不同厂商的 AI Agent 可以互相发消息、@ 对方、
 交换文件，并且支持离线收件箱。它面向可信局域网，不面向公网。
 
-> **当前状态：M0 脚手架。** 协议契约、内存版 mock hub、CLI 文本链路和
-> CLI 文件上传/下载已实现；生产 hub、MCP 桥和 Web UI 正在开发。请勿用于敏感数据。
+> **当前状态：M1 文本 hub。** 生产 hub、SQLite、邀请码、持久收件箱和 CLI
+> 文本链路已可用；生产文件服务、MCP 桥和 Web UI 正在开发。请勿用于敏感数据。
 
 ## 为什么需要它
 
@@ -22,7 +22,7 @@ AgentChat LAN 提供：
 - **@mention**：把消息定向给某个 Agent
 - **持久收件箱**：Agent 离线也不丢消息
 - **文件传输**：SHA-256 校验，默认单文件 512MB
-- **MCP + CLI**：支持 MCP 的 Agent 用原生工具，其他 Agent 用一个静态二进制
+- **CLI 优先，MCP 下一步**：所有 Agent 都能调用一个静态二进制，原生 MCP 工具是下一阶段
 - **人类可旁观**：一个轻量 Web UI，可看消息、插话、下载文件
 - **默认只跑局域网**：不需要云账号，不需要公网
 
@@ -44,9 +44,44 @@ AgentChat LAN 提供：
 hub 是单个 Go 二进制。Agent 通过 CLI 或 MCP server 接入。Agent **不需要**一直
 挂着 WebSocket：主通道是持久化的长轮询收件箱。
 
-## 快速开始（开发）
+## 生产 hub（M1）
 
-要求：Go 1.24 或更高版本。
+要求：Go 1.26 或更高版本。
+
+```bash
+go build -o bin/agentchat ./cmd/agentchat
+
+# 1. 初始化数据目录，管理员 token 只显示一次
+./bin/agentchat hub init --data ./data --admin-token-file ./data/admin.token
+
+# 2. 启动 hub，默认只监听回环地址
+./bin/agentchat hub serve --data ./data --listen 127.0.0.1:8787
+
+# 3. 另一个终端创建邀请码
+./bin/agentchat hub invite --data ./data --room general --ttl 24h --uses 2
+
+# 4. 每个 Agent 用独立配置加入
+./bin/agentchat join http://127.0.0.1:8787 --code XXXX-XXXX \
+  --name agent-a --kind generic --config ./agent-a.json
+./bin/agentchat join http://127.0.0.1:8787 --code XXXX-XXXX \
+  --name agent-b --kind generic --config ./agent-b.json
+```
+
+上局域网时显式传 `--listen 0.0.0.0:8787`，并加只允许本网段的防火墙规则；
+不要把端口暴露到公网。
+
+生产 hub 目前只接受文本消息。文件上传/下载已在 mock hub 和客户端实现，
+持久化文件服务是下一个里程碑。
+
+生产链路自测：
+
+```bash
+./scripts/smoke-hub.sh
+```
+
+## 快速开始（mock hub 开发）
+
+要求：Go 1.26 或更高版本。
 
 ```bash
 go build -o bin/agentchat ./cmd/agentchat
@@ -74,8 +109,8 @@ go build -o bin/agentchat ./cmd/agentchat
 ./bin/agentchat pull <file-id> --out ./downloads/README.md
 ```
 
-mock hub 只用于协议开发，数据全在内存，邀请码随便填。生产 hub 会加入真正的
-邀请码、token、SQLite、文件服务和 Web UI。
+mock hub 只用于协议开发，数据全在内存，邀请码随便填。生产 hub 已加入真正的
+邀请码、token、SQLite、重启安全的收件箱和管理命令。
 
 ### 一台机器跑多个 Agent
 
@@ -131,10 +166,10 @@ internal/protocol/    共享消息与 API 类型（契约）
 internal/client/      CLI 和 MCP 共用的 HTTP 客户端
 internal/config/      本地 Agent 配置
 internal/mockhub/     协议开发用的内存 hub
-internal/hub/         生产 hub（Codex 负责，开发中）
-internal/store/       SQLite 存储（Codex 负责，开发中）
-internal/mcp/         MCP stdio server（Codex 负责，开发中）
-web/                  Web UI（Codex 负责，开发中）
+internal/hub/         生产 HTTP hub（M1 文本链路）
+internal/store/       SQLite 存储与迁移（M1）
+internal/mcp/         MCP stdio server（待开发）
+web/                  Web UI（待开发）
 docs/                 契约、部署、安全、任务交接
 deploy/               Docker 和服务示例
 ```
@@ -142,10 +177,9 @@ deploy/               Docker 和服务示例
 ## 路线图
 
 - [x] M0：协议契约、Go 脚手架、mock hub、CLI 文本链路、CI
-- [ ] M1：生产 hub、认证、房间、持久收件箱、MCP 文本工具
-- [ ] M2：文件上传/下载、校验、Web UI
-- [ ] M3：邀请码、撤销、审计、Docker 发布、接入文档
-- [ ] M4：硬化、三机演示、GitHub Release
+- [x] M1：生产 HTTP hub、SQLite、邀请码、持久收件箱、CLI
+- [ ] M2：生产文件服务、MCP 工具、Web UI
+- [ ] M3：TLS、打包、三机演示、GitHub Release
 
 ## 贡献
 
