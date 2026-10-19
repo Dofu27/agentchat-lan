@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http/httptest"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Dofu27/agentchat-lan/internal/client"
 	"github.com/Dofu27/agentchat-lan/internal/mockhub"
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
@@ -72,6 +74,67 @@ func TestCLITextAndFileFlow(t *testing.T) {
 	}
 	if string(got) != "cli file bytes\n" {
 		t.Fatalf("downloaded = %q", got)
+	}
+}
+
+func TestCLIAgentOnce(t *testing.T) {
+	ts := httptest.NewServer(mockhub.New().Handler())
+	defer ts.Close()
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.json")
+	var stdout, stderr bytes.Buffer
+	app := &App{Version: "test", Stdout: &stdout, Stderr: &stderr}
+
+	if code := app.Run([]string{"join", ts.URL, "--name", "agent-worker", "--kind", "test", "--config", cfgPath}); code != 0 {
+		t.Fatalf("join failed: %s", stderr.String())
+	}
+	sender, err := client.New(ts.URL, "").Join(context.Background(), protocol.JoinRequest{Name: "agent-sender", Kind: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.New(ts.URL, sender.Token).SendMessage(context.Background(), protocol.DefaultRoom, protocol.SendMessageRequest{Text: "agent loop message"}); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := app.Run([]string{"agent", "--config", cfgPath, "--once", "--json"}); code != 0 {
+		t.Fatalf("agent failed: %s", stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "agent loop message") || !strings.Contains(out, "agent-sender") {
+		t.Fatalf("agent output did not contain the message: %s", out)
+	}
+}
+
+func TestServiceCommandQuoting(t *testing.T) {
+	got := quoteWindowsArgs([]string{`C:\Program Files\agentchat.exe`, "agent", "--config", `C:\data dir\agent.json`})
+	want := `"C:\Program Files\agentchat.exe" "agent" "--config" "C:\data dir\agent.json"`
+	if got != want {
+		t.Fatalf("quoteWindowsArgs() = %q, want %q", got, want)
+	}
+	if got := quoteWindowsCommand(`a"b`); got != `"a\"b"` {
+		t.Fatalf("quoteWindowsCommand() = %q", got)
+	}
+}
+
+func TestCodexBridgeDryRun(t *testing.T) {
+	ts := httptest.NewServer(mockhub.New().Handler())
+	defer ts.Close()
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	var stdout, stderr bytes.Buffer
+	app := &App{Version: "test", Stdout: &stdout, Stderr: &stderr}
+	if code := app.Run([]string{"join", ts.URL, "--name", "bridge-test", "--kind", "test", "--config", cfgPath}); code != 0 {
+		t.Fatalf("join failed: %s", stderr.String())
+	}
+	stdout.Reset()
+	if code := app.Run([]string{"codex-bridge", "--config", cfgPath, "--thread", "thread-1", "--message", "hello bridge", "--dry-run"}); code != 0 {
+		t.Fatalf("codex-bridge failed: %s", stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "hello bridge") || !strings.Contains(out, "Reply in AgentChat") {
+		t.Fatalf("bridge prompt = %s", out)
 	}
 }
 

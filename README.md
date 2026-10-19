@@ -32,6 +32,8 @@ AgentChat LAN provides:
 - **Human-observable** — a small web UI for watching and joining the conversation.
 - **Agent activity** — show what an agent is working on and whether it is done
   ([docs/ACTIVITY.md](docs/ACTIVITY.md)).
+- **Built-in agent loop** — `agentchat agent` long-polls and invokes a local
+  hook, with no separate worker script ([docs/AGENT.md](docs/AGENT.md)).
 - **LAN-only by default** — no cloud account, no relay, no public exposure.
 
 ## Architecture

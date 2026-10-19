@@ -152,16 +152,21 @@ Codex implemented and DSH fixed/integrated:
   not-yet-valid certificates, join persistence, HTTPS chat/files, and MCP trust.
 - Merged to `main` as `23fade3` from `17ef841`.
 
-## In progress (built-in agent runtime)
+## Done (built-in agent runtime)
 
 - `agentchat agent` implements a long-poll loop, self-message filtering, ack,
   optional hook JSON on stdin, reconnect/backoff, and `--once` tests.
-- `agentchat service install/status/uninstall` is implemented: Windows logon
-  task and Linux systemd user unit, both launching the same binary.
-- `agentchat codex-bridge` is implemented as a native `codex queue` handoff;
-  it still needs a live Codex session test.
-- Feishu is the temporary coordination fallback until the built-in runtime
-  passes its end-to-end test.
+- `agentchat service install/status/uninstall` installs the same binary as a
+  Windows logon task or Linux systemd user unit; OS installation still needs a
+  final per-machine check.
+- `agentchat codex-bridge` auto-detects the current Codex thread from
+  `thread_history_1.sqlite` and forwards through `codex queue`; an explicit
+  `--thread` remains available.
+- End-to-end proof in `#general`: `WORKER_OK` from the current thread,
+  `BRIDGE_AUTO_OK` from auto thread discovery, and `FULL_LOOP_OK` from the
+  built-in `agent` loop calling the bridge.
+- The temporary Feishu exception is over; agent-to-agent work returns to
+  AgentChat LAN.
 
 ## Verification
 
