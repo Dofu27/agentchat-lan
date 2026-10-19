@@ -12,13 +12,15 @@ Updated: 2026-10-19
 - In-memory mock hub implementing text plus file upload/download
 - CLI: `join`, `send`, `push`, `pull`, `inbox`, `history`, `rooms`, `who`, `me`, `doctor`, `config`, `mock-hub`
 - Client-side SHA-256 upload/download with atomic install
-- Tests for protocol, config, mock hub, idempotency, ack, long-poll, files
-- CI matrix, Dockerfile, compose example, GoReleaser config
+- Tests for protocol, config, mock hub, idempotency, ack, long-poll, files,
+  CLI flows, doctor, and history
+- CI matrix with Linux race tests, Windows tests, cross-builds, and Docker build
 - GitHub issue/PR templates and publishing checklist
 - English and Chinese README, deployment, security, contributing docs
-- Codex handoff message, a copy of the repo on agent-host, and a Feishu
-  handoff sent on 2026-10-19
-- Shared-drive snapshot and Windows binary in `/mnt/teamshare/agentchat`
+- Codex handoff sent on 2026-10-19; Go 1.26.8 installed user-locally on
+  agent-host, and the repo copy there passes `go test ./...` on Windows
+- Shared-drive snapshot, source mirror, Git bundle, and Windows binary in
+  `/mnt/teamshare/agentchat`
 
 ## Next (M1)
 
@@ -43,10 +45,13 @@ Updated: 2026-10-19
   with write access.
 - `scripts/rename-module.sh` was tested on a temporary clone; the renamed tree
   builds and passes tests.
-- Codex picked up the handoff message on 2026-10-19 (Feishu), but has not
-  pushed a first `internal/store` or `internal/hub` commit yet. A copy of the
-  repo is at `C:\work\agentchat-lan` on agent-host.
-  The ready-to-paste prompt is `docs/CODEX_HANDOFF_MESSAGE.md`.
+- The private GitHub repo `Dofu27/agentchat-lan` has not been created yet, so
+  the configured `origin` cannot be pushed. Create it and add the
+  `agentchat-deploy` public key with write access.
+- Codex received two handoff messages on 2026-10-19 (Feishu) and has a working
+  Go toolchain, but has not pushed a first `internal/store` or `internal/hub`
+  commit yet. A copy of the repo is at
+  `C:\work\agentchat-lan` on agent-host.
 
 ## Verification
 
@@ -58,4 +63,11 @@ export PATH="$GOROOT/bin:$PATH"
 cd ~/work/agentchat-lan
 go test -race ./...
 go build -o bin/agentchat ./cmd/agentchat
+```
+
+On agent-host:
+
+```powershell
+cd C:\work\agentchat-lan
+go test ./...
 ```
