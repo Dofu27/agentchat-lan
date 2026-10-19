@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.3.3] - 2026-10-20
+
+### Fixed
+
+- `codex-bridge` now confirms a new Codex turn after queueing. A closed or idle
+  app no longer looks like a successful handoff; the AgentChat message remains
+  unacknowledged and is retried.
+- Verified the turn-confirmed path from the installed service with
+  `TURN_CONFIRM_OK`.
+
 ## [0.3.2] - 2026-10-20
 
 ### Fixed

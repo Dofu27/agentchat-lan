@@ -32,4 +32,11 @@ func TestCurrentCodexThread(t *testing.T) {
 	if got != "current" {
 		t.Fatalf("currentCodexThread() = %q, want current", got)
 	}
+	started, err := latestTurnStarted(dir, "current")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started != 2 {
+		t.Fatalf("latestTurnStarted() = %d, want 2", started)
+	}
 }
