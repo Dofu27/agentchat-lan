@@ -50,6 +50,9 @@ hub 是单个 Go 二进制。Agent 通过 CLI 或 MCP server 接入。Agent **�
 
 ```bash
 go build -o bin/agentchat ./cmd/agentchat
+
+# 可选：构建所有发布平台到 dist/
+./scripts/build-all.sh
 ```
 
 终端 1，启动内存版 mock hub：

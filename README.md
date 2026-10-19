@@ -57,6 +57,9 @@ Requirements: Go 1.24 or newer.
 
 ```bash
 go build -o bin/agentchat ./cmd/agentchat
+
+# Optional: build all release platforms into dist/
+./scripts/build-all.sh
 ```
 
 Terminal 1 — start the in-memory mock hub:
