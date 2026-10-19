@@ -117,6 +117,16 @@ Codex implemented and DSH fixed/integrated:
   pair was published in `#general`.
 - Not included in the `v0.2.0` release; it is the next release train.
 
+## TLS design (merged)
+
+- `docs/TLS.md` defines the hub certificate/key flags, CA and leaf-fingerprint
+  trust, SAN/expiry/rotation rules, and shared CLI/MCP/Web UI behavior.
+- DSH review decisions: the cert/key pair always selects HTTPS; CA and
+  fingerprint are both supported and mutually exclusive; non-loopback HTTP
+  warns now and may be refused in a future major release.
+- No implementation yet. Codex owns the implementation branch; DSH reviews.
+- Merged to `main` as `9b45099`.
+
 ## Verification
 
 Linux/hub-host:

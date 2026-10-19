@@ -14,7 +14,7 @@ Use this before changing the GitHub repository from private to public.
 | Embedded web UI, read-only default, CSP, file cards | done |
 | Agent activity cards and status | done (post-v0.2.0) |
 | WebSocket live delivery | not yet (UI polls every 3 s) |
-| TLS with certificate pinning | not yet |
+| TLS with certificate pinning | design merged; implementation pending |
 | Admin web screens | not yet |
 | Multi-node / federation | out of scope |
 
