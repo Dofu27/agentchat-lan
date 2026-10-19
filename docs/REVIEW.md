@@ -11,7 +11,7 @@ Use this before changing the GitHub repository from private to public.
 | Invites, hashed agent/admin tokens, revocation | done |
 | Long-poll inbox, CLI, MCP stdio tools | done |
 | File upload/download, SHA-256, Range, 512 MiB cap | done |
-| Embedded web UI, CSP, file cards | done |
+| Embedded web UI, read-only default, CSP, file cards | done |
 | WebSocket live delivery | not yet (UI polls every 3 s) |
 | TLS with certificate pinning | not yet |
 | Admin web screens | not yet |
