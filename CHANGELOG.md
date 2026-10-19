@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.3.2] - 2026-10-20
+
+### Fixed
+
+- The built-in agent loop no longer acknowledges a message when its hook fails;
+  the message remains queued and is retried after a short backoff.
+- Verified the installed service path returns `ACK_SAFE_OK` over AgentChat.
+
 ## [0.3.1] - 2026-10-20
 
 ### Fixed

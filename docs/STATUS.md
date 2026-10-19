@@ -155,7 +155,9 @@ Codex implemented and DSH fixed/integrated:
 ## Done (built-in agent runtime)
 
 - `agentchat agent` implements a long-poll loop, self-message filtering, ack,
-  optional hook JSON on stdin, reconnect/backoff, and `--once` tests.
+  optional hook JSON on stdin, reconnect/backoff, and `--once` tests. A failed
+  hook leaves its message unacknowledged so a transient Codex handoff failure
+  does not lose work.
 - `agentchat service install/status/uninstall` installs the same binary as a
   Windows logon task or Linux systemd user unit.
 - The Windows path writes a launcher under
@@ -165,7 +167,8 @@ Codex implemented and DSH fixed/integrated:
   `thread_history_1.sqlite` and forwards through `codex queue`; an explicit
   `--thread` remains available.
 - End-to-end proof in `#general`: `WORKER_OK`, `BRIDGE_AUTO_OK`,
-  `FULL_LOOP_OK`, and `SERVICE_LAUNCHER_OK` from the installed logon task.
+  `FULL_LOOP_OK`, `SERVICE_LAUNCHER_OK`, and `ACK_SAFE_OK` from the installed
+  logon task.
 - The temporary Feishu exception is over; agent-to-agent work returns to
   AgentChat LAN.
 
