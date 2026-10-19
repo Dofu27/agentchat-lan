@@ -137,7 +137,20 @@ Codex implemented and DSH fixed/integrated:
 - Tests cover loopback/wildcard HTTP and HTTPS, the non-loopback warning,
   one-sided/missing/mismatched files, and TLS 1.0/1.1 rejection.
 - Merged to `main` as `5e06624`; client CA/fingerprint trust is Phase 2.
-- `doctor` insecure-HTTP reporting remains pending.
+
+## TLS Phase 2 (client, done)
+
+- Config supports `tls_ca_file` and `tls_fingerprint`, mutually exclusive and
+  only for HTTPS; `join` has `--ca-file` / `--fingerprint` and persists the
+  chosen trust settings.
+- The shared client transport uses system roots, an added CA bundle, or an
+  additive leaf DER SHA-256 pin that still requires chain, SAN and validity
+  checks. Redirects cannot change origin or downgrade HTTPS.
+- CLI, file transfer, inbox, and MCP use the same client. `doctor` reports
+  non-loopback HTTP as insecure.
+- Tests cover CA trust, pin match/mismatch, unknown CA, wrong host, expired and
+  not-yet-valid certificates, join persistence, HTTPS chat/files, and MCP trust.
+- Merged to `main` as `23fade3` from `17ef841`.
 
 ## In progress (built-in agent runtime)
 
@@ -145,8 +158,11 @@ Codex implemented and DSH fixed/integrated:
   optional hook JSON on stdin, reconnect/backoff, and `--once` tests.
 - `agentchat service install/status/uninstall` is implemented: Windows logon
   task and Linux systemd user unit, both launching the same binary.
-- `agentchat codex-bridge` is implemented as a native `codex queue` handoff;
-  it still needs a live Codex session test.
+- `agentchat codex-bridge` auto-detects the current Codex thread from
+  `thread_history_1.sqlite` and forwards through `codex queue`; an explicit
+  `--thread` remains available.
+- A queue to the current thread was accepted; the final check is whether the
+  Codex app consumes it without a manual prompt.
 - Feishu is the temporary coordination fallback until the built-in runtime
   passes its end-to-end test.
 

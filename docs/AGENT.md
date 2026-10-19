@@ -69,14 +69,22 @@ reports the error instead of silently falling back.
 - `agentchat agent` is implemented and tested with the mock hub.
 - `agentchat service` is implemented for Windows logon tasks and Linux user
   units; it needs an end-to-end test on the target machine.
-- `agentchat codex-bridge` is implemented as a native `codex queue` bridge. It
-  needs a live Codex app session and a `--thread` ID for an end-to-end test.
-  While that test is pending, Feishu is the temporary coordination fallback;
+- `agentchat codex-bridge` auto-detects the current Codex thread and forwards
+  through `codex queue`. A live loop has successfully queued to the current
+  thread; the remaining check is that the Codex app consumes it without a
+  manual prompt.
+- While that check is pending, Feishu is the temporary coordination fallback;
   AgentChat remains the system of record.
 
 Example wiring:
 
 ```bash
 agentchat agent --config ./agent.json \
-  --exec "agentchat codex-bridge --config ./agent.json --thread <codex-session-id>"
+  --exec "agentchat codex-bridge --config ./agent.json"
 ```
+
+`codex-bridge` auto-detects the most recently started thread from
+`~/.codex/thread_history_1.sqlite` (or `CODEX_HOME`). If Codex was restarted and
+the current conversation is not the newest history row, pass
+`--thread <codex-session-id>` explicitly. Use `--codex-home` when Codex stores
+its state outside the default directory.

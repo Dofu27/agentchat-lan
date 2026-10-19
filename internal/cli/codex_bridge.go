@@ -16,7 +16,8 @@ import (
 func (a *App) cmdCodexBridge(args []string) int {
 	fs := a.newFlagSet("codex-bridge")
 	cfgPath := fs.String("config", "", "agent config file path")
-	thread := fs.String("thread", "", "Codex session/thread ID (required)")
+	thread := fs.String("thread", "", "Codex session/thread ID (optional; auto-detect current thread)")
+	codexHome := fs.String("codex-home", "", "Codex home containing thread_history_1.sqlite (default CODEX_HOME or ~/.codex)")
 	codex := fs.String("codex", envOr("CODEX_BIN", "codex"), "Codex executable")
 	messageText := fs.String("message", "", "message text for a manual test (otherwise read message JSON from stdin)")
 	dryRun := fs.Bool("dry-run", false, "print the prompt and command without invoking Codex")
@@ -25,12 +26,15 @@ func (a *App) cmdCodexBridge(args []string) int {
 	if !ok {
 		return codeExit
 	}
-	if strings.TrimSpace(*thread) == "" {
-		return a.fail(fmt.Errorf("--thread is required"))
-	}
 	cfg, err := config.Load(*cfgPath)
 	if err != nil {
 		return a.fail(err)
+	}
+	if strings.TrimSpace(*thread) == "" {
+		*thread, err = currentCodexThread(*codexHome)
+		if err != nil {
+			return a.fail(fmt.Errorf("resolve current Codex thread: %w (pass --thread explicitly)", err))
+		}
 	}
 
 	var msg protocol.Message
