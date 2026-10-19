@@ -8,6 +8,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -152,8 +154,24 @@ func loadConfig(path string) (*config.Config, error) {
 	return config.Load(path)
 }
 
-func newClient(cfg *config.Config) *client.Client {
-	return client.New(cfg.HubURL, cfg.Token)
+func (a *App) newClient(cfg *config.Config) (*client.Client, error) {
+	c, err := client.NewWithTLS(cfg.HubURL, cfg.Token, cfg.TLSOptions())
+	if err == nil && insecureHTTP(cfg.HubURL) {
+		fmt.Fprintln(a.Stderr, "WARNING: non-loopback HTTP hub is insecure; tokens and traffic are unencrypted. Use HTTPS.")
+	}
+	return c, err
+}
+
+func insecureHTTP(baseURL string) bool {
+	u, err := url.Parse(baseURL)
+	if err != nil || u.Scheme != "http" {
+		return false
+	}
+	host := u.Hostname()
+	if strings.EqualFold(host, "localhost") {
+		return false
+	}
+	return !net.ParseIP(host).IsLoopback()
 }
 
 func requestContext(seconds int) (context.Context, context.CancelFunc) {

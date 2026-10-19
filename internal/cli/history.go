@@ -29,7 +29,12 @@ func (a *App) cmdHistory(args []string) int {
 	ctx, cancel := requestContext(30)
 	defer cancel()
 
-	resp, err := newClient(cfg).History(ctx, *room, *after, *limit)
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
+	resp, err := c.History(ctx, *room, *after, *limit)
 	if err != nil {
 		return a.fail(err)
 	}

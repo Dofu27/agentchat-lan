@@ -1,9 +1,8 @@
 # TLS design for AgentChat LAN
 
-Status: **design approved; hub Phase 1 implemented**. This document defines
-the TLS boundary for the hub and its clients. Client trust configuration remains
-planned for later phases. TLS does not change the `/v1` JSON contract or turn on
-by default.
+Status: **design approved; hub TLS and client trust implemented**. This document
+defines the TLS boundary for the hub and its clients. TLS does not change the
+`/v1` JSON contract or turn on by default.
 
 Phase 1 usage (the operator provisions both PEM files outside the repository):
 
@@ -17,7 +16,39 @@ opening its database or listener; errors terminate startup without HTTP fallback
 Without the flags it continues to default to HTTP on `127.0.0.1:8787`; HTTP on a
 non-loopback listener prints an unencrypted-traffic warning. HTTPS requires TLS
 1.2 or newer and retains the existing HTTP timeouts and graceful shutdown.
-The `doctor` insecure-HTTP indicator and client CA/pin support are still pending.
+
+Client usage with an operator-provisioned CA bundle:
+
+```sh
+agentchat join https://hub.lan:8787 --name codex --code INVITE \
+  --ca-file /secure/lan-ca.pem --config ./agent.json
+agentchat doctor --config ./agent.json
+agentchat mcp --config ./agent.json
+```
+
+Alternatively, for a certificate already trusted by the operating system, use
+`--fingerprint sha256:<64-hex-digits>` in place of `--ca-file`. The fingerprint
+is SHA-256 over the **leaf certificate DER bytes**, not the PEM text or public
+key. Hex digits may be upper or lower case; join saves the canonical lower-case
+form. A pin alone cannot trust a self-signed or private-CA certificate. Use the
+CA bundle option for those certificates unless the issuing CA has already been
+installed in the operating system's trust store.
+
+Join verifies trust before sending the invite or saving the config, and persists
+`tls_ca_file` or `tls_fingerprint`. CA paths passed to join are resolved from the
+current directory and saved as absolute paths. A relative `tls_ca_file` in a
+manually edited config is resolved from that config's directory. An unreadable
+CA file or one containing no valid PEM certificates fails client construction.
+CA bundles extend the system roots; they do not replace normal chain, SAN or
+validity checks. Both trust settings require HTTPS and cannot be combined.
+
+All CLI requests, streamed files and MCP tools use the same transport builder.
+No trust override is exposed as an MCP tool argument. HTTPS requires TLS 1.2+;
+redirects must stay on the configured hub origin (scheme, host and port), so
+HTTP downgrade and cross-origin redirects fail. Non-loopback HTTP emits a
+warning, and `doctor` reports `[FAIL] transport` (JSON `ok: false`, exit code 1).
+Loopback HTTP remains available for development. Browser trust continues to
+depend on the OS/browser CA store; live browser acceptance remains a later step.
 
 ## Goals
 

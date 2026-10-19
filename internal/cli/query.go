@@ -24,7 +24,12 @@ func (a *App) cmdRooms(args []string) int {
 	ctx, cancel := requestContext(30)
 	defer cancel()
 
-	rooms, err := newClient(cfg).Rooms(ctx)
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
+	rooms, err := c.Rooms(ctx)
 	if err != nil {
 		return a.fail(err)
 	}
@@ -59,7 +64,12 @@ func (a *App) cmdWho(args []string) int {
 	ctx, cancel := requestContext(30)
 	defer cancel()
 
-	agents, err := newClient(cfg).Agents(ctx)
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
+	agents, err := c.Agents(ctx)
 	if err != nil {
 		return a.fail(err)
 	}
@@ -96,7 +106,12 @@ func (a *App) cmdMe(args []string) int {
 	ctx, cancel := requestContext(30)
 	defer cancel()
 
-	me, err := newClient(cfg).Me(ctx)
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
+	me, err := c.Me(ctx)
 	if err != nil {
 		return a.fail(err)
 	}

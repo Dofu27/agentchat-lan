@@ -58,7 +58,12 @@ func (a *App) cmdActivity(args []string) int {
 	if act.Detail != "" {
 		text += "\n\n" + act.Detail
 	}
-	msg, err := newClient(cfg).SendMessage(ctx, *room, protocol.SendMessageRequest{
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
+	msg, err := c.SendMessage(ctx, *room, protocol.SendMessageRequest{
 		Text: text,
 		Meta: protocol.MessageMeta{Activity: &act},
 	})

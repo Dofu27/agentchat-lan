@@ -51,7 +51,11 @@ func (a *App) cmdPush(args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	c := newClient(cfg)
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
 	fileIDs := make([]string, 0, len(files))
 	refs := make([]protocol.FileRef, 0, len(files))
 	for _, path := range files {
@@ -131,7 +135,12 @@ func (a *App) cmdPull(args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	info, err := newClient(cfg).DownloadFile(ctx, fileID, dest)
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
+	info, err := c.DownloadFile(ctx, fileID, dest)
 	if err != nil {
 		return a.fail(err)
 	}

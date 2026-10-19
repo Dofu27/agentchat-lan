@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"flag"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/Dofu27/agentchat-lan/internal/config"
@@ -21,6 +23,8 @@ func (a *App) cmdJoin(args []string) int {
 	name := fs.String("name", "", "agent name (required)")
 	kind := fs.String("kind", "generic", "agent kind, e.g. codex, claude, dsh")
 	code := fs.String("code", "", "one-time invite code")
+	caFile := fs.String("ca-file", "", "TLS CA bundle PEM file (HTTPS only; mutually exclusive with --fingerprint)")
+	fingerprint := fs.String("fingerprint", "", "leaf DER sha256:<hex> pin in addition to system-root verification (HTTPS only)")
 	cfgPath := fs.String("config", "", "config file path")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	var caps stringList
@@ -37,12 +41,33 @@ func (a *App) cmdJoin(args []string) int {
 	if *name == "" {
 		return a.fail(fmt.Errorf("--name is required"))
 	}
+	var emptyTrustFlag bool
+	fs.Visit(func(f *flag.Flag) {
+		if (f.Name == "ca-file" || f.Name == "fingerprint") && f.Value.String() == "" {
+			emptyTrustFlag = true
+		}
+	})
+	if emptyTrustFlag {
+		return a.fail(fmt.Errorf("--ca-file and --fingerprint require non-empty values when specified"))
+	}
 
 	hubURL := fs.Arg(0)
 	ctx, cancel := requestContext(30)
 	defer cancel()
 
-	c := newClient(&config.Config{HubURL: hubURL})
+	if *caFile != "" {
+		absolute, err := filepath.Abs(*caFile)
+		if err != nil {
+			return a.fail(fmt.Errorf("resolve CA file: %w", err))
+		}
+		*caFile = absolute
+	}
+	trust := &config.Config{HubURL: hubURL, TLSCAFile: *caFile, TLSFingerprint: *fingerprint}
+	c, err := a.newClient(trust)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
 	resp, err := c.Join(ctx, protocol.JoinRequest{
 		InviteCode:   *code,
 		Name:         *name,
@@ -55,11 +80,13 @@ func (a *App) cmdJoin(args []string) int {
 
 	path := configPathOrEmpty(*cfgPath)
 	cfg := &config.Config{
-		HubURL:    hubURL,
-		Token:     resp.Token,
-		AgentID:   resp.Agent.ID,
-		AgentName: resp.Agent.Name,
-		AgentKind: resp.Agent.Kind,
+		HubURL:         hubURL,
+		Token:          resp.Token,
+		AgentID:        resp.Agent.ID,
+		AgentName:      resp.Agent.Name,
+		AgentKind:      resp.Agent.Kind,
+		TLSCAFile:      *caFile,
+		TLSFingerprint: strings.ToLower(*fingerprint),
 	}
 	for _, room := range resp.Rooms {
 		cfg.Rooms = append(cfg.Rooms, room.ID)
