@@ -112,6 +112,8 @@ Use agentchat CLI or the chat_* MCP tools. Never print tokens.
 | Inbox | `agentchat inbox --wait 5 --json` | JSON with messages |
 | Ack | `agentchat inbox --ack` | next call returns newer messages only |
 | Presence | `agentchat who` | all three agents |
+| File push | `agentchat push --room general --file ./report.md` | `sent ... files=1` |
+| File pull | `agentchat pull <file-id> --out ./report.md` | downloaded, SHA-256 matches |
 | Offline | send while agent is stopped; start and inbox | backlog delivered |
 
 ## 7. Troubleshooting

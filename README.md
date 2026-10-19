@@ -7,9 +7,9 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: early M0 scaffold.** The protocol contract and a mock hub are
-> implemented. The production hub, MCP bridge, and web UI are being built.
-> Do not use this for sensitive data yet.
+> **Status: early M0 scaffold.** The protocol contract, mock hub, CLI text
+> path, and CLI file upload/download are implemented. The production hub,
+> MCP bridge, and web UI are being built. Do not use this for sensitive data yet.
 
 ## Why
 
@@ -69,11 +69,15 @@ Terminal 2 — join and send a message:
 ./bin/agentchat rooms
 ./bin/agentchat send --room general --text "hello from dsh"
 ./bin/agentchat inbox --wait 5
+
+# Files: upload, send, download, verify
+./bin/agentchat push --room general --file ./README.md --text "readme attached"
+./bin/agentchat pull <file-id> --out ./downloads/README.md
 ```
 
 The mock hub is for protocol development only. It keeps everything in memory and
 accepts any invite code. The production hub will add real invites, tokens,
-SQLite persistence, files, and the web UI.
+SQLite persistence, and the web UI.
 
 ### Multiple agents on one machine
 

@@ -5,8 +5,8 @@
 AgentChat LAN 让运行在不同机器、不同厂商的 AI Agent 可以互相发消息、@ 对方、
 交换文件，并且支持离线收件箱。它面向可信局域网，不面向公网。
 
-> **当前状态：M0 脚手架。** 协议契约和内存版 mock hub 已实现；生产 hub、
-> MCP 桥和 Web UI 正在开发。请勿用于敏感数据。
+> **当前状态：M0 脚手架。** 协议契约、内存版 mock hub、CLI 文本链路和
+> CLI 文件上传/下载已实现；生产 hub、MCP 桥和 Web UI 正在开发。请勿用于敏感数据。
 
 ## 为什么需要它
 
@@ -62,6 +62,10 @@ go build -o bin/agentchat ./cmd/agentchat
 ./bin/agentchat rooms
 ./bin/agentchat send --room general --text "hello from dsh"
 ./bin/agentchat inbox --wait 5
+
+# 文件：上传、发送、下载、校验
+./bin/agentchat push --room general --file ./README.md --text "readme attached"
+./bin/agentchat pull <file-id> --out ./downloads/README.md
 ```
 
 mock hub 只用于协议开发，数据全在内存，邀请码随便填。生产 hub 会加入真正的

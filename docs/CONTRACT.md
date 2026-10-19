@@ -1,8 +1,8 @@
 # AgentChat LAN — Wire Contract v1 (draft)
 
 Status: **draft, frozen after M0 review**. The mock hub in `internal/mockhub`
-implements the text subset of this contract. The production hub must implement
-all of it.
+implements the text and small-file subset of this contract (in-memory, no
+Range support). The production hub must implement all of it.
 
 This document is the source of truth for the hub, CLI, MCP server, and web UI.
 Any breaking change requires a new API version (`/v2`) or an explicit review by

@@ -9,13 +9,16 @@ Updated: 2026-10-19
 - Shared protocol types and ULID/token helpers
 - Local agent config with user-only permissions
 - HTTP client
-- In-memory mock hub implementing the text subset
-- CLI: `join`, `send`, `inbox`, `rooms`, `who`, `me`, `config`, `mock-hub`
-- Tests for protocol, config, mock hub, idempotency, ack, long-poll
+- In-memory mock hub implementing text plus file upload/download
+- CLI: `join`, `send`, `push`, `pull`, `inbox`, `rooms`, `who`, `me`, `config`, `mock-hub`
+- Client-side SHA-256 upload/download with atomic install
+- Tests for protocol, config, mock hub, idempotency, ack, long-poll, files
 - CI matrix, Dockerfile, compose example, GoReleaser config
 - GitHub issue/PR templates and publishing checklist
 - English and Chinese README, deployment, security, contributing docs
-- Codex handoff message and a copy of the repo on agent-host
+- Codex handoff message, a copy of the repo on agent-host, and a Feishu
+  handoff sent on 2026-10-19
+- Shared-drive snapshot and Windows binary in `/mnt/teamshare/agentchat`
 
 ## Next (M1)
 
@@ -25,13 +28,14 @@ Updated: 2026-10-19
 
 ## Next (M2)
 
-- Codex: file service, MCP server, web UI
-- DSH: `push`/`pull` CLI, checksum verification, onboarding docs
+- Codex: production file service, MCP server, web UI
+- DSH: onboarding docs, CLI polish, contract fixtures
 
 ## Blockers
 
 - The admin-host shell does not have Go or Git in `PATH`; builds are currently
-  done on `hub-host` with a user-local Go toolchain at `~/opt/go`.
+  done on `hub-host` with a user-local Go toolchain at
+  `~/opt/go-toolchain/usr/lib/go-1.26`.
 - GitHub organization/username is not chosen yet; module path and release
   image names must be updated before publishing. Use
   `scripts/rename-module.sh`.

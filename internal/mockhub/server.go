@@ -5,11 +5,16 @@ package mockhub
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"log"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,6 +38,9 @@ type Server struct {
 	seq         map[string]int64
 	acks        map[string]map[string]int64
 	idempotency map[string]protocol.Message
+	files       map[string]protocol.FileRef
+	fileData    map[string][]byte
+	fileByHash  map[string]string
 	notify      chan struct{}
 }
 
@@ -55,6 +63,9 @@ func New() *Server {
 		seq:         make(map[string]int64),
 		acks:        make(map[string]map[string]int64),
 		idempotency: make(map[string]protocol.Message),
+		files:       make(map[string]protocol.FileRef),
+		fileData:    make(map[string][]byte),
+		fileByHash:  make(map[string]string),
 		notify:      make(chan struct{}),
 	}
 	return s
@@ -72,6 +83,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/inbox", s.auth(http.HandlerFunc(s.handleInbox)))
 	mux.Handle("POST /v1/ack", s.auth(http.HandlerFunc(s.handleAck)))
 	mux.Handle("GET /v1/agents", s.auth(http.HandlerFunc(s.handleAgents)))
+	mux.Handle("POST /v1/files", s.auth(http.HandlerFunc(s.handleUpload)))
+	mux.Handle("GET /v1/files/{id}", s.auth(http.HandlerFunc(s.handleDownload)))
 	return mux
 }
 
@@ -172,6 +185,128 @@ func (s *Server) handleAgents(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, protocol.AgentsResponse{Agents: agents})
 }
 
+func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, protocol.MaxFileSize+(16<<20))
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "payload_too_large", "file is too large", map[string]any{"max": protocol.MaxFileSize})
+			return
+		}
+		writeError(w, http.StatusBadRequest, "invalid_request", "invalid multipart upload: "+err.Error(), nil)
+		return
+	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "multipart field \"file\" is required", nil)
+		return
+	}
+	defer file.Close()
+
+	tmp, err := os.CreateTemp("", "agentchat-mock-upload-*")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "cannot create upload temp file", nil)
+		return
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	defer tmp.Close()
+
+	hash := sha256.New()
+	size, err := io.Copy(io.MultiWriter(tmp, hash), io.LimitReader(file, protocol.MaxFileSize+1))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "cannot read upload: "+err.Error(), nil)
+		return
+	}
+	if size > protocol.MaxFileSize {
+		writeError(w, http.StatusRequestEntityTooLarge, "payload_too_large", "file is too large", map[string]any{"max": protocol.MaxFileSize})
+		return
+	}
+	sum := hex.EncodeToString(hash.Sum(nil))
+
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "cannot rewind upload", nil)
+		return
+	}
+	data, err := io.ReadAll(tmp)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "cannot read upload", nil)
+		return
+	}
+
+	name := sanitizeFilename(header.Filename)
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" && len(data) > 0 {
+		mimeType = http.DetectContentType(data)
+	}
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	s.mu.Lock()
+	if existingID, ok := s.fileByHash[sum]; ok {
+		existing := s.files[existingID]
+		s.mu.Unlock()
+		writeJSON(w, http.StatusOK, existing)
+		return
+	}
+	ref := protocol.FileRef{
+		ID:     "fil_" + protocol.NewID(),
+		Name:   name,
+		Size:   size,
+		SHA256: sum,
+		Mime:   mimeType,
+	}
+	s.files[ref.ID] = ref
+	s.fileData[ref.ID] = data
+	s.fileByHash[sum] = ref.ID
+	s.mu.Unlock()
+
+	writeJSON(w, http.StatusCreated, ref)
+}
+
+func (s *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.mu.Lock()
+	ref, ok := s.files[id]
+	data := append([]byte(nil), s.fileData[id]...)
+	s.mu.Unlock()
+	if !ok {
+		writeError(w, http.StatusNotFound, "not_found", "file not found", map[string]any{"file": id})
+		return
+	}
+
+	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": ref.Name})
+	if disposition == "" {
+		disposition = "attachment"
+	}
+	w.Header().Set("Content-Type", ref.Mime)
+	w.Header().Set("Content-Disposition", disposition)
+	w.Header().Set("X-Content-SHA256", ref.SHA256)
+	w.Header().Set("Content-Length", strconv.FormatInt(ref.Size, 10))
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("mockhub: write file %s: %v", id, err)
+	}
+}
+
+func sanitizeFilename(name string) string {
+	name = strings.ReplaceAll(name, "\\", "/")
+	name = filepath.Base(name)
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == "/" {
+		return "upload.bin"
+	}
+	if len(name) > 255 {
+		name = name[len(name)-255:]
+	}
+	return name
+}
+
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	roomID := r.PathValue("room")
 	after, _ := strconv.ParseInt(r.URL.Query().Get("after_seq"), 10, 64)
@@ -225,10 +360,6 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "too many recipients", map[string]any{"max": protocol.MaxMentions})
 		return
 	}
-	if len(req.Files) > 0 {
-		writeError(w, http.StatusUnprocessableEntity, "validation_failed", "the mock hub does not support files; use the production hub", nil)
-		return
-	}
 	if req.Meta.Hops > protocol.MaxHops {
 		writeError(w, http.StatusUnprocessableEntity, "validation_failed", "hop limit exceeded", map[string]any{"max_hops": protocol.MaxHops})
 		return
@@ -246,6 +377,16 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized", "unknown agent", nil)
 		return
+	}
+
+	files := make([]protocol.FileRef, 0, len(req.Files))
+	for _, fileID := range req.Files {
+		ref, ok := s.files[fileID]
+		if !ok {
+			writeError(w, http.StatusBadRequest, "invalid_request", "unknown file", map[string]any{"file": fileID})
+			return
+		}
+		files = append(files, ref)
 	}
 
 	if req.ClientMsgID != "" {
@@ -280,6 +421,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		Text:     req.Text,
 		ReplyTo:  req.ReplyTo,
 		Mentions: mentions,
+		Files:    files,
 		Meta:     req.Meta,
 		TS:       now,
 	}
