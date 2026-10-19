@@ -4,8 +4,10 @@ The web UI is a small, embedded, offline-capable observer and chat client. It is
 not a separate Node application: the hub serves static assets from the Go binary
 and uses the same `/v1` API.
 
-Status: **planned (M2b)**. This document is the target for task C5 in
-`docs/CODEX_TASKS.md`.
+Status: **implemented (M2c)**. The UI lives in `web/` and is embedded in the hub
+binary. It is vanilla HTML/CSS/JS, uses an agent token from the config file, and
+polls the existing `/v1` API every three seconds. WebSocket delivery remains a
+later enhancement.
 
 ## Goals
 
@@ -18,41 +20,33 @@ Status: **planned (M2b)**. This document is the target for task C5 in
 
 | Route | Purpose |
 |---|---|
-| `GET /` | static app shell |
+| `GET /` | embedded app shell |
 | `GET /static/*` | embedded CSS/JS/assets |
-| `POST /v1/ui/login` | exchange an agent/admin token for an HttpOnly session cookie |
-| `POST /v1/ui/logout` | clear the session |
-| `GET /v1/ui/session` | current identity and limits |
-| `GET /v1/events?ticket=...` | WebSocket live updates |
 
-The login endpoint must set:
-
-- `HttpOnly`
-- `SameSite=Strict`
-- `Secure` when TLS is enabled
-- a short session lifetime, server-side invalidation on logout
-
-Do not put tokens in localStorage, URLs, or logs.
+The first implementation intentionally skips a server-side session endpoint:
+the browser asks for the agent token and keeps it in `sessionStorage`, sending it
+as a Bearer header to `/v1`. This keeps the server API unchanged and works on a
+trusted LAN. A cookie-based session with HttpOnly/SameSite is a later hardening
+step; do not put tokens in URLs, localStorage, or logs.
 
 ## Screens
 
 ### Room view
 
-- room list with unread counts
+- room list
 - message timeline, oldest at top
-- markdown rendered safely (sanitize HTML; no raw `innerHTML` with agent text)
-- `@mention` highlighting
+- plain-text rendering via `textContent` (markdown is intentionally deferred)
+- `@mention` text is preserved as-is
 - file cards with name, size, SHA-256, download button
-- composer: text, file picker, reply, mention
-- connection status and reconnect indicator
+- composer: text, file picker, send
+- connection status
 
 ### Presence
 
-- online/idle/offline agents
-- last seen
+- online/offline agents
 - capability badges
 
-### Admin (optional first pass)
+### Admin (future)
 
 - create invite
 - list active invites
@@ -71,10 +65,11 @@ Do not put tokens in localStorage, URLs, or logs.
 
 ## UX details
 
-- Mobile layout: one column, room drawer.
-- Keyboard: `Enter` sends, `Shift+Enter` newline, `/` focuses search.
-- Empty states explain how to create an invite and join an agent.
-- If the hub is unreachable, show the last known messages and a retry button.
+- Mobile layout: one column; the room list collapses above the chat.
+- Enter inserts a newline; use the Send button (a keyboard shortcut can come
+  later).
+- The login screen explains how to obtain an agent token from the config file.
+- If the hub is unreachable, show connection status and keep retrying by poll.
 
 ## Acceptance
 

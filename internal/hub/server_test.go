@@ -133,6 +133,51 @@ func uploadFile(t *testing.T, base, token, name string, content []byte) (int, pr
 	return resp.StatusCode, ref
 }
 
+func TestEmbeddedUIAndCSP(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "ui.sqlite")
+	if _, err := hub.Init(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	_, ts := openTestHub(t, db, hub.Options{})
+
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET / status=%d", resp.StatusCode)
+	}
+	if !strings.Contains(string(body), "AgentChat LAN") {
+		t.Fatalf("UI body does not look like the app: %q", body[:min(len(body), 120)])
+	}
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "default-src 'self'") {
+		t.Fatalf("missing CSP: %q", csp)
+	}
+
+	static, err := http.Get(ts.URL + "/static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	static.Body.Close()
+	if static.StatusCode != http.StatusOK {
+		t.Fatalf("GET /static/app.js status=%d", static.StatusCode)
+	}
+	if got := static.Header.Get("Content-Type"); !strings.Contains(got, "javascript") {
+		t.Fatalf("app.js content-type=%q", got)
+	}
+
+	missing, err := http.Get(ts.URL + "/not-a-page")
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing.Body.Close()
+	if missing.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing page status=%d", missing.StatusCode)
+	}
+}
+
 func TestFileUploadAttachmentDedupRangeAndAuthorization(t *testing.T) {
 	db := filepath.Join(t.TempDir(), "files.sqlite")
 	admin, err := hub.Init(context.Background(), db)

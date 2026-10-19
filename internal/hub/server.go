@@ -21,6 +21,7 @@ import (
 
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 	"github.com/Dofu27/agentchat-lan/internal/store"
+	"github.com/Dofu27/agentchat-lan/web"
 )
 
 const Version = "0.1.0"
@@ -104,6 +105,8 @@ func New(st *store.Store, opts Options) *Server {
 // Handler returns the contract HTTP handler. It listens on no socket itself.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("GET /", s.uiSecurity(http.HandlerFunc(s.handleUI)))
+	mux.Handle("GET /static/", s.uiSecurity(http.StripPrefix("/static/", http.FileServer(http.FS(web.FS)))))
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleReady)
 	mux.Handle("POST /v1/join", s.joinRate(http.HandlerFunc(s.handleJoin)))
