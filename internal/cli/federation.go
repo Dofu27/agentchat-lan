@@ -38,6 +38,30 @@ func (a *App) hubFederationID(args []string) int {
 	return a.printJSON(map[string]string{"node_id": id})
 }
 
+func (a *App) hubFederationOperations(args []string) int {
+	if len(args) == 0 || args[0] != "status" {
+		return a.fail(errors.New("usage: agentchat hub federation status --data <dir>"))
+	}
+	fs := a.newFlagSet("hub federation status")
+	data := fs.String("data", "./data", "data directory (must already exist)")
+	if code, ok := a.parse(fs, args[1:]); !ok {
+		return code
+	}
+	if fs.NArg() != 0 {
+		return a.fail(errors.New("unexpected federation status arguments"))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	status, err := store.ReadFederationOperatorStatus(ctx, hubDBPath(*data))
+	if err != nil {
+		return a.fail(errors.New("cannot read federation state; initialize or migrate this data directory with hub first"))
+	}
+	return a.printJSON(struct {
+		Source string `json:"source"`
+		store.FederationOperatorStatus
+	}{"persisted_state_only", status})
+}
+
 // Credentials are read only from an operator-owned file, not stored in SQLite
 // or accepted as CLI arguments. All paths are relative to this config file.
 func loadFederation(ctx context.Context, st *store.Store, path string) (*hub.Federation, error) {

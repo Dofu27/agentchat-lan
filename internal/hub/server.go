@@ -116,6 +116,9 @@ func New(st *store.Store, opts Options) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	if s.opts.Federation != nil {
+		mux.Handle("GET /v1/admin/federation", s.adminAuth(http.HandlerFunc(s.handleFederationOperatorStatus)))
+		mux.Handle("GET /v1/admin/federation/outbox", s.adminAuth(http.HandlerFunc(s.handleFederationOperatorOutbox)))
+		mux.Handle("POST /v1/admin/federation/outbox/{id}/retry", s.adminAuth(http.HandlerFunc(s.handleFederationOperatorRetry)))
 		mux.HandleFunc("POST /federation/v1/messages", s.handleFederation)
 	}
 	mux.Handle("GET /", s.uiSecurity(http.HandlerFunc(s.handleUI)))
@@ -146,7 +149,20 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/admin/audit", s.adminAuth(http.HandlerFunc(s.handleAudit)))
 	mux.Handle("POST /v1/admin/rooms", s.adminAuth(http.HandlerFunc(s.handleCreateRoom)))
 	mux.Handle("DELETE /v1/admin/rooms/{id}", s.adminAuth(http.HandlerFunc(s.handleArchiveRoom)))
-	return s.requestLog(mux)
+	var handler http.Handler = mux
+	if s.opts.Federation == nil {
+		// The UI's GET / catch-all otherwise turns unknown POSTs into 405.
+		// Keep the entire disabled operations namespace at 404 without
+		// registering admin routes or exposing authentication behavior.
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/v1/admin/federation" || strings.HasPrefix(r.URL.Path, "/v1/admin/federation/") {
+				http.NotFound(w, r)
+				return
+			}
+			mux.ServeHTTP(w, r)
+		})
+	}
+	return s.requestLog(handler)
 }
 
 // Serve runs an HTTP listener until ctx is cancelled and performs a bounded
