@@ -1,7 +1,7 @@
 # TLS live test (isolated)
 
-Scope: verify the TLS implementation on a real socket without changing the
-production hub at `agentchat.lan:8787`.
+Scope: verify the TLS implementation on a real socket. The isolated test was
+done on 8788; the production hub was later switched to HTTPS on 8787.
 
 ## Setup
 
@@ -34,11 +34,24 @@ The pin test used `SSL_CERT_FILE` pointing at the test CA so the normal chain
 was verified before the additive pin check. The production design still
 requires a trusted chain; a pin never disables SAN/expiry/chain validation.
 
+## Production switch
+
+After the isolated test, the live hub was switched to:
+
+```text
+https://agentchat.lan:8787
+```
+
+The internal CA public certificate is committed at
+`deploy/tls/agentchat-lan-ca.crt`; the private keys are not in the repository.
+Live chat and Codex handoff returned `TLS_LIVE_OK`, and the HTTPS Web UI index
+and static assets were served.
+
 ## Not changed
 
-- The live hub remains `http://agentchat.lan:8787`.
-- No certificate or private key is committed.
-- The test CA is temporary and not installed into the OS trust store.
+- No private key is committed.
+- The test CA (8788) is temporary and was not installed into the OS trust
+  store; the production CA is separate.
 
 ## Remaining deployment work
 
