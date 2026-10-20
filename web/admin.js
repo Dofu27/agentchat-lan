@@ -4,7 +4,7 @@
   const $ = (id) => document.getElementById(id);
   const i18n = window.AgentChatI18n;
   const t = (key, vars) => (i18n ? i18n.t(key, vars) : key);
-  const state = { token: "", timer: null, retryKeys: new Map(), retrying: new Set() };
+  const state = { token: "", timer: null };
 
   function setStatus(text, ok) {
     const el = $("admin-status");
@@ -19,16 +19,15 @@
   }
 
   async function api(path, options = {}) {
-    const requestToken = state.token;
     const headers = Object.assign({}, options.headers || {}, {
-      Authorization: "Bearer " + requestToken,
+      Authorization: "Bearer " + state.token,
     });
     if (typeof options.body === "string" && !headers["Content-Type"]) {
       headers["Content-Type"] = "application/json";
     }
     const res = await fetch(path, Object.assign({}, options, { headers }));
     if (res.status === 401) {
-      if (requestToken === state.token) logout(t("admin.connect_failed"));
+      logout("Admin token rejected");
       throw new Error("admin token rejected");
     }
     if (!res.ok) {
@@ -40,9 +39,7 @@
       } catch (_) {
         // keep text
       }
-      const error = new Error(message || ("HTTP " + res.status));
-      error.status = res.status;
-      throw error;
+      throw new Error(message || ("HTTP " + res.status));
     }
     if (res.status === 204) return null;
     const type = res.headers.get("content-type") || "";
@@ -102,11 +99,55 @@
     ], rows));
   }
 
+  function showAgentToken(name, token) {
+    const box = $("agent-token-result");
+    box.replaceChildren();
+    const title = document.createElement("div");
+    title.textContent = t("admin.token_title", { name });
+    const code = document.createElement("code");
+    code.textContent = token;
+    const warning = document.createElement("div");
+    warning.className = "muted";
+    warning.textContent = t("admin.token_warning");
+    const copy = actionButton(t("admin.token_copy"), async () => {
+      try {
+        await navigator.clipboard.writeText(token);
+        copy.textContent = t("admin.token_copied");
+      } catch (_) {
+        const range = document.createRange();
+        range.selectNodeContents(code);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    });
+    box.appendChild(title);
+    box.appendChild(code);
+    box.appendChild(copy);
+    box.appendChild(warning);
+    box.classList.remove("hidden");
+  }
+
   async function loadAgents() {
     const body = await api("/v1/admin/agents");
     const agents = body.agents || [];
     const rows = agents.map((agent) => {
-      const button = actionButton(t("admin.revoke"), async () => {
+      const actions = document.createElement("span");
+      actions.className = "admin-actions";
+      if (agent.kind !== "federation" && agent.kind !== "system" && agent.kind !== "bridge") {
+        const token = actionButton(t("admin.user_token"), async () => {
+          if (!window.confirm(t("admin.token_confirm", { name: agent.name }))) return;
+          try {
+            const out = await api("/v1/admin/agents/" + encodeURIComponent(agent.id) + "/token", { method: "POST" });
+            showAgentToken(agent.name, out.token);
+            await refresh();
+          } catch (err) {
+            setStatus(err.message || String(err), false);
+          }
+        });
+        actions.appendChild(token);
+      }
+      const revoke = actionButton(t("admin.revoke"), async () => {
         if (!window.confirm(t("admin.revoke_confirm", { name: agent.name }))) return;
         try {
           await api("/v1/admin/agents/" + encodeURIComponent(agent.id), { method: "DELETE" });
@@ -115,7 +156,8 @@
           setStatus(err.message || String(err), false);
         }
       }, true);
-      return [agent.name, agent.kind, agent.status || "", button];
+      actions.appendChild(revoke);
+      return [agent.name, agent.kind, agent.status || "", actions];
     });
     $("agent-list-admin").replaceChildren(table([
       t("admin.name"), t("admin.kind"), t("admin.status"), "",
@@ -139,73 +181,10 @@
   async function refresh() {
     setStatus(t("admin.loading"), false);
     try {
-      await Promise.all([loadInvites(), loadAgents(), loadAudit(), loadFederation()]);
+      await Promise.all([loadInvites(), loadAgents(), loadAudit()]);
       setStatus(t("admin.connected"), true);
-      return true;
     } catch (err) {
       setStatus(err.message || String(err), false);
-      return false;
-    }
-  }
-
-  function retryKey() {
-    const bytes = new Uint8Array(16);
-    window.crypto.getRandomValues(bytes);
-    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-  }
-
-  async function loadFederation() {
-    const token = state.token;
-    try {
-      const status = await api("/v1/admin/federation");
-      const outbox = await api("/v1/admin/federation/outbox?state=dead&limit=50");
-      if (!token || token !== state.token) return;
-      $("federation-status").textContent = t("fed.enabled");
-      const rows = [[t("fed.node"), status.node_id || ""]];
-      for (const peer of status.peers || []) rows.push([t("fed.peer"), peer.node_id + " (" + t(peer.enabled ? "fed.active" : "fed.inactive") + ")"]);
-      for (const link of status.room_links || []) {
-        rows.push([t("fed.link"), link.local_room + " → " + link.peer_id + "/" + link.remote_room + " (" + t(link.enabled ? "fed.active" : "fed.inactive") + ")"]);
-      }
-      for (const name of ["pending", "inflight", "delivered", "dead", "attempts"]) {
-        rows.push([t("fed." + name), (status.outbox || {})[name] ?? 0]);
-      }
-      $("federation-summary").replaceChildren(table([t("fed.field"), t("fed.value")], rows));
-      const jobs = outbox.items || [];
-      const jobRows = jobs.map((job) => {
-        const button = actionButton(t("fed.retry"), async () => {
-          if (state.retrying.has(job.id)) return;
-          const retryToken = state.token;
-          state.retrying.add(job.id);
-          button.disabled = true;
-          try {
-            if (!state.retryKeys.has(job.id)) state.retryKeys.set(job.id, retryKey());
-            await api("/v1/admin/federation/outbox/" + encodeURIComponent(job.id) + "/retry", {
-              method: "POST", headers: { "Idempotency-Key": state.retryKeys.get(job.id) },
-            });
-            state.retryKeys.delete(job.id);
-            if (retryToken === state.token) await refresh();
-          } catch (err) {
-            if (err.status === 404 || err.status === 409) state.retryKeys.delete(job.id);
-            if (retryToken === state.token) $("federation-status").textContent = t("fed.retry_failed");
-          } finally {
-            state.retrying.delete(job.id);
-            button.disabled = false;
-          }
-        });
-        button.disabled = state.retrying.has(job.id);
-        return [job.id, job.peer_id, job.origin_node_id + "/" + job.origin_message_id,
-          job.attempts, job.last_error, job.created_at, button];
-      });
-      $("federation-outbox").replaceChildren(jobs.length ? table([
-        t("fed.id"), t("fed.peer"), t("fed.origin"), t("fed.attempts"),
-        t("fed.error"), t("admin.time"), "",
-      ], jobRows) : document.createTextNode(t("fed.empty")));
-    } catch (err) {
-      if (!token || token !== state.token) return;
-      $("federation-summary").replaceChildren();
-      $("federation-outbox").replaceChildren();
-      $("federation-status").textContent = t(err.status === 404 ? "fed.disabled" : "fed.failed");
-      if (err.status !== 404) throw err;
     }
   }
 
@@ -229,11 +208,6 @@
   function logout(message) {
     setStatus(t("status.offline"), false);
     state.token = "";
-    state.retryKeys.clear();
-    state.retrying.clear();
-    $("federation-status").textContent = "";
-    $("federation-summary").replaceChildren();
-    $("federation-outbox").replaceChildren();
     if (state.timer) window.clearInterval(state.timer);
     state.timer = null;
     try {
@@ -248,7 +222,7 @@
   }
 
   async function boot() {
-    if (!(await refresh()) || !state.token) throw new Error(t("admin.connect_failed"));
+    await refresh();
     $("admin-login").classList.add("hidden");
     $("admin-app").classList.remove("hidden");
     state.timer = window.setInterval(refresh, 15000);

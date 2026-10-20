@@ -325,6 +325,9 @@ button.ghost:hover { color: var(--text); }
   width: 100px;
 }
 .admin-code { min-height: 20px; margin: 0; padding: 0 14px 8px; color: var(--ok); font-weight: 600; }
+.admin-token-result { margin: 8px 12px 4px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-size: 12px; }
+.admin-token-result code { display: block; margin: 6px 0; color: var(--accent); overflow-wrap: anywhere; user-select: all; }
+.admin-actions { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .admin-table-wrap { overflow: auto; padding: 0 10px; }
 .admin-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .admin-table th,

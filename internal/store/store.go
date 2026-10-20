@@ -567,6 +567,41 @@ func (s *Store) ListAgents(ctx context.Context) ([]protocol.Agent, error) {
 	return out, rows.Err()
 }
 
+// RotateAgentToken issues a new agent token and invalidates the previous one.
+// The plaintext token is returned exactly once; only its hash is stored.
+func (s *Store) RotateAgentToken(ctx context.Context, id, actor string) (string, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	var kind string
+	var revoked sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT kind,revoked_at FROM agents WHERE id=?`, id).Scan(&kind, &revoked)
+	if errors.Is(err, sql.ErrNoRows) || revoked.Valid {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if kind == "federation" || kind == "system" || kind == "bridge" {
+		return "", ErrForbidden
+	}
+	token := protocol.NewToken("agt")
+	if _, err := tx.ExecContext(ctx, `UPDATE agents SET token_hash=? WHERE id=?`, hashToken(token), id); err != nil {
+		return "", err
+	}
+	if err := insertAudit(ctx, tx, actor, "agent.token_rotated", map[string]any{"agent": id}); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
 func (s *Store) RevokeAgent(ctx context.Context, id, actor string) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()

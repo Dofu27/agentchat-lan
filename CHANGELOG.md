@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.13.0] - 2026-10-20
+
+### Added
+
+- Admin Agents panel button to issue a new **user/agent token**
+- `POST /v1/admin/agents/{id}/token`
+- Token is shown once and copyable; only its hash is stored
+- Previous token is invalidated immediately; audit event
+  `agent.token_rotated`
+- Federation/system/bridge agents cannot be selected for user-token rotation
+
+### Security
+
+- Only the admin session can rotate user tokens
+- Admin token and federation secrets are never exposed by this UI
+- UI warns that the old token stops working and the new value cannot be
+  retrieved again
+
 ## [0.12.3] - 2026-10-20
 
 ### Fixed
