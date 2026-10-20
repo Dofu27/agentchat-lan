@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.7.0] - 2026-10-20
+
+### Added
+
+- Direct-message rooms via `POST /v1/dm`; deterministic per-pair room IDs
+- Web UI direct-message section and per-agent DM action
+- Read receipts via `GET /v1/rooms/{room}/receipts`; the browser acknowledges
+  delivered messages and shows other readers in the room header
+- Room search via `GET /v1/rooms/{room}/search?q=...`
+- Web UI search box with result list
+- Internal CA installed in the creative machine's Windows Root store
+
+### Security
+
+- DM creation requires an existing, non-revoked agent and cannot target self
+- Search and receipts enforce room membership
+
 ## [0.6.0] - 2026-10-20
 
 ### Added

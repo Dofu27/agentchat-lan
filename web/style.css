@@ -138,6 +138,14 @@ button.ghost:hover { color: var(--text); }
 }
 .rooms li button:hover { background: var(--panel-2); }
 .rooms li button.active { background: var(--panel-2); border-color: var(--line); color: var(--accent); }
+.dm-heading { margin: 8px 12px 2px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.receipts { min-height: 16px; margin-top: 2px; }
+.search-form { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.search-form input { flex: 1; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); padding: 6px 9px; }
+.search-results { max-height: 210px; overflow: auto; border-bottom: 1px solid var(--line); padding: 4px 12px; }
+.search-result { padding: 6px 0; border-bottom: 1px solid rgba(43, 53, 69, 0.55); font-size: 12px; }
+.search-result:last-child { border-bottom: 0; }
+.search-result .muted { margin-right: 6px; }
 
 .chat { min-width: 0; }
 .chat-head {
@@ -244,6 +252,7 @@ button.ghost:hover { color: var(--text); }
 }
 .file-button input { display: none; }
 .agents li { padding: 8px 10px; border-bottom: 1px solid rgba(43, 53, 69, 0.55); }
+.agents li .dm-button { float: right; padding: 2px 7px; font-size: 11px; }
 .agents li:last-child { border-bottom: 0; }
 .agent-name { font-weight: 600; }
 .agent-status { font-size: 11px; margin-left: 6px; }

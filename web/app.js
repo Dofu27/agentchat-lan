@@ -24,6 +24,7 @@
     typingSent: false,
     typingSentAt: 0,
     typingNames: [],
+    ackTimer: null,
   };
 
   const login = $("login");
@@ -479,20 +480,122 @@
     }
     if (message.seq) state.lastSeq = Math.max(state.lastSeq, message.seq);
     if (nearBottom) box.scrollTop = box.scrollHeight;
+    scheduleAck();
   }
 
   function renderRooms() {
     const list = $("room-list");
+    const dmList = $("dm-list");
     list.replaceChildren();
+    dmList.replaceChildren();
     for (const room of state.rooms) {
       const li = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = "#" + room.id;
+      const direct = room.kind === "dm";
+      button.textContent = direct ? "@" + (room.name || room.id) : "#" + room.id;
       button.classList.toggle("active", room.id === state.room);
       button.addEventListener("click", () => selectRoom(room.id));
       li.appendChild(button);
-      list.appendChild(li);
+      (direct ? dmList : list).appendChild(li);
+    }
+  }
+
+  async function startDM(name) {
+    if (!name || (state.me && state.me.agent && name === state.me.agent.name)) return;
+    try {
+      const room = await api("/v1/dm", { method: "POST", body: JSON.stringify({ agent: name }) });
+      if (!state.rooms.some((item) => item.id === room.id)) state.rooms.push(room);
+      renderRooms();
+      await selectRoom(room.id);
+    } catch (err) {
+      showError(err.message || String(err));
+    }
+  }
+
+  async function ack() {
+    if (!state.room || !state.lastSeq) return;
+    try {
+      await api("/v1/ack", {
+        method: "POST",
+        body: JSON.stringify({ acks: { [state.room]: state.lastSeq } }),
+      });
+      await loadReceipts();
+    } catch (_) {
+      // read receipts are best-effort
+    }
+  }
+
+  function scheduleAck() {
+    if (state.ackTimer) window.clearTimeout(state.ackTimer);
+    state.ackTimer = window.setTimeout(() => {
+      state.ackTimer = null;
+      void ack();
+    }, 500);
+  }
+
+  async function loadReceipts() {
+    if (!state.room) return;
+    try {
+      const body = await api("/v1/rooms/" + encodeURIComponent(state.room) + "/receipts");
+      const own = state.me && state.me.agent ? state.me.agent.id : "";
+      const names = (body.receipts || [])
+        .filter((receipt) => receipt.agent_id !== own && receipt.last_ack_seq > 0)
+        .map((receipt) => receipt.name);
+      const el = $("receipts");
+      if (names.length === 0) {
+        el.textContent = "";
+      } else {
+        el.textContent = t("receipts.read_by", { names: names.join(", ") });
+      }
+    } catch (_) {
+      // ignore transient receipt errors
+    }
+  }
+
+  function closeSearch() {
+    $("search-results").classList.add("hidden");
+    $("search-close").classList.add("hidden");
+  }
+
+  async function runSearch(event) {
+    event.preventDefault();
+    if (!state.room) return;
+    const query = $("search-input").value.trim();
+    const box = $("search-results");
+    if (!query) {
+      closeSearch();
+      return;
+    }
+    try {
+      const body = await api(
+        "/v1/rooms/" + encodeURIComponent(state.room) + "/search?q=" + encodeURIComponent(query) + "&limit=50"
+      );
+      box.replaceChildren();
+      const messages = body.messages || [];
+      if (messages.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "search-result muted";
+        empty.textContent = t("search.no_results");
+        box.appendChild(empty);
+      } else {
+        for (const message of messages) {
+          const row = document.createElement("div");
+          row.className = "search-result";
+          const meta = document.createElement("span");
+          meta.className = "muted";
+          meta.textContent = (message.from && message.from.name) + " · " + formatTime(message.ts) + " ";
+          const text = document.createElement("span");
+          text.textContent = message.text || "";
+          row.appendChild(meta);
+          row.appendChild(text);
+          box.appendChild(row);
+        }
+      }
+      box.classList.remove("hidden");
+      $("search-close").classList.remove("hidden");
+    } catch (err) {
+      showError(err.message || String(err));
     }
   }
 
@@ -527,6 +630,14 @@
         task.textContent = activity.message.meta.activity.title || "";
         li.appendChild(task);
       }
+      if (!state.me || !state.me.agent || agent.name !== state.me.agent.name) {
+        const dm = document.createElement("button");
+        dm.type = "button";
+        dm.className = "ghost dm-button";
+        dm.textContent = t("chat.dm");
+        dm.addEventListener("click", () => void startDM(agent.name));
+        li.appendChild(dm);
+      }
       list.appendChild(li);
     }
   }
@@ -548,9 +659,11 @@
     state.lastSeq = 0;
     state.activities.clear();
     const room = state.rooms.find((r) => r.id === roomID);
-    $("room-title").textContent = "#" + roomID;
+    $("room-title").textContent = room && room.kind === "dm" ? "@" + (room.name || roomID) : "#" + roomID;
     $("room-topic").textContent = room && room.topic ? room.topic : "";
+    $("receipts").textContent = "";
     $("messages").replaceChildren();
+    closeSearch();
     renderTyping([]);
     state.typingSent = false;
     renderRooms();
@@ -761,6 +874,9 @@
       if (state.mention.open) updateMentionMenu();
     });
   }
+
+  $("search-form").addEventListener("submit", runSearch);
+  $("search-close").addEventListener("click", closeSearch);
 
   $("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();

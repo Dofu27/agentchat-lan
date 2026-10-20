@@ -488,6 +488,55 @@ func (s *Store) ListRooms(ctx context.Context) ([]protocol.Room, error) {
 	return out, rows.Err()
 }
 
+func (s *Store) AgentByName(ctx context.Context, name string) (protocol.Agent, error) {
+	var a protocol.Agent
+	var seen string
+	err := s.db.QueryRowContext(ctx, `SELECT id,name,kind,status,last_seen FROM agents WHERE name=? AND revoked_at IS NULL`, name).
+		Scan(&a.ID, &a.Name, &a.Kind, &a.Status, &seen)
+	if errors.Is(err, sql.ErrNoRows) {
+		return protocol.Agent{}, ErrNotFound
+	}
+	if err != nil {
+		return protocol.Agent{}, err
+	}
+	a.LastSeen, _ = time.Parse(time.RFC3339Nano, seen)
+	return a, nil
+}
+
+func (s *Store) RoomByID(ctx context.Context, id string) (protocol.Room, error) {
+	var r protocol.Room
+	var created string
+	err := s.db.QueryRowContext(ctx, `SELECT id,name,topic,kind,created_at FROM rooms WHERE id=? AND archived_at IS NULL`, id).
+		Scan(&r.ID, &r.Name, &r.Topic, &r.Kind, &created)
+	if errors.Is(err, sql.ErrNoRows) {
+		return protocol.Room{}, ErrNotFound
+	}
+	if err != nil {
+		return protocol.Room{}, err
+	}
+	r.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+	return r, nil
+}
+
+// RoomReceipts returns each member's monotonic read cursor for a room.
+func (s *Store) RoomReceipts(ctx context.Context, roomID string) ([]map[string]any, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT m.agent_id,a.name,m.last_ack_seq FROM memberships m JOIN agents a ON a.id=m.agent_id WHERE m.room_id=? ORDER BY a.name`, roomID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []map[string]any{}
+	for rows.Next() {
+		var id, name string
+		var seq int64
+		if err := rows.Scan(&id, &name, &seq); err != nil {
+			return nil, err
+		}
+		out = append(out, map[string]any{"agent_id": id, "name": name, "last_ack_seq": seq})
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) ListAgents(ctx context.Context) ([]protocol.Agent, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id,name,kind,status,last_seen FROM agents WHERE revoked_at IS NULL ORDER BY name`)
 	if err != nil {
@@ -797,6 +846,52 @@ func (s *Store) History(ctx context.Context, agentID, roomID string, after, befo
 		}
 	}
 	return out, more, nil
+}
+
+func (s *Store) SearchMessages(ctx context.Context, agentID, roomID, query string, limit int) ([]protocol.Message, error) {
+	var joined int
+	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM memberships WHERE room_id=? AND agent_id=?`, roomID, agentID).Scan(&joined); errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrForbidden
+	} else if err != nil {
+		return nil, err
+	}
+	if limit < 1 {
+		limit = 50
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(query)
+	rows, err := s.db.QueryContext(ctx, `SELECT m.id,m.room_id,m.seq,a.id,a.name,a.kind,m.kind,m.text,m.reply_to,m.meta_json,m.created_at FROM messages m JOIN agents a ON a.id=m.sender_id WHERE m.room_id=? AND m.text LIKE ? ESCAPE '\' COLLATE NOCASE ORDER BY m.seq DESC LIMIT ?`, roomID, "%"+escaped+"%", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []protocol.Message{}
+	for rows.Next() {
+		var m protocol.Message
+		var meta, created string
+		if err := rows.Scan(&m.ID, &m.Room, &m.Seq, &m.From.ID, &m.From.Name, &m.From.Kind, &m.Kind, &m.Text, &m.ReplyTo, &meta, &created); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(meta), &m.Meta)
+		m.TS, _ = time.Parse(time.RFC3339Nano, created)
+		m.Files = []protocol.FileRef{}
+		out = append(out, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	for i := range out {
+		if err := loadMentions(ctx, s.db, &out[i]); err != nil {
+			return nil, err
+		}
+		if err := loadAttachments(ctx, s.db, &out[i]); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 func (s *Store) Inbox(ctx context.Context, agentID string, limit int, roomFilter []string, cursor map[string]int64) ([]protocol.Message, error) {

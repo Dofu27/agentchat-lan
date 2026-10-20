@@ -50,6 +50,9 @@ step; do not put tokens in URLs, localStorage, or logs.
   and statuses, phases, placeholders, and timestamps follow it
 - Typing indicators over SSE; `@all` is available in the mention picker and is
   highlighted without creating a synthetic agent
+- Direct-message section and per-agent DM action
+- Read receipts in the room header from `/v1/ack`
+- Room-local search with a result list
 
 ### Presence
 

@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -125,6 +126,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/rooms/{room}/events", s.agentAuth(http.HandlerFunc(s.handleEvents)))
 	mux.Handle("POST /v1/rooms/{room}/messages", s.agentAuth(http.HandlerFunc(s.handleSend)))
 	mux.Handle("POST /v1/rooms/{room}/typing", s.agentAuth(http.HandlerFunc(s.handleTyping)))
+	mux.Handle("GET /v1/rooms/{room}/receipts", s.agentAuth(http.HandlerFunc(s.handleReceipts)))
+	mux.Handle("GET /v1/rooms/{room}/search", s.agentAuth(http.HandlerFunc(s.handleSearch)))
+	mux.Handle("POST /v1/dm", s.agentAuth(http.HandlerFunc(s.handleCreateDM)))
 	mux.Handle("GET /v1/inbox", s.agentAuth(http.HandlerFunc(s.handleInbox)))
 	mux.Handle("POST /v1/ack", s.agentAuth(http.HandlerFunc(s.handleAck)))
 	mux.Handle("GET /v1/agents", s.agentAuth(http.HandlerFunc(s.handleAgents)))
@@ -512,6 +516,93 @@ func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": events})
 }
+func (s *Server) handleCreateDM(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Agent string `json:"agent"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	req.Agent = strings.TrimSpace(req.Agent)
+	if req.Agent == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "agent is required", nil)
+		return
+	}
+	me := agentFrom(r.Context())
+	target, err := s.store.AgentByName(r.Context(), req.Agent)
+	if err != nil {
+		s.storeError(w, err)
+		return
+	}
+	if target.ID == me.ID {
+		writeError(w, http.StatusBadRequest, "invalid_request", "cannot open a direct message with yourself", nil)
+		return
+	}
+	ids := []string{me.ID, target.ID}
+	sort.Strings(ids)
+	roomID := "dm_" + ids[0] + "_" + ids[1]
+	if room, err := s.store.RoomByID(r.Context(), roomID); err == nil {
+		writeJSON(w, http.StatusOK, room)
+		return
+	} else if !errors.Is(err, store.ErrNotFound) {
+		s.internalError(w, err)
+		return
+	}
+	room := protocol.Room{ID: roomID, Name: target.Name, Topic: "Direct message", Kind: "dm", CreatedAt: time.Now().UTC()}
+	if err := s.store.CreateRoom(r.Context(), room, ids, me.ID); err != nil {
+		if errors.Is(err, store.ErrConflict) {
+			existing, getErr := s.store.RoomByID(r.Context(), roomID)
+			if getErr == nil {
+				writeJSON(w, http.StatusOK, existing)
+				return
+			}
+		}
+		s.storeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, room)
+}
+
+func (s *Server) handleReceipts(w http.ResponseWriter, r *http.Request) {
+	room := r.PathValue("room")
+	me := agentFrom(r.Context())
+	if _, _, err := s.store.History(r.Context(), me.ID, room, 0, 0, 1); err != nil {
+		s.storeError(w, err)
+		return
+	}
+	receipts, err := s.store.RoomReceipts(r.Context(), room)
+	if err != nil {
+		s.internalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"receipts": receipts})
+}
+
+func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+	room := r.PathValue("room")
+	me := agentFrom(r.Context())
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if query == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "q is required", nil)
+		return
+	}
+	if len(query) > 200 {
+		writeError(w, http.StatusBadRequest, "invalid_request", "q is too long", nil)
+		return
+	}
+	limit, err := queryInt(r, "limit", 50)
+	if err != nil || limit < 1 {
+		writeError(w, http.StatusBadRequest, "invalid_request", "limit must be positive", nil)
+		return
+	}
+	messages, err := s.store.SearchMessages(r.Context(), me.ID, room, query, limit)
+	if err != nil {
+		s.storeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"messages": messages, "query": query})
+}
+
 func (s *Server) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ID    string `json:"id"`
