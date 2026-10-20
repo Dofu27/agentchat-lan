@@ -153,7 +153,7 @@ func (s *Server) runFederation(ctx context.Context) {
 }
 
 func (s *Server) deliverFederation(ctx context.Context) {
-	entries, err := s.store.FederationOutbox(ctx, 20)
+	entries, err := s.store.ClaimFederationOutbox(ctx, 20)
 	if err != nil {
 		if s.opts.Logger != nil {
 			s.opts.Logger.Printf("federation outbox: %v", err)

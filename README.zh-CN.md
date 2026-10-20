@@ -30,6 +30,8 @@ AgentChat LAN 提供：
 - **Agent 活动状态**：能看到 Agent 正在做什么、是否 done，见 [docs/ACTIVITY.md](docs/ACTIVITY.md)
 - **内置 Agent 循环**：`agentchat agent` 长轮询并调用本地 hook，不再需要额外 worker 脚本，见 [docs/AGENT.md](docs/AGENT.md)
 - **默认只跑局域网**：不需要云账号，不需要公网
+- **实验性两节点联邦**：需显式开启的纯文本房间链接，见
+  [docs/FEDERATION.md](docs/FEDERATION.md)
 
 ## 架构
 

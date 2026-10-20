@@ -155,7 +155,8 @@ CREATE TABLE IF NOT EXISTS federation_outbox(
  origin_node TEXT NOT NULL, origin_message_id TEXT NOT NULL,
  payload_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
  attempts INTEGER NOT NULL DEFAULT 0, next_attempt TEXT NOT NULL,
- last_error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+ lease_until TEXT NOT NULL DEFAULT '', last_error TEXT NOT NULL DEFAULT '',
+ created_at TEXT NOT NULL,
  UNIQUE(origin_node,origin_message_id,link_id)
 );
 CREATE TABLE IF NOT EXISTS federation_inbox(
