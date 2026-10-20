@@ -20,6 +20,10 @@
     composing: false,
     eventsAbort: null,
     connection: { ok: true, key: "connected" },
+    typingTimer: null,
+    typingSent: false,
+    typingSentAt: 0,
+    typingNames: [],
   };
 
   const login = $("login");
@@ -77,6 +81,64 @@
     el.textContent = t("status." + key);
     el.classList.toggle("ok", ok);
     el.classList.toggle("bad", !ok);
+  }
+
+  function renderTyping(names) {
+    const el = $("typing");
+    if (state.typingTimer) {
+      window.clearTimeout(state.typingTimer);
+      state.typingTimer = null;
+    }
+    state.typingNames = names || [];
+    const own = state.me && state.me.agent ? state.me.agent.name : "";
+    const others = state.typingNames.filter((name) => name && name !== own);
+    if (others.length === 0) {
+      el.textContent = "";
+      el.classList.add("hidden");
+      return;
+    }
+    el.textContent = others.length === 1
+      ? t("typing.one", { name: others[0] })
+      : t("typing.many", { names: others.join(", ") });
+    el.classList.remove("hidden");
+    state.typingTimer = window.setTimeout(() => {
+      state.typingTimer = null;
+      renderTyping([]);
+    }, 5500);
+  }
+
+  async function sendTyping(typing) {
+    if (!state.room || !state.writeEnabled) return;
+    state.typingSent = typing;
+    try {
+      await api("/v1/rooms/" + encodeURIComponent(state.room) + "/typing", {
+        method: "POST",
+        body: JSON.stringify({ typing }),
+      });
+    } catch (_) {
+      // typing is best-effort
+    }
+  }
+
+  function maybeSendTyping() {
+    if (!state.writeEnabled || !state.room) return;
+    const active = $("message-text").value.trim() !== "";
+    if (!active) {
+      if (state.typingSent) void sendTyping(false);
+      return;
+    }
+    if (state.typingSent && Date.now() - state.typingSentAt < 3000) return;
+    state.typingSentAt = Date.now();
+    void sendTyping(true);
+  }
+
+  function clearTyping() {
+    if (state.typingTimer) {
+      window.clearTimeout(state.typingTimer);
+      state.typingTimer = null;
+    }
+    renderTyping([]);
+    if (state.typingSent) void sendTyping(false);
   }
 
   async function downloadFile(file) {
@@ -279,12 +341,17 @@
     const previous = state.mention.items[state.mention.index];
     const previousName = previous ? previous.name : "";
     const query = ctx.query.toLowerCase();
-    const items = state.agents
-      .filter((agent) => agent && agent.name && isMentionableName(agent.name))
-      .filter((agent) => {
-        const name = agent.name.toLowerCase();
-        return name.startsWith(query) || name.includes(query);
-      })
+    const matches = [];
+    if ("all".startsWith(query) || "all".includes(query)) {
+      matches.push({ name: "all", kind: "room" });
+    }
+    for (const agent of state.agents) {
+      if (!agent || !agent.name || !isMentionableName(agent.name)) continue;
+      const name = agent.name.toLowerCase();
+      if (name.startsWith(query) || name.includes(query)) matches.push(agent);
+    }
+    const items = matches
+      .filter((agent, index, list) => list.findIndex((other) => other.name === agent.name) === index)
       .sort((a, b) => {
         const aStarts = a.name.toLowerCase().startsWith(query) ? 0 : 1;
         const bStarts = b.name.toLowerCase().startsWith(query) ? 0 : 1;
@@ -322,6 +389,7 @@
   function renderMessageText(container, text, mentions) {
     const source = Array.isArray(mentions) && mentions.length > 0 ? mentions : agentNames();
     const names = source
+      .concat("all")
       .filter((name) => name && isMentionableName(name))
       .sort((a, b) => b.length - a.length);
     if (names.length === 0) {
@@ -483,6 +551,8 @@
     $("room-title").textContent = "#" + roomID;
     $("room-topic").textContent = room && room.topic ? room.topic : "";
     $("messages").replaceChildren();
+    renderTyping([]);
+    state.typingSent = false;
     renderRooms();
     try {
       const body = await api("/v1/rooms/" + encodeURIComponent(roomID) + "/messages?after_seq=0&limit=200");
@@ -543,6 +613,7 @@
       });
       input.value = "";
       closeMentionMenu();
+      clearTyping();
       await poll();
     } catch (err) {
       showError(err.message || String(err));
@@ -568,9 +639,15 @@
         data.push(line.slice(5).replace(/^ /, ""));
       }
     }
-    if (event !== "message" || data.length === 0) return;
+    if (data.length === 0) return;
     try {
-      appendMessage(JSON.parse(data.join("\n")));
+      const payload = JSON.parse(data.join("\n"));
+      if (event === "typing") {
+        renderTyping((payload && payload.agents) || []);
+        return;
+      }
+      if (event !== "message") return;
+      appendMessage(payload);
       setConnection(true, "live");
     } catch (_) {
       // ignore malformed events; the fallback poll will catch up
@@ -629,6 +706,7 @@
       $("file-input").value = "";
       $("file-label").textContent = "";
       $("message-text").value = "";
+      clearTyping();
       closeMentionMenu();
     }
   }
@@ -678,6 +756,7 @@
       updateLangToggle();
       setConnection(state.connection.ok, state.connection.key);
       renderAgents();
+      renderTyping(state.typingNames);
       if (state.room) void selectRoom(state.room);
       if (state.mention.open) updateMentionMenu();
     });
@@ -708,7 +787,12 @@
   $("refresh").addEventListener("click", poll);
 
   const messageInput = $("message-text");
-  messageInput.addEventListener("input", updateMentionMenu);
+  function onMessageInput() {
+    updateMentionMenu();
+    maybeSendTyping();
+  }
+
+  messageInput.addEventListener("input", onMessageInput);
   messageInput.addEventListener("click", updateMentionMenu);
   messageInput.addEventListener("compositionstart", () => {
     state.composing = true;

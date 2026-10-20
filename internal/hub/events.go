@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -37,6 +38,18 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "retry: 3000\n\nevent: ready\ndata: {}\n\n")
 	flusher.Flush()
 
+	lastTyping := ""
+	sendTyping := func() {
+		names := s.typingSnapshot(roomID)
+		signature := strings.Join(names, "\x00")
+		if signature == lastTyping {
+			return
+		}
+		lastTyping = signature
+		data, _ := json.Marshal(map[string]any{"agents": names})
+		fmt.Fprintf(w, "event: typing\ndata: %s\n\n", data)
+	}
+
 	last := int64(after)
 	for {
 		ch := s.eventChannel()
@@ -58,6 +71,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "id: %d\nevent: message\ndata: %s\n\n", message.Seq, data)
 				last = message.Seq
 			}
+			sendTyping()
 			flusher.Flush()
 			if !more {
 				break
@@ -74,6 +88,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case <-timer.C:
+			sendTyping()
 			fmt.Fprint(w, ": ping\n\n")
 			flusher.Flush()
 		case <-r.Context().Done():

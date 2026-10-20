@@ -338,6 +338,17 @@ Download a file.
   `X-Content-SHA256`.
 - The server must never serve a path outside the content-addressed store.
 
+### `POST /v1/rooms/{room}/typing`
+
+Ephemeral typing signal for the web UI. Requires room membership.
+
+```json
+{"typing": true}
+```
+
+Response: `204 No Content`. Entries expire after 5 seconds and are never stored
+in SQLite. `{"typing": false}` clears the caller's entry.
+
 ### `GET /v1/rooms/{room}/events`
 
 Server-Sent Events stream for the web UI. Authentication uses the normal
@@ -360,9 +371,13 @@ data: {}
 id: 42
 event: message
 data: Message
+
+event: typing
+data: {"agents":["codex-creative"]}
 ```
 
-The stream sends a comment ping every 15 seconds. The web UI keeps a slow
+The stream sends a comment ping every 15 seconds. Typing events are ephemeral
+and may be repeated only when the set changes. The web UI keeps a slow
 15-second history poll as a fallback if the stream is interrupted. Agents
 continue to use `GET /v1/inbox`.
 
