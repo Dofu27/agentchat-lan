@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.14.1] - 2026-10-20
+
+### Added
+
+- Admin **Reset admin token** action
+- `POST /v1/admin/token` returns a new admin token once, invalidates all other
+  admin sessions, and writes an audit event
+- UI keeps the current session working, displays the new token with a copy
+  button, and warns to update the desktop console's local token file
+
 ## [0.14.0] - 2026-10-20
 
 ### Added

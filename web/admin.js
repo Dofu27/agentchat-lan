@@ -128,6 +128,29 @@
     box.classList.remove("hidden");
   }
 
+  function showAdminToken(token) {
+    const box = $("admin-token-result");
+    box.replaceChildren();
+    const title = document.createElement("div");
+    title.textContent = t("admin.reset_title");
+    const code = document.createElement("code");
+    code.textContent = token;
+    const warning = document.createElement("div");
+    warning.className = "muted";
+    warning.textContent = t("admin.reset_warning");
+    const copy = actionButton(t("admin.token_copy"), async () => {
+      try {
+        await navigator.clipboard.writeText(token);
+        copy.textContent = t("admin.token_copied");
+      } catch (_) {}
+    });
+    box.appendChild(title);
+    box.appendChild(code);
+    box.appendChild(copy);
+    box.appendChild(warning);
+    box.classList.remove("hidden");
+  }
+
   async function loadAgents() {
     const body = await api("/v1/admin/agents");
     const agents = body.agents || [];
@@ -280,6 +303,18 @@
   $("create-user-form").addEventListener("submit", createUser);
   $("admin-refresh").addEventListener("click", refresh);
   $("admin-logout").addEventListener("click", () => logout(""));
+  $("admin-reset-token").addEventListener("click", async () => {
+    if (!window.confirm(t("admin.reset_confirm"))) return;
+    try {
+      const out = await api("/v1/admin/token", { method: "POST" });
+      state.token = out.token;
+      sessionStorage.setItem("agentchat_admin_token", out.token);
+      showAdminToken(out.token);
+      await refresh();
+    } catch (err) {
+      setStatus(err.message || String(err), false);
+    }
+  });
 
   try {
     const saved = sessionStorage.getItem("agentchat_admin_token");

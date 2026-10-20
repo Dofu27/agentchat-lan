@@ -29,9 +29,12 @@
       <div class="topbar-actions">
         <span id="admin-status" class="pill" data-i18n="status.connected">connected</span>
         <button id="admin-refresh" class="ghost" type="button" data-i18n="admin.refresh">Refresh</button>
+        <button id="admin-reset-token" class="ghost" type="button" data-i18n="admin.reset_admin">Reset admin token</button>
         <button id="admin-logout" class="ghost" type="button" data-i18n="admin.logout">Log out</button>
       </div>
     </header>
+
+    <div id="admin-token-result" class="admin-token-result hidden" aria-live="polite"></div>
 
     <main class="admin-layout">
       <section class="panel admin-panel">
