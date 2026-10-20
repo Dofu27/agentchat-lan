@@ -49,11 +49,18 @@ type Server struct {
 	notify   chan struct{}
 	limitMu  sync.Mutex
 	buckets  map[string]bucket
+	typingMu sync.Mutex
+	typing   map[string]map[string]typingEntry
 }
 
 type bucket struct {
 	tokens  float64
 	updated time.Time
+}
+
+type typingEntry struct {
+	name    string
+	expires time.Time
 }
 
 // Init creates the database and returns the admin token exactly once. Only its
@@ -100,7 +107,7 @@ func New(st *store.Store, opts Options) *Server {
 	if opts.Logger == nil {
 		opts.Logger = log.Default()
 	}
-	return &Server{store: st, files: &fileService{root: opts.FileDir, maxSize: opts.MaxFileSize}, opts: opts, notify: make(chan struct{}), buckets: map[string]bucket{}}
+	return &Server{store: st, files: &fileService{root: opts.FileDir, maxSize: opts.MaxFileSize}, opts: opts, notify: make(chan struct{}), buckets: map[string]bucket{}, typing: map[string]map[string]typingEntry{}}
 }
 
 // Handler returns the contract HTTP handler. It listens on no socket itself.
@@ -117,6 +124,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/rooms/{room}/messages", s.agentAuth(http.HandlerFunc(s.handleHistory)))
 	mux.Handle("GET /v1/rooms/{room}/events", s.agentAuth(http.HandlerFunc(s.handleEvents)))
 	mux.Handle("POST /v1/rooms/{room}/messages", s.agentAuth(http.HandlerFunc(s.handleSend)))
+	mux.Handle("POST /v1/rooms/{room}/typing", s.agentAuth(http.HandlerFunc(s.handleTyping)))
 	mux.Handle("GET /v1/inbox", s.agentAuth(http.HandlerFunc(s.handleInbox)))
 	mux.Handle("POST /v1/ack", s.agentAuth(http.HandlerFunc(s.handleAck)))
 	mux.Handle("GET /v1/agents", s.agentAuth(http.HandlerFunc(s.handleAgents)))
@@ -318,6 +326,13 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 			seen[n] = true
 		}
 	}
+	filtered := mentions[:0]
+	for _, n := range mentions {
+		if !isBroadcastMention(n) {
+			filtered = append(filtered, n)
+		}
+	}
+	mentions = filtered
 	result, err := s.store.SendMessage(r.Context(), agentFrom(r.Context()).ID, r.PathValue("room"), req, mentions)
 	if err != nil {
 		s.storeError(w, err)
