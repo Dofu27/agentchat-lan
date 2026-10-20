@@ -36,6 +36,12 @@ func (a *App) cmdHub(args []string) int {
 		return a.hubListInvites(args[1:])
 	case "audit":
 		return a.hubAudit(args[1:])
+	case "gc":
+		return a.hubGC(args[1:])
+	case "backup":
+		return a.hubBackup(args[1:])
+	case "restore":
+		return a.hubRestore(args[1:])
 	case "help", "-h", "--help":
 		a.hubUsage()
 		return 0
@@ -60,6 +66,9 @@ Usage:
                        [--ttl 24h] [--uses 1] [--json]
   agentchat hub list-invites --data <dir> [--json]
   agentchat hub audit  --data <dir> [--limit 100] [--json]
+  agentchat hub gc     --data <dir> [--days 30] [--apply] [--json]
+  agentchat hub backup --data <dir> --out <backup.tar.gz> [--force] [--json]
+  agentchat hub restore --data <dir> --in <backup.tar.gz> [--force] [--json]
 
 The database lives at <data>/agentchat.db. The default listener is loopback;
 pass --listen 0.0.0.0:8787 only on a trusted LAN with a firewall rule.
