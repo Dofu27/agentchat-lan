@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.4.1] - 2026-10-20
+
+### Fixed
+
+- Existing SSE streams now revalidate the bearer token on every wakeup and
+  heartbeat. Revoking an agent closes its stream and prevents delivery of
+  messages after revocation.
+- Added `TestRoomEventsRevocationClosesStream`; new connections still return
+  401 after revocation.
+
 ## [0.4.0] - 2026-10-20
 
 ### Added
