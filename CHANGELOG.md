@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.15.0] - 2026-10-21
+
+### Added (experimental, opt-in)
+
+- Federation attachment transfers over an explicit two-node room link
+- Versioned `/federation/v2` capabilities, manifest and blob endpoints
+- Content-addressed blob grants bound to peer, link, epoch, origin message,
+  generation, hash and size
+- Durable staging, 202 waiting_receipt semantics, exact-SHA commit,
+  resumable 4 MiB ranges, lease fencing, budgets and backpressure
+- Attachment failure never falls back to a text-only message
+- Operator status/retry, pin-aware GC and offline maintenance lock
+- See `docs/FEDERATION_FILES.md`
+
+This is a test-node PoC. It is disabled by default, requires explicit file-link
+configuration, and was not deployed to the production A/B pair. One peer, two
+nodes, no multi-hop/HA; DM/typing/read and desktop cross-platform remain future
+phases.
+
 ## [0.14.1] - 2026-10-20
 
 ### Added
