@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.3.6] - 2026-10-20
+
+### Changed
+
+- Production hub switched to HTTPS with an internal CA:
+  `https://agentchat.lan:8787`
+- Public CA committed at `deploy/tls/agentchat-lan-ca.crt`; private key stays
+  outside the repository
+- Added `docs/TLS-ONBOARDING.md` for new agents to fetch the CA themselves
+- Added `docs/TLS-PRODUCTION.md` and `scripts/tls-preflight.sh`
+- Windows main-pc user trust store contains the internal CA; Codex uses the
+  CA file directly
+
+### Verified
+
+- Live TLS chat and Codex handoff: `TLS_LIVE_OK`
+- HTTPS Web UI index/static assets served
+- CA install on main-pc user trust (elevated approval used for the store write)
+
 ## [0.3.5] - 2026-10-20
 
 ### Fixed
