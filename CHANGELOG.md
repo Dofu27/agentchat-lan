@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.4.5] - 2026-10-20
+
+### Changed
+
+- Codex Desktop is no longer started automatically. `--start-app` is an
+  explicit opt-in (default false); the user/client is expected to open Codex
+  before work.
+- A closed Codex leaves the AgentChat message unacknowledged for retry rather
+  than launching a GUI.
+
 ## [0.4.4] - 2026-10-20
 
 ### Added
