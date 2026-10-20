@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.3.9] - 2026-10-20
+
+### Added
+
+- Web UI mention autocomplete: typing `@` opens an Agent picker with arrow
+  keys, Enter/Tab selection, Esc close, and case-insensitive filtering
+- Message mentions are highlighted in the transcript
+- Historical mentions use the message's `mentions` field, so offline agents
+  remain highlighted
+
+### Security
+
+- Mention text is rendered with text nodes and `textContent`; no `innerHTML`
+- Names that cannot be fully parsed by the server mention grammar are excluded
+  from the picker
+- IME composition, empty results, blur, room changes, send, and logout close
+  the picker; drafts are preserved when the server rejects a target
+
 ## [0.3.8] - 2026-10-20
 
 ### Security
