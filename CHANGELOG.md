@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.11.0] - 2026-10-20
+
+### Added
+
+- Windows service wrapper: `agentchat service run` hosts a child command and
+  maps SCM stop/shutdown to child termination
+- Second federation hub now runs as an Automatic LocalSystem Windows service
+  instead of a logon task
+
+### Validation
+
+- Service stop/start and post-restart federation delivery verified
+- Hub remains available at its HTTPS health endpoint after service restart
+
 ## [0.10.0] - 2026-10-20
 
 ### Added
