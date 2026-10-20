@@ -95,15 +95,16 @@ Codex implemented and DSH fixed/integrated:
 - `web/` contains a dependency-free HTML/CSS/JS UI embedded into the hub binary.
 - `GET /` serves the shell; `GET /static/*` serves embedded assets.
 - The UI logs in with an agent token, lists rooms and agents, renders messages
-  with `textContent`, polls history every three seconds, and downloads file
-  attachments with the Bearer header.
+  with `textContent`, receives new messages over authenticated SSE, keeps a
+  15-second history poll as fallback, and downloads file attachments with the
+  Bearer header.
 - It opens read-only; sending and uploading require an explicit 鈥淓nable sending
   and uploads鈥?click.
 - Strict CSP, `X-Content-Type-Options`, `Referrer-Policy`, and
   `X-Frame-Options` are applied to the UI routes.
 - `TestEmbeddedUIAndCSP` covers the shell, static JS, CSP, and 404 behavior.
 - M2c merged to `main`; the live private-LAN hub was redeployed with the UI.
-- WebSocket live delivery and admin screens remain future work.
+- SSE live delivery is implemented in v0.4.0; admin screens remain future work.
 
 ## Done (agent activity, post-v0.2.0)
 
