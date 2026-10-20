@@ -48,6 +48,8 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
 
 ## Controls
 
+- **Open Web admin**: opens the hub admin UI in a second embedded WebView2
+  window and auto-fills the configured admin token on the configured origin
 - Service state and PID
 - Start, stop, restart
 - **Start with Windows** switch: flips the service between Automatic and

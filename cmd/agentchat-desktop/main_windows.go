@@ -47,7 +47,10 @@ type app struct {
 	http  *http.Client
 }
 
-var instanceMutex windows.Handle
+var (
+	instanceMutex windows.Handle
+	adminWindow   webview2.WebView
+)
 
 func main() {
 	mutexName, _ := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
@@ -180,6 +183,17 @@ func main() {
 	origin := "http://" + ln.Addr().String()
 	w.Init("if (window.top === window && location.origin === " + strconv.Quote(origin) +
 		") { window.__agentchatDesktopCapability = " + strconv.Quote(a.cap) + "; }")
+	_ = w.Bind("__openAdminWeb", func() error {
+		if a.token == "" {
+			return errors.New("admin token file is not configured")
+		}
+		w.Dispatch(func() {
+			if err := a.openAdminWindow(); err != nil {
+				log.Printf("open admin window: %v", err)
+			}
+		})
+		return nil
+	})
 	w.Navigate(origin + "/")
 	w.Run()
 }
@@ -241,6 +255,34 @@ func (a *app) api(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (a *app) openAdminWindow() error {
+	if adminWindow != nil {
+		adminWindow.Navigate(a.cfg.HubURL + "/admin")
+		return nil
+	}
+	adminWindow = webview2.NewWithOptions(webview2.WebViewOptions{
+		Debug: false,
+		WindowOptions: webview2.WindowOptions{
+			Title: "AgentChat Admin", Width: 1280, Height: 860, Center: true,
+		},
+	})
+	if adminWindow == nil {
+		return errors.New("could not create the admin WebView2 window")
+	}
+	adminWindow.Init(adminLoginScript(a.token, a.cfg.HubURL))
+	adminWindow.Navigate(a.cfg.HubURL + "/admin")
+	return nil
+}
+
+func adminLoginScript(token, hubURL string) string {
+	u, _ := url.Parse(hubURL)
+	origin := ""
+	if u != nil {
+		origin = u.Scheme + "://" + u.Host
+	}
+	return `(function(){var t=` + strconv.Quote(token) + `,o=` + strconv.Quote(origin) + `;if(location.origin!==o)return;var n=0;function go(){var login=document.getElementById("admin-login");var i=document.getElementById("admin-token");var f=document.getElementById("admin-login-form");if(login&&login.classList.contains("hidden"))return;if(i&&f&&!i.value){i.value=t;f.requestSubmit();return;}if(n++<20)setTimeout(go,250);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();})();`
 }
 
 func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
