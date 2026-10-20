@@ -199,9 +199,11 @@ contain a receipt matching both origin IDs and a nonempty local message ID.
 Transport errors, bad ACKs, HTTP 408/429 and 5xx retry with exponential backoff
 starting at one second and capped at 30 seconds. Other unsuccessful statuses
 (including redirects, 401/403 and conflicts) become `dead`. Attempts are bounded
-to 1–20, default five. Dead work needs operator investigation; this PoC has no
-automatic retry-after-dead or management UI. Error records contain fixed error
-classes/HTTP statuses, not peer response bodies or credentials.
+to 1–20, default five. Dead work needs operator investigation; use the admin
+Federation panel or `agentchat hub federation status --data` to inspect it, and
+the panel/API retry action to re-arm a dead job. There is no automatic
+retry-after-dead. Error records contain fixed error classes/HTTP statuses, not
+peer response bodies or credentials.
 
 The total outbox row cap is 1–10000 (default 1000). Oldest terminal rows can be
 evicted to admit new work; pending/inflight rows are never evicted. Dead payloads
