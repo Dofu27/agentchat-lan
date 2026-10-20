@@ -143,6 +143,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/files/{id}", s.agentAuth(http.HandlerFunc(s.handleDownload)))
 	mux.Handle("HEAD /v1/files/{id}", s.agentAuth(http.HandlerFunc(s.handleDownload)))
 	mux.Handle("GET /v1/admin/agents", s.adminAuth(http.HandlerFunc(s.handleAgents)))
+	mux.Handle("POST /v1/admin/agents", s.adminAuth(http.HandlerFunc(s.handleCreateUserAgent)))
 	mux.Handle("POST /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleCreateInvite)))
 	mux.Handle("GET /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleListInvites)))
 	mux.Handle("DELETE /v1/admin/agents/{id}", s.adminAuth(http.HandlerFunc(s.handleRevokeAgent)))
@@ -521,6 +522,23 @@ func (s *Server) handleListInvites(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"invites": invites})
 }
+func (s *Server) handleCreateUserAgent(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+		Kind string `json:"kind"`
+		Room string `json:"room"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	agent, token, err := s.store.CreateUserAgent(r.Context(), req.Name, req.Kind, req.Room, "admin")
+	if err != nil {
+		s.storeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"agent": agent, "token": token})
+}
+
 func (s *Server) handleRotateAgentToken(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	token, err := s.store.RotateAgentToken(r.Context(), id, "admin")
