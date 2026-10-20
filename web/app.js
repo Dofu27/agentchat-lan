@@ -14,11 +14,14 @@
     selectedFile: null,
     writeEnabled: false,
     activities: new Map(),
+    mention: { open: false, items: [], index: 0, start: 0, end: 0 },
+    composing: false,
   };
 
   const login = $("login");
   const app = $("app");
   const errorBanner = $("error-banner");
+  const mentionMenu = $("mention-menu");
 
   function authHeaders() {
     return { Authorization: "Bearer " + state.token };
@@ -157,6 +160,183 @@
     return article;
   }
 
+  function escapeRegex(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function isMentionableName(name) {
+    return /^[A-Za-z0-9_-](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9_-])?$/.test(String(name || ""));
+  }
+
+  function agentNames() {
+    return state.agents
+      .map((agent) => agent && agent.name)
+      .filter((name) => name && isMentionableName(name))
+      .sort((a, b) => b.length - a.length);
+  }
+
+  function mentionContext() {
+    const input = $("message-text");
+    if (!input || document.activeElement !== input) return null;
+    const pos = input.selectionStart;
+    if (pos !== input.selectionEnd) return null;
+    const before = input.value.slice(0, pos);
+    const match = before.match(/(^|[\s(])@([A-Za-z0-9_.-]*)$/);
+    if (!match) return null;
+    return {
+      start: pos - match[2].length - 1,
+      end: pos,
+      query: match[2],
+    };
+  }
+
+  function closeMentionMenu() {
+    state.mention.open = false;
+    state.mention.items = [];
+    state.mention.index = 0;
+    mentionMenu.classList.add("hidden");
+    mentionMenu.replaceChildren();
+    $("message-text").setAttribute("aria-expanded", "false");
+    $("message-text").removeAttribute("aria-activedescendant");
+  }
+
+  function setMentionActive(index) {
+    state.mention.index = index;
+    const buttons = mentionMenu.querySelectorAll(".mention-item");
+    buttons.forEach((button, i) => {
+      button.classList.toggle("active", i === index);
+      button.setAttribute("aria-selected", i === index ? "true" : "false");
+    });
+    const active = buttons[index];
+    if (active) {
+      $("message-text").setAttribute("aria-activedescendant", active.id);
+    } else {
+      $("message-text").removeAttribute("aria-activedescendant");
+    }
+  }
+
+  function renderMentionMenu() {
+    mentionMenu.replaceChildren();
+    state.mention.items.forEach((agent, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.id = "mention-option-" + index;
+      button.className = "mention-item" + (index === state.mention.index ? " active" : "");
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", index === state.mention.index ? "true" : "false");
+
+      const avatar = document.createElement("span");
+      avatar.className = "mention-avatar";
+      avatar.textContent = String(agent.name || "?").slice(0, 1).toUpperCase();
+
+      const body = document.createElement("span");
+      body.className = "mention-body";
+      const name = document.createElement("span");
+      name.className = "mention-name";
+      name.textContent = agent.name;
+      const kind = document.createElement("span");
+      kind.className = "mention-kind";
+      kind.textContent = agent.kind || "agent";
+      body.appendChild(name);
+      body.appendChild(kind);
+
+      button.appendChild(avatar);
+      button.appendChild(body);
+      button.addEventListener("mouseenter", () => {
+        setMentionActive(index);
+      });
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        selectMention(agent.name);
+      });
+      mentionMenu.appendChild(button);
+    });
+    mentionMenu.classList.toggle("hidden", state.mention.items.length === 0);
+    $("message-text").setAttribute("aria-expanded", state.mention.items.length > 0 ? "true" : "false");
+    setMentionActive(state.mention.index);
+  }
+
+  function updateMentionMenu() {
+    if (state.composing) return;
+    const ctx = mentionContext();
+    if (!ctx) {
+      closeMentionMenu();
+      return;
+    }
+    const previous = state.mention.items[state.mention.index];
+    const previousName = previous ? previous.name : "";
+    const query = ctx.query.toLowerCase();
+    const items = state.agents
+      .filter((agent) => agent && agent.name && isMentionableName(agent.name))
+      .filter((agent) => {
+        const name = agent.name.toLowerCase();
+        return name.startsWith(query) || name.includes(query);
+      })
+      .sort((a, b) => {
+        const aStarts = a.name.toLowerCase().startsWith(query) ? 0 : 1;
+        const bStarts = b.name.toLowerCase().startsWith(query) ? 0 : 1;
+        if (aStarts !== bStarts) return aStarts - bStarts;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, 8);
+    if (items.length === 0) {
+      closeMentionMenu();
+      return;
+    }
+
+    state.mention.open = true;
+    state.mention.start = ctx.start;
+    state.mention.end = ctx.end;
+    state.mention.items = items;
+    const preserved = items.findIndex((agent) => agent.name === previousName);
+    state.mention.index = preserved >= 0 ? preserved : Math.min(state.mention.index, items.length - 1);
+    renderMentionMenu();
+  }
+
+  function selectMention(name) {
+    if (!state.mention.open) return;
+    const input = $("message-text");
+    const before = input.value.slice(0, state.mention.start);
+    const after = input.value.slice(state.mention.end);
+    const insert = "@" + name + " ";
+    input.value = before + insert + after;
+    const caret = before.length + insert.length;
+    closeMentionMenu();
+    input.focus();
+    input.setSelectionRange(caret, caret);
+  }
+
+  function renderMessageText(container, text, mentions) {
+    const source = Array.isArray(mentions) && mentions.length > 0 ? mentions : agentNames();
+    const names = source
+      .filter((name) => name && isMentionableName(name))
+      .sort((a, b) => b.length - a.length);
+    if (names.length === 0) {
+      container.textContent = text || "";
+      return;
+    }
+    const pattern = new RegExp(
+      "(^|[\\s(])@(" + names.map(escapeRegex).join("|") + ")(?![A-Za-z0-9_.-])",
+      "gi"
+    );
+    let last = 0;
+    let match;
+    while ((match = pattern.exec(text || "")) !== null) {
+      const mentionStart = match.index + match[1].length;
+      if (mentionStart > last) {
+        container.appendChild(document.createTextNode((text || "").slice(last, mentionStart)));
+      }
+      const mention = document.createElement("span");
+      mention.className = "mention";
+      mention.textContent = "@" + match[2];
+      container.appendChild(mention);
+      last = match.index + match[0].length;
+    }
+    if (last < (text || "").length) {
+      container.appendChild(document.createTextNode((text || "").slice(last)));
+    }
+  }
+
   function messageElement(message) {
     if (message.meta && message.meta.activity) {
       return activityElement(message);
@@ -177,7 +357,7 @@
 
     const text = document.createElement("div");
     text.className = "message-text";
-    text.textContent = message.text || "";
+    renderMessageText(text, message.text || "", message.mentions);
 
     article.appendChild(head);
     article.appendChild(text);
@@ -274,6 +454,7 @@
       const body = await api("/v1/agents");
       state.agents = body.agents || [];
       renderAgents();
+      if (state.mention.open) updateMentionMenu();
     } catch (_) {
       // presence is non-critical
     }
@@ -345,6 +526,7 @@
         body: JSON.stringify(body),
       });
       input.value = "";
+      closeMentionMenu();
       await poll();
     } catch (err) {
       showError(err.message || String(err));
@@ -368,6 +550,7 @@
       $("file-input").value = "";
       $("file-label").textContent = "";
       $("message-text").value = "";
+      closeMentionMenu();
     }
   }
 
@@ -386,6 +569,7 @@
 
   function logout() {
     setWriteEnabled(false);
+    closeMentionMenu();
     state.token = "";
     state.me = null;
     state.room = null;
@@ -425,6 +609,45 @@
   $("enable-writing").addEventListener("click", () => setWriteEnabled(true));
   $("composer").addEventListener("submit", sendMessage);
   $("refresh").addEventListener("click", poll);
+
+  const messageInput = $("message-text");
+  messageInput.addEventListener("input", updateMentionMenu);
+  messageInput.addEventListener("click", updateMentionMenu);
+  messageInput.addEventListener("compositionstart", () => {
+    state.composing = true;
+    closeMentionMenu();
+  });
+  messageInput.addEventListener("compositionend", () => {
+    state.composing = false;
+    updateMentionMenu();
+  });
+  messageInput.addEventListener("blur", () => {
+    window.setTimeout(closeMentionMenu, 120);
+  });
+  messageInput.addEventListener("keydown", (event) => {
+    if (event.isComposing || state.composing) return;
+    if (!state.mention.open) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const delta = event.key === "ArrowDown" ? 1 : -1;
+      const count = state.mention.items.length;
+      if (count > 0) {
+        state.mention.index = (state.mention.index + delta + count) % count;
+        renderMentionMenu();
+      }
+      return;
+    }
+    if (event.key === "Enter" || event.key === "Tab") {
+      event.preventDefault();
+      const agent = state.mention.items[state.mention.index];
+      if (agent) selectMention(agent.name);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMentionMenu();
+    }
+  });
   $("file-input").addEventListener("change", () => {
     state.selectedFile = $("file-input").files[0] || null;
     $("file-label").textContent = state.selectedFile
