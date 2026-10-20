@@ -171,30 +171,147 @@ func (a *App) hubRestore(args []string) int {
 	if err := extractBackup(absIn, tmpDir); err != nil {
 		return a.fail(err)
 	}
+	stagingDB := filepath.Join(tmpDir, "agentchat.db")
+	stagingFiles := filepath.Join(tmpDir, "files")
+	if err := validateSQLite(stagingDB); err != nil {
+		return a.fail(fmt.Errorf("backup database validation failed: %w", err))
+	}
+	if err := validateFileRefs(stagingDB, stagingFiles); err != nil {
+		return a.fail(fmt.Errorf("backup file validation failed: %w", err))
+	}
+	_ = os.Remove(stagingDB + "-wal")
+	_ = os.Remove(stagingDB + "-shm")
+
 	dbPath := filepath.Join(absData, "agentchat.db")
+	filesPath := filepath.Join(absData, "files")
 	if _, err := os.Stat(dbPath); err == nil && !*force {
 		return a.fail(fmt.Errorf("%s already exists; use --force", dbPath))
 	}
 	if err := os.MkdirAll(absData, 0o700); err != nil {
 		return a.fail(err)
 	}
+
+	oldDir := filepath.Join(absData, ".restore-old-"+time.Now().UTC().Format("20060102-150405"))
+	var oldDB, oldFiles string
 	if *force {
-		_ = os.Remove(dbPath)
-		_ = os.RemoveAll(filepath.Join(absData, "files"))
-	}
-	if err := os.Rename(filepath.Join(tmpDir, "agentchat.db"), dbPath); err != nil {
-		if err := copyFile(filepath.Join(tmpDir, "agentchat.db"), dbPath, 0o600); err != nil {
-			return a.fail(err)
+		if _, err := os.Stat(dbPath); err == nil {
+			if err := os.MkdirAll(oldDir, 0o700); err != nil {
+				return a.fail(err)
+			}
+			oldDB = filepath.Join(oldDir, "agentchat.db")
+			if err := movePath(dbPath, oldDB); err != nil {
+				return a.fail(err)
+			}
+		}
+		if _, err := os.Stat(filesPath); err == nil {
+			if err := os.MkdirAll(oldDir, 0o700); err != nil {
+				return a.fail(err)
+			}
+			oldFiles = filepath.Join(oldDir, "files")
+			if err := movePath(filesPath, oldFiles); err != nil {
+				return a.fail(err)
+			}
 		}
 	}
-	if err := copyTree(filepath.Join(tmpDir, "files"), filepath.Join(absData, "files")); err != nil {
-		return a.fail(err)
+	_ = os.Remove(dbPath + "-wal")
+	_ = os.Remove(dbPath + "-shm")
+	restoreErr := func() error {
+		if err := movePath(stagingDB, dbPath); err != nil {
+			return err
+		}
+		if err := copyTree(stagingFiles, filesPath); err != nil {
+			return err
+		}
+		_ = os.Remove(dbPath + "-wal")
+		_ = os.Remove(dbPath + "-shm")
+		return nil
+	}()
+	if restoreErr != nil {
+		_ = os.Remove(dbPath)
+		_ = os.RemoveAll(filesPath)
+		if oldDB != "" {
+			_ = movePath(oldDB, dbPath)
+		}
+		if oldFiles != "" {
+			_ = movePath(oldFiles, filesPath)
+		}
+		return a.fail(restoreErr)
 	}
 	if *jsonOut {
 		return a.printJSON(map[string]any{"path": absData})
 	}
 	fmt.Fprintf(a.Stdout, "restored: %s\n", absData)
 	return 0
+}
+
+func validateSQLite(path string) error {
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?mode=ro")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	var integrity string
+	if err := db.QueryRow(`PRAGMA integrity_check`).Scan(&integrity); err != nil {
+		return err
+	}
+	if integrity != "ok" {
+		return fmt.Errorf("integrity_check returned %q", integrity)
+	}
+	var tables int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('agents','rooms','memberships','messages','files','attachments')`).Scan(&tables); err != nil {
+		return err
+	}
+	if tables < 6 {
+		return fmt.Errorf("backup database is missing required tables")
+	}
+	return nil
+}
+
+func validateFileRefs(dbPath, filesRoot string) error {
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(dbPath)+"?mode=ro")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	rows, err := db.Query(`SELECT storage_path FROM files`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rel string
+		if err := rows.Scan(&rel); err != nil {
+			return err
+		}
+		full, ok := safeUnderRoot(filesRoot, rel)
+		if !ok {
+			return fmt.Errorf("unsafe file reference %q", rel)
+		}
+		info, err := os.Stat(full)
+		if err != nil {
+			return fmt.Errorf("missing file %q: %w", rel, err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("file reference %q is not a regular file", rel)
+		}
+	}
+	return rows.Err()
+}
+
+func movePath(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return copyTree(src, dst)
+	}
+	return copyFile(src, dst, info.Mode())
 }
 
 func extractBackup(path, dest string) error {
