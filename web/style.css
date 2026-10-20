@@ -153,6 +153,15 @@ button.ghost:hover { color: var(--text); }
 .message-author { font-weight: 600; color: var(--accent); }
 .message-time { color: var(--muted); font-size: 12px; }
 .message-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.mention {
+  color: var(--accent);
+  background: rgba(110, 168, 254, 0.14);
+  border: 1px solid rgba(110, 168, 254, 0.25);
+  border-radius: 5px;
+  padding: 0 4px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .message-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .file-card {
   display: flex;
@@ -176,6 +185,45 @@ button.ghost:hover { color: var(--text); }
   color: var(--text);
   padding: 9px 11px;
 }
+.mention-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  padding: 4px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+}
+.mention-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  padding: 8px;
+  border-radius: 8px;
+}
+.mention-item:hover,
+.mention-item.active { background: rgba(110, 168, 254, 0.12); }
+.mention-avatar {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 50%;
+  background: rgba(110, 168, 254, 0.2);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+.mention-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.mention-name { font-weight: 600; }
+.mention-kind { color: var(--muted); font-size: 11px; }
 .composer-actions { display: flex; align-items: center; gap: 10px; }
 .composer-actions button[type="submit"] { margin-left: auto; }
 .file-button {

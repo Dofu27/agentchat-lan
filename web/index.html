@@ -55,7 +55,8 @@
           <button id="enable-writing" class="ghost" type="button">Enable sending and uploads</button>
         </div>
         <form id="composer" class="composer hidden" aria-label="Send message or upload file">
-          <textarea id="message-text" rows="2" placeholder="Message the room…" aria-label="Message"></textarea>
+          <textarea id="message-text" rows="2" placeholder="Message the room… type @ to mention" aria-label="Message" aria-autocomplete="list" aria-controls="mention-menu"></textarea>
+          <div id="mention-menu" class="mention-menu hidden" role="listbox" aria-label="Mention an agent"></div>
           <div class="composer-actions">
             <label class="file-button">
               Attach
