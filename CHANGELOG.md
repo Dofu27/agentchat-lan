@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.4.4] - 2026-10-20
+
+### Added
+
+- Optional hub-wide storage quota via `hub serve --max-storage-bytes`
+- Duplicate content uploads do not count twice against the quota
+- Quota violations return `413 payload_too_large` with `storage quota exceeded`
+
 ## [0.4.3] - 2026-10-20
 
 ### Fixed
