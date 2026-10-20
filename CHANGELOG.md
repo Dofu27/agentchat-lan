@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.10.0] - 2026-10-20
+
+### Added
+
+- Operator-only federation status API and admin UI panel
+- Dead-letter outbox list with retry (Idempotency-Key protected)
+- CLI `hub federation status` for read-only persisted federation inspection
+- Migration 3 for durable retry receipts
+
+### Security
+
+- Admin routes are registered only when federation is enabled
+- Responses omit payloads, peer URLs, secrets/hashes, and lease tokens
+- Retry is restricted to dead jobs and writes an audit event
+
 ## [0.9.1] - 2026-10-20
 
 ### Changed
