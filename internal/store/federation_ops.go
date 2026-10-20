@@ -27,10 +27,11 @@ type FederationOperatorLink struct {
 	Enabled    bool   `json:"enabled"`
 }
 type FederationOperatorStatus struct {
-	NodeID string                   `json:"node_id"`
-	Peers  []FederationOperatorPeer `json:"peers"`
-	Links  []FederationOperatorLink `json:"room_links"`
-	Outbox FederationQueueStats     `json:"outbox"`
+	NodeID      string                       `json:"node_id"`
+	Peers       []FederationOperatorPeer     `json:"peers"`
+	Links       []FederationOperatorLink     `json:"room_links"`
+	Outbox      FederationQueueStats         `json:"outbox"`
+	Attachments FederationFileOperatorStatus `json:"attachments"`
 }
 type FederationOutboxItem struct {
 	ID              string    `json:"id"`
@@ -120,11 +121,20 @@ func (s *Store) FederationOperatorStatus(ctx context.Context) (FederationOperato
 	if err != nil {
 		return out, err
 	}
+	var hasFiles int
+	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='federation_file_outbox'`).Scan(&hasFiles); err != nil {
+		return out, err
+	}
+	if hasFiles > 0 {
+		if err = readFederationFileStatus(ctx, tx, &out.Attachments); err != nil {
+			return out, err
+		}
+	}
 	return out, tx.Commit()
 }
 
 func ValidFederationState(state string) bool {
-	return state == "pending" || state == "inflight" || state == "delivered" || state == "dead"
+	return state == "pending" || state == "inflight" || state == "delivered" || state == "dead" || state == "waiting_receipt"
 }
 
 // Allowlist stored error classes: even a manually damaged/legacy row cannot
@@ -147,7 +157,7 @@ func (s *Store) ListFederationOutbox(ctx context.Context, state string, limit in
 	if !ValidFederationState(state) || limit < 1 || limit > 100 {
 		return nil, errors.New("invalid outbox state or limit")
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM federation_outbox WHERE state=? ORDER BY created_at DESC,id DESC LIMIT ?`, state, limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM (SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM federation_outbox UNION ALL SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM federation_file_outbox) WHERE state=? ORDER BY created_at DESC,id DESC LIMIT ?`, state, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +206,21 @@ func (s *Store) RetryFederationOutbox(ctx context.Context, id, key string) (Fede
 		return out, err
 	}
 	var state string
+	table := "federation_outbox"
 	err = tx.QueryRowContext(ctx, "SELECT state FROM federation_outbox WHERE id=?", id).Scan(&state)
+	if errors.Is(err, sql.ErrNoRows) {
+		table = "federation_file_outbox"
+		var deadline int64
+		err = tx.QueryRowContext(ctx, `SELECT state,deadline FROM federation_file_outbox WHERE id=?`, id).Scan(&state, &deadline)
+		if err == nil {
+			if !s.federationFiles {
+				return out, ErrForbidden
+			}
+			if deadline <= time.Now().UnixMilli() {
+				return out, ErrFederationExpired
+			}
+		}
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return out, ErrNotFound
 	}
@@ -207,7 +231,11 @@ func (s *Store) RetryFederationOutbox(ctx context.Context, id, key string) (Fede
 		return out, ErrFederationNotDead
 	}
 	now := time.Now().UTC()
-	_, err = tx.ExecContext(ctx, "UPDATE federation_outbox SET state='pending',attempts=0,lease_token='',lease_until=0,next_attempt=?,last_error='' WHERE id=? AND state='dead'", now.UnixMilli(), id)
+	generationSQL := ""
+	if table == "federation_file_outbox" {
+		generationSQL = ",generation=generation+1"
+	}
+	_, err = tx.ExecContext(ctx, "UPDATE "+table+" SET state='pending',attempts=0,lease_token='',lease_until=0,next_attempt=?,last_error=''"+generationSQL+" WHERE id=? AND state='dead'", now.UnixMilli(), id)
 	if err != nil {
 		return out, err
 	}

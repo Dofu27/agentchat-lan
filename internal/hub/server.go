@@ -109,7 +109,11 @@ func New(st *store.Store, opts Options) *Server {
 	if opts.Logger == nil {
 		opts.Logger = log.Default()
 	}
-	return &Server{store: st, files: &fileService{root: opts.FileDir, maxSize: opts.MaxFileSize}, opts: opts, notify: make(chan struct{}), buckets: map[string]bucket{}, typing: map[string]map[string]typingEntry{}}
+	srv := &Server{store: st, files: &fileService{root: opts.FileDir, maxSize: opts.MaxFileSize}, opts: opts, notify: make(chan struct{}), buckets: map[string]bucket{}, typing: map[string]map[string]typingEntry{}}
+	if opts.Federation != nil {
+		opts.Federation.opts.notify = srv.broadcast
+	}
+	return srv
 }
 
 // Handler returns the contract HTTP handler. It listens on no socket itself.
@@ -120,6 +124,12 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("GET /v1/admin/federation/outbox", s.adminAuth(http.HandlerFunc(s.handleFederationOperatorOutbox)))
 		mux.Handle("POST /v1/admin/federation/outbox/{id}/retry", s.adminAuth(http.HandlerFunc(s.handleFederationOperatorRetry)))
 		mux.HandleFunc("POST /federation/v1/messages", s.handleFederation)
+		mux.HandleFunc("GET /federation/v2/capabilities", s.handleFederationCapabilities)
+		if len(s.opts.Federation.opts.FileLinks) > 0 {
+			mux.HandleFunc("POST /federation/v2/messages", s.handleFederationFiles)
+			mux.HandleFunc("GET /federation/v2/blobs/{sha}", s.handleFederationBlob)
+			mux.HandleFunc("HEAD /federation/v2/blobs/{sha}", s.handleFederationBlob)
+		}
 	}
 	mux.Handle("GET /", s.uiSecurity(http.HandlerFunc(s.handleUI)))
 	mux.Handle("GET /admin", s.uiSecurity(http.HandlerFunc(s.handleAdminUI)))
@@ -153,12 +163,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /v1/admin/rooms", s.adminAuth(http.HandlerFunc(s.handleCreateRoom)))
 	mux.Handle("DELETE /v1/admin/rooms/{id}", s.adminAuth(http.HandlerFunc(s.handleArchiveRoom)))
 	var handler http.Handler = mux
-	if s.opts.Federation == nil {
+	if s.opts.Federation == nil || len(s.opts.Federation.opts.FileLinks) == 0 {
 		// The UI's GET / catch-all otherwise turns unknown POSTs into 405.
 		// Keep the entire disabled operations namespace at 404 without
 		// registering admin routes or exposing authentication behavior.
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/v1/admin/federation" || strings.HasPrefix(r.URL.Path, "/v1/admin/federation/") {
+			if (s.opts.Federation == nil && (r.URL.Path == "/v1/admin/federation" || strings.HasPrefix(r.URL.Path, "/v1/admin/federation/"))) || (strings.HasPrefix(r.URL.Path, "/federation/v2/") && (s.opts.Federation == nil || r.URL.Path != "/federation/v2/capabilities")) {
 				http.NotFound(w, r)
 				return
 			}
@@ -793,6 +803,8 @@ type statusWriter struct {
 	status int
 	wrote  bool
 }
+
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func (w *statusWriter) WriteHeader(code int) {
 	if w.wrote {

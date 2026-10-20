@@ -61,6 +61,8 @@ func (s *Server) handleFederationOperatorRetry(w http.ResponseWriter, r *http.Re
 		switch {
 		case errors.Is(err, store.ErrNotFound):
 			writeError(w, 404, "not_found", "outbox job not found", nil)
+		case errors.Is(err, store.ErrFederationExpired):
+			writeError(w, 409, "expired", "24-hour grant expired; retry cannot renew it", nil)
 		case errors.Is(err, store.ErrFederationNotDead):
 			writeError(w, 409, "not_dead", "only dead outbox jobs may be retried", nil)
 		case errors.Is(err, store.ErrForbidden):

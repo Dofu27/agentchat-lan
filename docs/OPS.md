@@ -43,6 +43,11 @@ count again. Use `hub gc` to reclaim space after any future retention policy.
 
 ## Garbage collection
 
+For the opt-in F0/F1 attachment PoC, stop the attachment hub before backup,
+restore or GC: an OS guard refuses concurrent attachment runtime/maintenance.
+GC honors source and unpublished-file pins, and sweeps expired staging only on
+`--apply`. See [attachment maintenance and bounds](FEDERATION_FILES.md).
+
 Dry-run first:
 
 ```bash

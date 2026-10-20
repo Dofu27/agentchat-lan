@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Dofu27/agentchat-lan/internal/client"
@@ -28,6 +29,9 @@ type FederationPeerOptions struct {
 }
 type FederationOptions struct {
 	Peer           FederationPeerOptions
+	FileLinks      []store.FederationFileLink
+	FileDir        string
+	notify         func()
 	Links          []store.FederationLink
 	MaxOutbox      int
 	MaxAttempts    int
@@ -42,10 +46,15 @@ type Federation struct {
 	opts       FederationOptions
 	http       *http.Client
 	secretHash [32]byte
+	blobSlots  chan struct{}
+	fileLocks  [64]sync.Mutex
 }
 
 // NewFederation is explicit opt-in; the ordinary hub does not call it.
 func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions) (*Federation, error) {
+	if len(opts.FileLinks) > 0 && opts.FileDir == "" {
+		return nil, errors.New("federation files require file directory")
+	}
 	if opts.MaxOutbox == 0 {
 		opts.MaxOutbox = 1000
 	}
@@ -92,7 +101,11 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 		c.HTTP.CloseIdleConnections()
 		return nil, err
 	}
-	return &Federation{store: st, nodeID: id, opts: opts, http: c.HTTP, secretHash: sum}, nil
+	if err = st.ConfigureFederationFiles(ctx, opts.FileLinks); err != nil {
+		c.HTTP.CloseIdleConnections()
+		return nil, err
+	}
+	return &Federation{store: st, nodeID: id, opts: opts, http: c.HTTP, secretHash: sum, blobSlots: make(chan struct{}, 2)}, nil
 }
 func (f *Federation) NodeID() string { return f.nodeID }
 
@@ -140,7 +153,7 @@ func (s *Server) handleFederation(w http.ResponseWriter, r *http.Request) {
 
 // Run owns a single bounded worker. It can be restarted: inflight work is
 // recovered only after its persisted lease expires. Multiple claimers are safe.
-func (f *Federation) Run(ctx context.Context) error {
+func (f *Federation) runV1(ctx context.Context) error {
 	defer f.http.CloseIdleConnections()
 	timer := time.NewTicker(f.opts.PollInterval)
 	defer timer.Stop()
