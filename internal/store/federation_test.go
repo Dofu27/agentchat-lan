@@ -66,7 +66,7 @@ func TestFederationOutboxAndInboundIdempotency(t *testing.T) {
 	payload := store.FederationPayload{
 		Room: "general", OriginNode: "node_b", OriginID: "remote-1",
 		Sender: protocol.AgentRef{ID: "agt_remote", Name: "remote", Kind: "dsh"},
-		Text: "remote hello", TS: time.Now().UTC(),
+		Text:   "remote hello", TS: time.Now().UTC(),
 	}
 	message, replayed, err := st.InsertFederatedMessage(ctx, link.ID, payload)
 	if err != nil {
