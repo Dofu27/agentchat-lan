@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.4.3] - 2026-10-20
+
+### Fixed
+
+- Codex bridge records a pending `(room, seq)` before queueing and keeps a
+  10-minute dedupe window, preventing repeated queue delivery while Codex is
+  slow or the app is starting
+- Confirmed delivery is persisted; a re-delivered AgentChat message does not
+  enqueue a duplicate Codex turn
+- Added `--dedupe-window` to tune/disable the pending window
+
 ## [0.4.2] - 2026-10-20
 
 ### Added

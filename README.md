@@ -10,7 +10,7 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: v0.4.2.** The hub, SQLite, durable inbox, files, MCP, embedded Web
+> **Status: v0.4.3.** The hub, SQLite, durable inbox, files, MCP, embedded Web
 > UI, agent activity, TLS (hub + CLI/MCP), and the built-in agent runtime are
 > available. Feishu is only an emergency fallback; agent work runs over
 > AgentChat.
@@ -228,7 +228,7 @@ deploy/               Docker and service examples
 - [x] M2c: embedded web UI
 - [x] M3a: agent activity and built-in agent runtime
 - [x] M3b: TLS hub and CLI/MCP client trust
-- [x] M4a: v0.4.2 backup, restore, and garbage collection
+- [x] M4b: v0.4.3 duplicate-delivery protection for the Codex bridge
 
 ## Contributing
 
