@@ -2,6 +2,7 @@
 
 Opt-in v2 attachment work is documented in [F0/F1 attachments](FEDERATION_FILES.md).
 V1 text and its defaults remain unchanged; test attachment links separately.
+Explicit private text conversations are described in [F2 federated DM](FEDERATED_DM.md).
 
 ## Operator operations
 

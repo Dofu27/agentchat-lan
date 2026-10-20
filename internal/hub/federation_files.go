@@ -37,7 +37,7 @@ func (s *Server) handleFederationCapabilities(w http.ResponseWriter, r *http.Req
 	if !s.federationPeer(w, r) {
 		return
 	}
-	writeJSON(w, 200, map[string]any{"version": 2, "attachments": len(s.opts.Federation.opts.FileLinks) > 0, "max_file_bytes": store.FederationFileSize, "max_message_bytes": store.FederationMessageSize, "max_attachments": 8, "chunk_bytes": store.FederationChunkSize})
+	writeJSON(w, 200, map[string]any{"version": 2, "attachments": len(s.opts.Federation.opts.FileLinks) > 0, "federated_dm": len(s.opts.Federation.opts.DMConversations) > 0, "max_file_bytes": store.FederationFileSize, "max_message_bytes": store.FederationMessageSize, "max_attachments": 8, "chunk_bytes": store.FederationChunkSize})
 }
 func (s *Server) handleFederationFiles(w http.ResponseWriter, r *http.Request) {
 	if !s.federationPeer(w, r) {
@@ -255,7 +255,7 @@ func (f *Federation) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var wg sync.WaitGroup
-	errs := make(chan error, 4)
+	errs := make(chan error, 5)
 	run := func(fn func(context.Context) error) {
 		wg.Add(1)
 		go func() {
@@ -268,6 +268,9 @@ func (f *Federation) Run(ctx context.Context) error {
 		}()
 	}
 	run(f.runV1)
+	if len(f.opts.DMConversations) > 0 {
+		run(f.runDM)
+	}
 	if len(f.opts.FileLinks) > 0 {
 		run(func(ctx context.Context) error { return f.fileLoop(ctx, false) })
 		for i := 0; i < 2; i++ {
