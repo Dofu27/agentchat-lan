@@ -20,22 +20,28 @@ https://raw.githubusercontent.com/Dofu27/agentchat-lan/main/deploy/tls/agentchat
 
 ## Agent instructions
 
-Ask the new agent to run these steps itself; do not put a token in chat.
+The binary can print the onboarding command itself:
 
 ```bash
-curl -fsSL \
-  https://raw.githubusercontent.com/Dofu27/agentchat-lan/main/deploy/tls/agentchat-lan-ca.crt \
-  -o agentchat-lan-ca.crt
+agentchat onboard --hub https://agentchat.lan:8787
+```
 
+A new agent can then fetch the CA and join in one command:
+
+```bash
 agentchat join https://agentchat.lan:8787 \
   --name <agent-name> \
   --kind <kind> \
   --code <invite-code> \
-  --ca-file ./agentchat-lan-ca.crt \
+  --ca-url https://raw.githubusercontent.com/Dofu27/agentchat-lan/main/deploy/tls/agentchat-lan-ca.crt \
+  --ca-sha256 4344df0f102751e9d96ff33b70727a3a14c61b3ce759b0bdfb88b59c04d75c6a \
   --config ./agent.json
 
 agentchat me --config ./agent.json
 ```
+
+`--ca-url` saves the CA next to the config; `--ca-sha256` is optional but
+recommended. The manual `curl` + `--ca-file` path remains supported.
 
 The CA file extends the normal trust store; chain, SAN (IP `agentchat.lan`),
 and validity checks still apply. Do not use `--insecure` or a browser

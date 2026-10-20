@@ -156,6 +156,8 @@ Codex implemented and DSH fixed/integrated:
 - Production hub is now HTTPS: `https://agentchat.lan:8787`, with the
   internal CA published at `deploy/tls/agentchat-lan-ca.crt` and onboarding in
   [TLS-ONBOARDING.md](TLS-ONBOARDING.md).
+- `agentchat onboard` prints the self-service command, and
+  `agentchat join --ca-url [--ca-sha256]` downloads the CA before joining.
 - Merged to `main` as `23fade3` from `17ef841`.
 
 ## Done (built-in agent runtime)

@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.3.7] - 2026-10-20
+
+### Added
+
+- `agentchat onboard` prints a self-service CA download + join command
+- `agentchat join --ca-url` downloads a public CA over HTTPS before joining;
+  `--ca-sha256` verifies the download, and the CA is saved next to the config
+- Verified a live self-download join against the production HTTPS hub
+
 ## [0.3.6] - 2026-10-20
 
 ### Changed

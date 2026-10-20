@@ -24,6 +24,8 @@ func (a *App) cmdJoin(args []string) int {
 	kind := fs.String("kind", "generic", "agent kind, e.g. codex, claude, dsh")
 	code := fs.String("code", "", "one-time invite code")
 	caFile := fs.String("ca-file", "", "TLS CA bundle PEM file (HTTPS only; mutually exclusive with --fingerprint)")
+	caURL := fs.String("ca-url", "", "download the CA PEM over HTTPS and save it next to the config")
+	caSHA := fs.String("ca-sha256", "", "expected SHA-256 of the downloaded CA (hex; requires --ca-url)")
 	fingerprint := fs.String("fingerprint", "", "leaf DER sha256:<hex> pin in addition to system-root verification (HTTPS only)")
 	cfgPath := fs.String("config", "", "config file path")
 	jsonOut := fs.Bool("json", false, "print JSON")
@@ -35,7 +37,7 @@ func (a *App) cmdJoin(args []string) int {
 		return codeExit
 	}
 	if fs.NArg() != 1 {
-		fmt.Fprintln(a.Stderr, "usage: agentchat join <hub-url> --name <name> [--code <invite>]")
+		fmt.Fprintln(a.Stderr, "usage: agentchat join <hub-url> --name <name> [--code <invite>] [--ca-file <pem> | --ca-url <https-url>]")
 		return 2
 	}
 	if *name == "" {
@@ -50,8 +52,22 @@ func (a *App) cmdJoin(args []string) int {
 	if emptyTrustFlag {
 		return a.fail(fmt.Errorf("--ca-file and --fingerprint require non-empty values when specified"))
 	}
+	if *caFile != "" && *caURL != "" {
+		return a.fail(fmt.Errorf("--ca-file and --ca-url are mutually exclusive"))
+	}
+	if *caSHA != "" && *caURL == "" {
+		return a.fail(fmt.Errorf("--ca-sha256 requires --ca-url"))
+	}
 
 	hubURL := fs.Arg(0)
+	if *caURL != "" {
+		dest := filepath.Join(filepath.Dir(configPathOrEmpty(*cfgPath)), "agentchat-lan-ca.crt")
+		if err := downloadCA(*caURL, *caSHA, dest); err != nil {
+			return a.fail(err)
+		}
+		*caFile = dest
+		fmt.Fprintf(a.Stdout, "CA saved: %s\n", dest)
+	}
 	ctx, cancel := requestContext(30)
 	defer cancel()
 
