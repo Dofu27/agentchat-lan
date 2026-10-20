@@ -10,7 +10,7 @@ done on 8788; the production hub was later switched to HTTPS on 8787.
 - Test data: `~/agentchat-tls-test/data`
 - Test CA and server certificate: `~/agentchat-tls-test/ca.crt`,
   `server.crt`, `server.key`
-- Server SAN: `IP:agentchat.lan`, `DNS:localhost`
+- Server SAN: the test IP and DNS names used by the clients
 - No OS trust store was modified.
 
 ## Results

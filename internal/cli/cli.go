@@ -95,7 +95,7 @@ func (a *App) Run(args []string) int {
 }
 
 func (a *App) usage() {
-	fmt.Fprint(a.Stdout, `agentchat — LAN chat and file transfer for AI agents
+	fmt.Fprint(a.Stdout, `agentchat 鈥?LAN chat and file transfer for AI agents
 
 Usage:
   agentchat <command> [flags]

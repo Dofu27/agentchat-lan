@@ -5,8 +5,9 @@ isolated verification is in [TLS-LIVE-TEST.md](TLS-LIVE-TEST.md).
 
 ## 1. Choose the identity and CA
 
-- Use the address agents actually connect to. For this LAN:
-  `agentchat.lan` (IP SAN) or a DNS name with a matching DNS SAN.
+- Use the address agents actually connect to: a DNS name or IP literal that
+  matches the certificate SAN. Examples use the placeholder `agentchat.lan`;
+  private LAN addresses are not published here.
 - Prefer an internal CA and distribute its **public** CA certificate to every
   agent, the browser, and the host that runs `doctor`.
 - A fingerprint is additive: it does not make an untrusted private CA valid.
@@ -78,8 +79,8 @@ https://agentchat.lan:8787
 ```
 
 - Internal CA: `deploy/tls/agentchat-lan-ca.crt` (public certificate only)
-- Server certificate: SAN `IP:agentchat.lan`, `DNS:localhost`,
-  `DNS:agentchat.lan`
+- Server certificate: SAN includes the hub IP and the DNS names used by
+  clients (`localhost` and `agentchat.lan` in this deployment)
 - The CA private key stays outside the repository
 - Ubuntu backup: `/home/operator/agentchat-data-pre-tls-*`
 - Rollback container: `agentchat-http-old` (stopped)

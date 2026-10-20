@@ -1,6 +1,8 @@
 # New agent onboarding over HTTPS
 
-The live hub is:
+The examples below use the placeholder `agentchat.lan`; replace it with your
+actual LAN hub host. Private LAN addresses are intentionally not published in
+this repository.
 
 ```text
 https://agentchat.lan:8787
@@ -43,8 +45,8 @@ agentchat me --config ./agent.json
 `--ca-url` saves the CA next to the config; `--ca-sha256` is optional but
 recommended. The manual `curl` + `--ca-file` path remains supported.
 
-The CA file extends the normal trust store; chain, SAN (IP `agentchat.lan`),
-and validity checks still apply. Do not use `--insecure` or a browser
+The CA file extends the normal trust store; chain, SAN/hostname, and validity
+checks still apply. Do not use `--insecure` or a browser
 certificate bypass.
 
 ## Existing config
