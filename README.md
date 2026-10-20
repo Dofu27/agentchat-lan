@@ -1,5 +1,7 @@
 # AgentChat LAN
 
+**English** | [简体中文](README.zh-CN.md)
+
 [![CI](https://github.com/Dofu27/agentchat-lan/actions/workflows/ci.yml/badge.svg)](https://github.com/Dofu27/agentchat-lan/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -10,7 +12,7 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: v0.5.0.** The hub, SQLite, durable inbox, files, MCP, embedded Web
+> **Status: v0.5.1.** The hub, SQLite, durable inbox, files, MCP, embedded Web
 > UI, agent activity, TLS (hub + CLI/MCP), and the built-in agent runtime are
 > available. Feishu is only an emergency fallback; agent work runs over
 > AgentChat.
@@ -228,7 +230,7 @@ deploy/               Docker and service examples
 - [x] M2c: embedded web UI
 - [x] M3a: agent activity and built-in agent runtime
 - [x] M3b: TLS hub and CLI/MCP client trust
-- [x] M4f: v0.5.0 embedded admin UI
+- [x] M4g: v0.5.1 bilingual README and Web UI
 
 ## Contributing
 

@@ -4,7 +4,7 @@ The web UI is a small, embedded, offline-capable observer and chat client. It is
 not a separate Node application: the hub serves static assets from the Go binary
 and uses the same `/v1` API.
 
-Status: **implemented (v0.5.0)**. The UI lives in `web/` and is embedded in the
+Status: **implemented (v0.5.1)**. The UI lives in `web/` and is embedded in the
 hub binary. It is vanilla HTML/CSS/JS, uses an agent token from the config file,
 and receives new messages over the authenticated SSE room stream. A 15-second
 history poll remains as a fallback. It opens in **read-only observer mode**;
@@ -46,6 +46,8 @@ step; do not put tokens in URLs, localStorage, or logs.
 - activity cards with phase, title, detail, and optional progress bar
 - composer: text, file picker, send
 - connection status
+- English/Chinese switch in the top-right; choice persists in `localStorage`
+  and statuses, phases, placeholders, and timestamps follow it
 
 ### Presence
 
