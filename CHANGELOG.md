@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.5.0] - 2026-10-20
+
+### Added
+
+- Embedded admin UI at `/admin` for invite creation, invite listing, agent
+  revocation, and the audit log
+- `GET /v1/admin/agents` for the admin UI
+- Admin token stays in `sessionStorage`; all rendered values use DOM text nodes
+
+### Security
+
+- Admin UI uses the same strict CSP as the agent UI
+- Revocation requires an explicit confirmation and uses the existing admin
+  endpoint
+
 ## [0.4.6] - 2026-10-20
 
 ### Security

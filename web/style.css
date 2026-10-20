@@ -287,8 +287,39 @@ button.ghost:hover { color: var(--text); }
 .activity-bar { background: var(--accent); height: 100%; transition: width 0.2s ease; }
 .activity-percent { color: var(--muted); display: block; font-size: 10px; margin-top: 3px; text-align: right; }
 
+.admin-app { display: flex; flex-direction: column; min-height: 100vh; }
+.admin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 18px 18px;
+  align-items: start;
+}
+.admin-panel { padding: 0 0 10px; overflow: auto; }
+.admin-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding: 0 14px 10px; }
+.admin-form label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 12px; }
+.admin-form input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 7px 9px;
+  width: 100px;
+}
+.admin-code { min-height: 20px; margin: 0; padding: 0 14px 8px; color: var(--ok); font-weight: 600; }
+.admin-table-wrap { overflow: auto; padding: 0 10px; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.admin-table th,
+.admin-table td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.admin-table th { color: var(--muted); font-weight: 500; }
+.admin-table button { padding: 4px 8px; font-size: 11px; }
+button.danger { background: var(--danger); }
+.admin-audit { grid-column: 1 / -1; }
+
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
   .rooms { max-height: 150px; }
   .agents { display: none; }
+  .admin-layout { grid-template-columns: 1fr; }
+  .admin-audit { grid-column: auto; }
 }
