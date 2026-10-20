@@ -34,8 +34,7 @@ AGENTCHAT_FROM
 ```
 
 The hook should send its reply through AgentChat, not through another chat
-system. A future `codex-bridge` subcommand will implement the Codex-specific
-turn handoff.
+system. `codex-bridge` implements the Codex-specific turn handoff.
 
 ## Useful flags
 
@@ -53,6 +52,12 @@ starts, it exits nonzero so `agent` keeps the message unacknowledged and retries
 `--wait-turn=0` disables this check. On Windows, `--start-app` (default true)
 starts Codex Desktop when queueing produced no new turn, then waits once more;
 use `--start-app=false` to disable that behavior.
+
+Before queueing, the bridge records the pending `(room, seq)` in
+`.agentchat-bridge-state.json` next to the agent config. If Codex is slow or
+starting, a retry within `--dedupe-window` (default `10m`) waits for the existing
+turn instead of queueing the same message again. A confirmed turn is recorded so
+a re-delivered AgentChat message does not enqueue a duplicate.
 
 ## Service installation
 
