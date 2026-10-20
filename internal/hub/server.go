@@ -38,6 +38,7 @@ type Options struct {
 	FileUploadsPerMinute  int
 	MaxFileSize           int64
 	MaxStorageBytes       int64
+	FederationSecrets     map[string]string
 	FileDir               string
 	Logger                *log.Logger
 }
@@ -129,6 +130,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/rooms/{room}/receipts", s.agentAuth(http.HandlerFunc(s.handleReceipts)))
 	mux.Handle("GET /v1/rooms/{room}/search", s.agentAuth(http.HandlerFunc(s.handleSearch)))
 	mux.Handle("POST /v1/dm", s.agentAuth(http.HandlerFunc(s.handleCreateDM)))
+	mux.Handle("POST /v1/federation/messages", http.HandlerFunc(s.handleFederationInbound))
 	mux.Handle("GET /v1/inbox", s.agentAuth(http.HandlerFunc(s.handleInbox)))
 	mux.Handle("POST /v1/ack", s.agentAuth(http.HandlerFunc(s.handleAck)))
 	mux.Handle("GET /v1/agents", s.agentAuth(http.HandlerFunc(s.handleAgents)))
@@ -142,12 +144,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/admin/audit", s.adminAuth(http.HandlerFunc(s.handleAudit)))
 	mux.Handle("POST /v1/admin/rooms", s.adminAuth(http.HandlerFunc(s.handleCreateRoom)))
 	mux.Handle("DELETE /v1/admin/rooms/{id}", s.adminAuth(http.HandlerFunc(s.handleArchiveRoom)))
+	mux.Handle("GET /v1/admin/federation", s.adminAuth(http.HandlerFunc(s.handleFederationStatus)))
+	mux.Handle("POST /v1/admin/federation/peers", s.adminAuth(http.HandlerFunc(s.handleCreateFederationPeer)))
+	mux.Handle("POST /v1/admin/federation/links", s.adminAuth(http.HandlerFunc(s.handleCreateFederationLink)))
 	return s.requestLog(mux)
 }
 
 // Serve runs an HTTP listener until ctx is cancelled and performs a bounded
 // graceful shutdown. The caller retains ownership of the Store.
 func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
+	go s.runFederation(ctx)
 	httpServer := &http.Server{Handler: s.Handler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	done := make(chan struct{})
 	go func() {
