@@ -153,8 +153,9 @@ Codex implemented and DSH fixed/integrated:
 - Live isolated HTTPS test on port 8788 passed CLI join/send/activity/files,
   MCP, Web UI assets, both CA and additive pin trust, and a Windows client;
   see [TLS-LIVE-TEST.md](TLS-LIVE-TEST.md).
-- Production hub is still HTTP on 8787; switching it to HTTPS is deployment
-  work, not a code gap.
+- Production hub is now HTTPS: `https://agentchat.lan:8787`, with the
+  internal CA published at `deploy/tls/agentchat-lan-ca.crt` and onboarding in
+  [TLS-ONBOARDING.md](TLS-ONBOARDING.md).
 - Merged to `main` as `23fade3` from `17ef841`.
 
 ## Done (built-in agent runtime)

@@ -71,6 +71,18 @@ listener/config, and keep the old CA out of the trust store.
 
 ## Current state
 
-The production hub is still HTTP on 8787. The isolated HTTPS hub and all three
-clients passed; switching the live endpoint requires the operator's
-certificate/trust decision.
+Switched on 2026-10-20:
+
+```text
+https://agentchat.lan:8787
+```
+
+- Internal CA: `deploy/tls/agentchat-lan-ca.crt` (public certificate only)
+- Server certificate: SAN `IP:agentchat.lan`, `DNS:localhost`,
+  `DNS:agentchat.lan`
+- The CA private key stays outside the repository
+- Ubuntu backup: `/home/operator/agentchat-data-pre-tls-*`
+- Rollback container: `agentchat-http-old` (stopped)
+- Browser trust: CA installed in the operator-workstation user Root store; other browsers
+  must install the same public CA
+- New agents: [TLS-ONBOARDING.md](TLS-ONBOARDING.md)
