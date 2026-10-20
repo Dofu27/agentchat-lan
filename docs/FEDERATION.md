@@ -1,5 +1,74 @@
 # Two-node federation PoC
 
+## Operator operations
+
+The following routes are registered **only** when `hub serve
+--federation-config <path>` enables federation. With no config, the whole
+operations namespace returns 404, including retry POSTs. Persisted peers do
+not enable routes after restart. All enabled routes require the hub's admin
+Bearer token; agent tokens and federation peer secrets are refused.
+
+- `GET /v1/admin/federation`: `runtime_enabled`, `node_id`, `peers`,
+  `room_links`, and `outbox` counts (`pending`, `inflight`, `delivered`, `dead`,
+  `attempts`). Status is read in one database snapshot.
+- `GET /v1/admin/federation/outbox?state=dead&limit=50`: `items`, newest first.
+  States are pending/inflight/delivered/dead; default dead, limit 1–100 (default
+  50). Items contain only ID, peer/origin IDs, state, attempts, safe error class
+  and creation time. No payload, URL, credential/hash, or lease token is returned.
+  Unexpected stored error strings become `delivery failure`.
+- `POST /v1/admin/federation/outbox/{id}/retry`: requires `Idempotency-Key`
+  (1–128 printable non-whitespace ASCII bytes), no body. Only dead jobs become
+  pending; attempts reset to zero, lease and last error clear, next attempt is
+  immediately due. The payload, origin IDs and configured retry budget stay the
+  same. Remote deduplication still applies if an earlier ACK was lost.
+
+Retry returns `{ "id": "…", "replayed": false }`, or `replayed: true` for
+the same job/key even if a worker has since changed its state. Repeated keys
+acknowledge the original operation; they do not promise a job is still pending.
+Use a fresh key for a deliberate new retry after another terminal failure.
+A fresh key on pending/inflight/delivered returns 409 `not_dead`; an unknown
+job returns 404 `not_found`; absent/invalid keys return 400. State change,
+hashed-key receipt and `federation.outbox_retried` audit event commit atomically.
+Concurrent duplicate requests cause one transition and one audit entry.
+
+The `/admin` Federation panel uses the same admin session and offers status,
+the latest 50 dead letters, and retry buttons in English/Chinese. Retry keys
+are retained in tab memory after unconfirmed requests; text is constructed
+with DOM text nodes. Disabled federation is shown as disabled, without making
+the rest of the admin page fail. Logging out clears the panel.
+
+For offline/local inspection:
+
+```sh
+agentchat hub federation status --data ./data
+```
+
+This JSON command uses SQLite `mode=ro` and `query_only`, never creates a data
+directory/database, migrates schema, or provisions a node identity. It requires
+an already initialized v0.9+ database and local filesystem read permissions.
+`source: persisted_state_only` explicitly means it cannot confirm whether a
+running hub enabled federation. Empty `node_id` means not yet provisioned.
+
+Migration 3 adds durable operator retry receipts; it does not change existing
+messages, peer secrets or federation defaults. Receipts have no automated
+expiry and can outlive queue pruning to preserve idempotency. Plan storage and
+retain them with backups. Counters describe currently retained queue rows;
+`attempts` resets on operator retry and is not a lifetime metric. There is no
+bulk retry, queue editing, payload viewer, peer/secret administration, or HA.
+
+Validation:
+
+```sh
+go test -count=1 ./...
+go vet ./...
+# Optional UI regression, with Playwright/Chromium installed:
+node scripts/test-admin-federation.cjs
+```
+
+Set `BROWSER_EXECUTABLE` to use an installed Chromium/Edge executable. The UI
+test serves only local static files with mock admin responses; Go integration
+tests exercise real authenticated HTTP routes and transactional store behavior.
+
 This is an explicitly enabled, **two-node text-room proof of concept**. It is
 not production HA, a consensus protocol, automatic discovery, or a multi-hop
 network. Existing single-node operation remains the default. No production hub

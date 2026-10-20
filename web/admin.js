@@ -4,7 +4,7 @@
   const $ = (id) => document.getElementById(id);
   const i18n = window.AgentChatI18n;
   const t = (key, vars) => (i18n ? i18n.t(key, vars) : key);
-  const state = { token: "", timer: null };
+  const state = { token: "", timer: null, retryKeys: new Map(), retrying: new Set() };
 
   function setStatus(text, ok) {
     const el = $("admin-status");
@@ -19,15 +19,16 @@
   }
 
   async function api(path, options = {}) {
+    const requestToken = state.token;
     const headers = Object.assign({}, options.headers || {}, {
-      Authorization: "Bearer " + state.token,
+      Authorization: "Bearer " + requestToken,
     });
     if (typeof options.body === "string" && !headers["Content-Type"]) {
       headers["Content-Type"] = "application/json";
     }
     const res = await fetch(path, Object.assign({}, options, { headers }));
     if (res.status === 401) {
-      logout("Admin token rejected");
+      if (requestToken === state.token) logout(t("admin.connect_failed"));
       throw new Error("admin token rejected");
     }
     if (!res.ok) {
@@ -39,7 +40,9 @@
       } catch (_) {
         // keep text
       }
-      throw new Error(message || ("HTTP " + res.status));
+      const error = new Error(message || ("HTTP " + res.status));
+      error.status = res.status;
+      throw error;
     }
     if (res.status === 204) return null;
     const type = res.headers.get("content-type") || "";
@@ -136,10 +139,73 @@
   async function refresh() {
     setStatus(t("admin.loading"), false);
     try {
-      await Promise.all([loadInvites(), loadAgents(), loadAudit()]);
+      await Promise.all([loadInvites(), loadAgents(), loadAudit(), loadFederation()]);
       setStatus(t("admin.connected"), true);
+      return true;
     } catch (err) {
       setStatus(err.message || String(err), false);
+      return false;
+    }
+  }
+
+  function retryKey() {
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function loadFederation() {
+    const token = state.token;
+    try {
+      const status = await api("/v1/admin/federation");
+      const outbox = await api("/v1/admin/federation/outbox?state=dead&limit=50");
+      if (!token || token !== state.token) return;
+      $("federation-status").textContent = t("fed.enabled");
+      const rows = [[t("fed.node"), status.node_id || ""]];
+      for (const peer of status.peers || []) rows.push([t("fed.peer"), peer.node_id + " (" + t(peer.enabled ? "fed.active" : "fed.inactive") + ")"]);
+      for (const link of status.room_links || []) {
+        rows.push([t("fed.link"), link.local_room + " → " + link.peer_id + "/" + link.remote_room + " (" + t(link.enabled ? "fed.active" : "fed.inactive") + ")"]);
+      }
+      for (const name of ["pending", "inflight", "delivered", "dead", "attempts"]) {
+        rows.push([t("fed." + name), (status.outbox || {})[name] ?? 0]);
+      }
+      $("federation-summary").replaceChildren(table([t("fed.field"), t("fed.value")], rows));
+      const jobs = outbox.items || [];
+      const jobRows = jobs.map((job) => {
+        const button = actionButton(t("fed.retry"), async () => {
+          if (state.retrying.has(job.id)) return;
+          const retryToken = state.token;
+          state.retrying.add(job.id);
+          button.disabled = true;
+          try {
+            if (!state.retryKeys.has(job.id)) state.retryKeys.set(job.id, retryKey());
+            await api("/v1/admin/federation/outbox/" + encodeURIComponent(job.id) + "/retry", {
+              method: "POST", headers: { "Idempotency-Key": state.retryKeys.get(job.id) },
+            });
+            state.retryKeys.delete(job.id);
+            if (retryToken === state.token) await refresh();
+          } catch (err) {
+            if (err.status === 404 || err.status === 409) state.retryKeys.delete(job.id);
+            if (retryToken === state.token) $("federation-status").textContent = t("fed.retry_failed");
+          } finally {
+            state.retrying.delete(job.id);
+            button.disabled = false;
+          }
+        });
+        button.disabled = state.retrying.has(job.id);
+        return [job.id, job.peer_id, job.origin_node_id + "/" + job.origin_message_id,
+          job.attempts, job.last_error, job.created_at, button];
+      });
+      $("federation-outbox").replaceChildren(jobs.length ? table([
+        t("fed.id"), t("fed.peer"), t("fed.origin"), t("fed.attempts"),
+        t("fed.error"), t("admin.time"), "",
+      ], jobRows) : document.createTextNode(t("fed.empty")));
+    } catch (err) {
+      if (!token || token !== state.token) return;
+      $("federation-summary").replaceChildren();
+      $("federation-outbox").replaceChildren();
+      $("federation-status").textContent = t(err.status === 404 ? "fed.disabled" : "fed.failed");
+      if (err.status !== 404) throw err;
     }
   }
 
@@ -163,6 +229,11 @@
   function logout(message) {
     setStatus(t("status.offline"), false);
     state.token = "";
+    state.retryKeys.clear();
+    state.retrying.clear();
+    $("federation-status").textContent = "";
+    $("federation-summary").replaceChildren();
+    $("federation-outbox").replaceChildren();
     if (state.timer) window.clearInterval(state.timer);
     state.timer = null;
     try {
@@ -177,7 +248,7 @@
   }
 
   async function boot() {
-    await refresh();
+    if (!(await refresh()) || !state.token) throw new Error(t("admin.connect_failed"));
     $("admin-login").classList.add("hidden");
     $("admin-app").classList.remove("hidden");
     state.timer = window.setInterval(refresh, 15000);
