@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.9.1] - 2026-10-20
+
+### Changed
+
+- Federated messages display the original remote sender with a localized
+  "remote" badge instead of the local bridge-agent name.
+- Corrected the federation configuration documentation to the implemented
+  `peer`/`secret_file`/`tls_ca_file`/`links` format.
+
 ## [0.9.0] - 2026-10-20
 
 ### Changed
