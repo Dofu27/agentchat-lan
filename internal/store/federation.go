@@ -17,11 +17,12 @@ import (
 )
 
 type FederationPeer struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	URL       string    `json:"url"`
-	Enabled   bool      `json:"enabled"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	URL          string    `json:"url"`
+	RemoteNodeID string    `json:"remote_node_id,omitempty"`
+	Enabled      bool      `json:"enabled"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type FederationLink struct {
@@ -44,7 +45,6 @@ type FederationOutboxEntry struct {
 	Attempts   int
 	PeerName   string
 	PeerURL    string
-	PeerSecret string
 	RemoteRoom string
 }
 
@@ -82,10 +82,16 @@ func (s *Store) NodeID(ctx context.Context) (string, error) {
 	return id, err
 }
 
-func (s *Store) CreateFederationPeer(ctx context.Context, name, url, secret string) (FederationPeer, error) {
+func peerSecretHash(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+	return hex.EncodeToString(sum[:])
+}
+
+func (s *Store) CreateFederationPeer(ctx context.Context, name, url, secret, remoteNodeID string) (FederationPeer, error) {
 	name = strings.TrimSpace(name)
 	url = strings.TrimRight(strings.TrimSpace(url), "/")
 	secret = strings.TrimSpace(secret)
+	remoteNodeID = strings.TrimSpace(remoteNodeID)
 	if name == "" || url == "" || secret == "" {
 		return FederationPeer{}, errors.New("name, url, and secret are required")
 	}
@@ -94,18 +100,45 @@ func (s *Store) CreateFederationPeer(ctx context.Context, name, url, secret stri
 	}
 	id := "peer_" + protocol.NewID()
 	now := time.Now().UTC()
-	_, err := s.db.ExecContext(ctx, `INSERT INTO federation_peers(id,name,url,secret,enabled,created_at) VALUES(?,?,?,?,1,?)`, id, name, url, secret, now.Format(time.RFC3339Nano))
+	_, err := s.db.ExecContext(ctx, `INSERT INTO federation_peers(id,name,url,secret_hash,remote_node_id,enabled,created_at) VALUES(?,?,?,?,?,1,?)`, id, name, url, peerSecretHash(secret), remoteNodeID, now.Format(time.RFC3339Nano))
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
 			return FederationPeer{}, ErrConflict
 		}
 		return FederationPeer{}, err
 	}
-	return FederationPeer{ID: id, Name: name, URL: url, Enabled: true, CreatedAt: now}, nil
+	return FederationPeer{ID: id, Name: name, URL: url, RemoteNodeID: remoteNodeID, Enabled: true, CreatedAt: now}, nil
+}
+
+// ConfigureFederationPeer upserts a peer loaded from the operator config. Only
+// the secret hash is persisted; the plaintext stays in hub memory for outbound
+// requests.
+func (s *Store) ConfigureFederationPeer(ctx context.Context, name, url, secret, remoteNodeID string) (FederationPeer, error) {
+	name = strings.TrimSpace(name)
+	url = strings.TrimRight(strings.TrimSpace(url), "/")
+	remoteNodeID = strings.TrimSpace(remoteNodeID)
+	if name == "" || url == "" || strings.TrimSpace(secret) == "" {
+		return FederationPeer{}, errors.New("name, url, and secret are required")
+	}
+	id := "peer_" + protocol.NewID()
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO federation_peers(id,name,url,secret_hash,remote_node_id,enabled,created_at) VALUES(?,?,?,?,?,1,?) ON CONFLICT(name) DO UPDATE SET url=excluded.url,secret_hash=excluded.secret_hash,remote_node_id=excluded.remote_node_id,enabled=1`, id, name, url, peerSecretHash(secret), remoteNodeID, now)
+	if err != nil {
+		return FederationPeer{}, err
+	}
+	var p FederationPeer
+	var created string
+	var enabled int
+	if err := s.db.QueryRowContext(ctx, `SELECT id,name,url,remote_node_id,enabled,created_at FROM federation_peers WHERE name=?`, name).Scan(&p.ID, &p.Name, &p.URL, &p.RemoteNodeID, &enabled, &created); err != nil {
+		return FederationPeer{}, err
+	}
+	p.Enabled = enabled == 1
+	p.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+	return p, nil
 }
 
 func (s *Store) ListFederationPeers(ctx context.Context) ([]FederationPeer, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,name,url,enabled,created_at FROM federation_peers ORDER BY name`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name,url,remote_node_id,enabled,created_at FROM federation_peers ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +148,7 @@ func (s *Store) ListFederationPeers(ctx context.Context) ([]FederationPeer, erro
 		var p FederationPeer
 		var enabled int
 		var created string
-		if err := rows.Scan(&p.ID, &p.Name, &p.URL, &enabled, &created); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.URL, &p.RemoteNodeID, &enabled, &created); err != nil {
 			return nil, err
 		}
 		p.Enabled = enabled == 1
@@ -126,7 +159,7 @@ func (s *Store) ListFederationPeers(ctx context.Context) ([]FederationPeer, erro
 }
 
 func (s *Store) FederationPeerBySecret(ctx context.Context, secret string) (FederationPeer, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,name,url,secret,enabled,created_at FROM federation_peers WHERE enabled=1`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name,url,secret_hash,remote_node_id,enabled,created_at FROM federation_peers WHERE enabled=1`)
 	if err != nil {
 		return FederationPeer{}, err
 	}
@@ -135,10 +168,10 @@ func (s *Store) FederationPeerBySecret(ctx context.Context, secret string) (Fede
 		var p FederationPeer
 		var stored, created string
 		var enabled int
-		if err := rows.Scan(&p.ID, &p.Name, &p.URL, &stored, &enabled, &created); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.URL, &stored, &p.RemoteNodeID, &enabled, &created); err != nil {
 			return FederationPeer{}, err
 		}
-		if subtle.ConstantTimeCompare([]byte(stored), []byte(secret)) == 1 {
+		if subtle.ConstantTimeCompare([]byte(stored), []byte(peerSecretHash(secret))) == 1 {
 			p.Enabled = true
 			p.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
 			return p, nil
@@ -239,12 +272,18 @@ func (s *Store) ListFederationLinks(ctx context.Context) ([]FederationLink, erro
 	return out, rows.Err()
 }
 
-func (s *Store) EnqueueFederation(ctx context.Context, message protocol.Message) error {
-	nodeID, err := s.NodeID(ctx)
-	if err != nil {
+type federationQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func enqueueFederationTx(ctx context.Context, q federationQueryer, message protocol.Message) error {
+	var nodeID string
+	if err := q.QueryRowContext(ctx, `SELECT node_id FROM federation_node WHERE id=1`).Scan(&nodeID); err != nil {
 		return err
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id,remote_room FROM federation_links WHERE local_room=?`, message.Room)
+	rows, err := q.QueryContext(ctx, `SELECT id,remote_room FROM federation_links WHERE local_room=?`, message.Room)
 	if err != nil {
 		return err
 	}
@@ -271,7 +310,7 @@ func (s *Store) EnqueueFederation(ctx context.Context, message protocol.Message)
 			return err
 		}
 		now := time.Now().UTC().Format(time.RFC3339Nano)
-		_, err = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO federation_outbox(id,link_id,message_id,origin_node,origin_message_id,payload_json,status,attempts,next_attempt,created_at) VALUES(?,?,?,?,?,?, 'pending',0,?,?)`, "out_"+protocol.NewID(), l.id, message.ID, nodeID, message.ID, string(b), now, now)
+		_, err = q.ExecContext(ctx, `INSERT OR IGNORE INTO federation_outbox(id,link_id,message_id,origin_node,origin_message_id,payload_json,status,attempts,next_attempt,created_at) VALUES(?,?,?,?,?,?, 'pending',0,?,?)`, "out_"+protocol.NewID(), l.id, message.ID, nodeID, message.ID, string(b), now, now)
 		if err != nil {
 			return err
 		}
@@ -279,11 +318,15 @@ func (s *Store) EnqueueFederation(ctx context.Context, message protocol.Message)
 	return nil
 }
 
+func (s *Store) EnqueueFederation(ctx context.Context, message protocol.Message) error {
+	return enqueueFederationTx(ctx, s.db, message)
+}
+
 func (s *Store) FederationOutbox(ctx context.Context, limit int) ([]FederationOutboxEntry, error) {
 	if limit < 1 || limit > 100 {
 		limit = 20
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT o.id,o.link_id,o.message_id,o.origin_node,o.origin_message_id,o.payload_json,o.attempts,p.name,p.url,p.secret,l.remote_room FROM federation_outbox o JOIN federation_links l ON l.id=o.link_id JOIN federation_peers p ON p.id=l.peer_id WHERE o.status='pending' AND o.next_attempt<=? AND p.enabled=1 ORDER BY o.created_at LIMIT ?`, time.Now().UTC().Format(time.RFC3339Nano), limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT o.id,o.link_id,o.message_id,o.origin_node,o.origin_message_id,o.payload_json,o.attempts,p.name,p.url,l.remote_room FROM federation_outbox o JOIN federation_links l ON l.id=o.link_id JOIN federation_peers p ON p.id=l.peer_id WHERE o.status='pending' AND o.next_attempt<=? AND p.enabled=1 ORDER BY o.created_at LIMIT ?`, time.Now().UTC().Format(time.RFC3339Nano), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +334,7 @@ func (s *Store) FederationOutbox(ctx context.Context, limit int) ([]FederationOu
 	out := []FederationOutboxEntry{}
 	for rows.Next() {
 		var e FederationOutboxEntry
-		if err := rows.Scan(&e.ID, &e.LinkID, &e.MessageID, &e.OriginNode, &e.OriginID, &e.Payload, &e.Attempts, &e.PeerName, &e.PeerURL, &e.PeerSecret, &e.RemoteRoom); err != nil {
+		if err := rows.Scan(&e.ID, &e.LinkID, &e.MessageID, &e.OriginNode, &e.OriginID, &e.Payload, &e.Attempts, &e.PeerName, &e.PeerURL, &e.RemoteRoom); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
