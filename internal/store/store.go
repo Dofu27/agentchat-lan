@@ -308,6 +308,25 @@ func (s *Store) FileByID(ctx context.Context, id string) (StoredFile, error) {
 	return f, err
 }
 
+// TotalFileBytes returns the sum of stored file sizes. It is used for the
+// optional hub-wide storage quota.
+func (s *Store) TotalFileBytes(ctx context.Context) (int64, error) {
+	var total int64
+	err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(size), 0) FROM files`).Scan(&total)
+	return total, err
+}
+
+// FileSHAExists reports whether the content-addressed file already exists, so
+// a duplicate upload does not count against the storage quota.
+func (s *Store) FileSHAExists(ctx context.Context, sha string) (bool, error) {
+	var one int
+	err := s.db.QueryRowContext(ctx, `SELECT 1 FROM files WHERE sha256=?`, sha).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // CanAccessFile restricts downloads to files attached to a room the agent can
 // access, preserving the hub's room-scoped authorization model.
 func (s *Store) CanAccessFile(ctx context.Context, agentID, fileID string) (bool, error) {

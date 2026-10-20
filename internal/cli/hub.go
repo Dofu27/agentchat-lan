@@ -62,6 +62,7 @@ Usage:
   agentchat hub init   --data <dir> [--admin-token-file <path>] [--json]
   agentchat hub serve  --data <dir> [--listen 127.0.0.1:8787]
                        [--tls-cert <path> --tls-key <path>]
+                       [--max-storage-bytes <n>]
   agentchat hub invite --data <dir> [--room general] [--name <agent>]
                        [--ttl 24h] [--uses 1] [--json]
   agentchat hub list-invites --data <dir> [--json]
@@ -144,12 +145,16 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 	rpm := fs.Int("requests-per-minute", 60, "per-agent request budget")
 	burst := fs.Int("burst", 20, "per-agent burst")
 	uploadsPerMinute := fs.Int("uploads-per-minute", 10, "per-agent file upload budget")
+	maxStorageBytes := fs.Int64("max-storage-bytes", 0, "hub-wide file storage quota in bytes; 0 is unlimited")
 	codeExit, ok := a.parse(fs, args)
 	if !ok {
 		return codeExit
 	}
 	if fs.NArg() != 0 {
 		return a.fail(fmt.Errorf("hub serve takes no positional arguments"))
+	}
+	if *maxStorageBytes < 0 {
+		return a.fail(fmt.Errorf("--max-storage-bytes must be non-negative"))
 	}
 
 	var certSet, keySet bool
@@ -186,6 +191,7 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 		Burst:                *burst,
 		FileUploadsPerMinute: *uploadsPerMinute,
 		MaxFileSize:          protocol.MaxFileSize,
+		MaxStorageBytes:      *maxStorageBytes,
 		FileDir:              filepath.Join(*data, "files"),
 		Logger:               log.New(a.Stderr, "hub ", log.LstdFlags),
 	})

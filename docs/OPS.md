@@ -25,6 +25,18 @@ agentchat hub restore --data /data --in /secure/agentchat.tar.gz --force
 reader rejects absolute paths, traversal entries, symlinks, and non-regular
 files. Start the hub and verify with `agentchat hub audit` and a test message.
 
+## Storage quota
+
+Set a hub-wide cap when starting the hub:
+
+```bash
+agentchat hub serve --data /data --max-storage-bytes 1073741824
+```
+
+Uploads that would exceed the cap return `413 payload_too_large` with
+`storage quota exceeded`. A duplicate upload of content already stored does not
+count again. Use `hub gc` to reclaim space after any future retention policy.
+
 ## Garbage collection
 
 Dry-run first:

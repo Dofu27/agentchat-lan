@@ -36,6 +36,7 @@ type Options struct {
 	JoinRequestsPerMinute int
 	FileUploadsPerMinute  int
 	MaxFileSize           int64
+	MaxStorageBytes       int64
 	FileDir               string
 	Logger                *log.Logger
 }

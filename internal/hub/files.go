@@ -119,6 +119,24 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	digest := hex.EncodeToString(hasher.Sum(nil))
+	if s.opts.MaxStorageBytes > 0 {
+		exists, err := s.store.FileSHAExists(r.Context(), digest)
+		if err != nil {
+			s.internalError(w, err)
+			return
+		}
+		if !exists {
+			total, err := s.store.TotalFileBytes(r.Context())
+			if err != nil {
+				s.internalError(w, err)
+				return
+			}
+			if total+size > s.opts.MaxStorageBytes {
+				writeError(w, http.StatusRequestEntityTooLarge, "payload_too_large", "hub storage quota exceeded", map[string]any{"max_bytes": s.opts.MaxStorageBytes})
+				return
+			}
+		}
+	}
 	blobPath, relativePath, err := s.files.blobPath(digest)
 	if err != nil {
 		s.internalError(w, err)
