@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
+	"github.com/Dofu27/agentchat-lan/internal/blobguard"
 	_ "modernc.org/sqlite"
 )
 
@@ -53,26 +55,48 @@ func (a *App) hubGC(args []string) int {
 		return a.fail(err)
 	}
 
+	var fileSchema int
+	if err = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name='federation_file_outbox' AND type='table'`).Scan(&fileSchema); err != nil {
+		return a.fail(err)
+	}
+	if fileSchema > 0 {
+		release, err := blobguard.Acquire(filepath.Join(absData, "files"))
+		if err != nil {
+			return a.fail(fmt.Errorf("stop attachment hub before GC: %w", err))
+		}
+		defer release()
+	}
+	pinnedMessages, pinnedFiles := "", ""
+	if fileSchema > 0 {
+		pinnedMessages = ` AND id NOT IN (SELECT origin_message_id FROM federation_file_outbox WHERE state IN ('pending','inflight','waiting_receipt'))`
+		now := strconv.FormatInt(time.Now().UnixMilli(), 10)
+		pinnedFiles = ` AND f.id NOT IN (SELECT g.file_id FROM federation_blob_grants g JOIN federation_file_outbox o ON o.id=g.job_id WHERE o.state<>'delivered' AND o.deadline>` + now + ` UNION SELECT b.file_id FROM federation_transfer_blobs b JOIN federation_file_transfers t ON t.id=b.transfer_id WHERE t.state<>'committed' AND t.deadline>` + now + `)`
+	}
 	cutoff := time.Now().UTC().Add(-time.Duration(*days) * 24 * time.Hour).Format(time.RFC3339Nano)
 	tx, err := db.Begin()
 	if err != nil {
 		return a.fail(err)
 	}
 	defer tx.Rollback()
+	if fileSchema > 0 && *apply {
+		if err = cleanupFederationFiles(tx, filepath.Join(absData, "files")); err != nil {
+			return a.fail(err)
+		}
+	}
 
 	var messageCount int64
 	if *days > 0 {
-		if err := tx.QueryRow(`SELECT COUNT(*) FROM messages WHERE created_at < ?`, cutoff).Scan(&messageCount); err != nil {
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM messages WHERE created_at < ?`+pinnedMessages, cutoff).Scan(&messageCount); err != nil {
 			return a.fail(err)
 		}
 		if *apply && messageCount > 0 {
-			if _, err := tx.Exec(`DELETE FROM mentions WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?)`, cutoff); err != nil {
+			if _, err := tx.Exec(`DELETE FROM mentions WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?`+pinnedMessages+`)`, cutoff); err != nil {
 				return a.fail(err)
 			}
-			if _, err := tx.Exec(`DELETE FROM attachments WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?)`, cutoff); err != nil {
+			if _, err := tx.Exec(`DELETE FROM attachments WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?`+pinnedMessages+`)`, cutoff); err != nil {
 				return a.fail(err)
 			}
-			if _, err := tx.Exec(`DELETE FROM messages WHERE created_at < ?`, cutoff); err != nil {
+			if _, err := tx.Exec(`DELETE FROM messages WHERE created_at < ?`+pinnedMessages, cutoff); err != nil {
 				return a.fail(err)
 			}
 		}
@@ -83,7 +107,7 @@ func (a *App) hubGC(args []string) int {
 		size int64
 	}
 	filesRoot := filepath.Join(absData, "files")
-	rows, err := tx.Query(`SELECT f.id, f.storage_path, f.size FROM files f LEFT JOIN attachments a ON a.file_id = f.id WHERE a.file_id IS NULL`)
+	rows, err := tx.Query(`SELECT f.id, f.storage_path, f.size FROM files f LEFT JOIN attachments a ON a.file_id = f.id WHERE a.file_id IS NULL` + pinnedFiles)
 	if err != nil {
 		return a.fail(err)
 	}

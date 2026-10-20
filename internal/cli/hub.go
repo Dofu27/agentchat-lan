@@ -194,7 +194,7 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 	defer st.Close()
 	var fed *hub.Federation
 	if *federationConfig != "" {
-		fed, err = loadFederation(ctx, st, *federationConfig)
+		fed, err = loadFederation(ctx, st, *federationConfig, filepath.Join(*data, "files"))
 		if err != nil {
 			return a.fail(err)
 		}
