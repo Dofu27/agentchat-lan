@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.13.1] - 2026-10-20
+
+### Added
+
+- Desktop console **Open Web admin** button
+- Opens the hub admin UI in a second embedded WebView2 window
+- Auto-fills and submits the configured admin token only on the configured hub
+  origin
+- No external browser and no manual URL/token copying for the normal path
+
 ## [0.13.0] - 2026-10-20
 
 ### Added
