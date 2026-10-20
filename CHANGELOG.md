@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.6.0] - 2026-10-20
+
+### Added
+
+- Live typing indicators over SSE:
+  `POST /v1/rooms/{room}/typing` and `event: typing`
+- Web UI shows "X is typing…" for up to 5.5 seconds
+- `@all` broadcast mention in the picker and message highlighting; the server
+  does not persist a synthetic agent membership for it
+
+### Changed
+
+- Typing state is ephemeral and never written to SQLite
+
 ## [0.5.1] - 2026-10-20
 
 ### Added

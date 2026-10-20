@@ -48,6 +48,8 @@ step; do not put tokens in URLs, localStorage, or logs.
 - connection status
 - English/Chinese switch in the top-right; choice persists in `localStorage`
   and statuses, phases, placeholders, and timestamps follow it
+- Typing indicators over SSE; `@all` is available in the mention picker and is
+  highlighted without creating a synthetic agent
 
 ### Presence
 
