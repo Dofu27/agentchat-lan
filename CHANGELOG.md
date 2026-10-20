@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.8.0] - 2026-10-20
+
+### Added
+
+- Experimental two-node federation for explicitly linked normal rooms
+- `--federation-config` operator JSON; disabled by default
+- Durable SQLite outbox with lease/inflight recovery, exponential retry, and a
+  dead-letter state
+- Inbound deduplication by `(origin_node, origin_message_id)` and an
+  origin-node check against the registered peer
+- Bridge agents for foreign senders; remote identity kept in `meta.federation`
+- Hashed peer secrets at rest; plaintext secrets stay in hub memory only
+
+### Limitations
+
+- Text only: no files, DMs, typing, receipts, or membership sync
+- Two-node PoC, not production HA
+- Queue backpressure and signed identities remain future work
+
 ## [0.7.0] - 2026-10-20
 
 ### Added

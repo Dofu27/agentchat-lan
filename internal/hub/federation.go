@@ -60,12 +60,25 @@ func (s *Server) handleCreateFederationPeer(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid_request", "url must be an http(s) URL", nil)
 		return
 	}
+	if parsed.Scheme == "http" && !isLoopbackURL(parsed) {
+		writeError(w, http.StatusBadRequest, "invalid_request", "federation peers outside loopback must use https", nil)
+		return
+	}
+	if strings.TrimSpace(req.RemoteNodeID) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "remote_node_id is required", nil)
+		return
+	}
 	peer, err := s.store.CreateFederationPeer(r.Context(), req.Name, req.URL, req.Secret, req.RemoteNodeID)
 	if err != nil {
 		s.storeError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, peer)
+}
+
+func isLoopbackURL(u *url.URL) bool {
+	host := u.Hostname()
+	return host == "127.0.0.1" || host == "::1" || host == "localhost"
 }
 
 func (s *Server) handleCreateFederationLink(w http.ResponseWriter, r *http.Request) {
@@ -167,6 +180,13 @@ func (s *Server) deliverFederation(ctx context.Context) {
 	}
 }
 
+var federationHTTPClient = &http.Client{
+	Timeout: 10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
+
 func (s *Server) deliverFederationEntry(ctx context.Context, entry store.FederationOutboxEntry) error {
 	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -180,7 +200,7 @@ func (s *Server) deliverFederationEntry(ctx context.Context, entry store.Federat
 		return s.retryFederation(ctx, entry, fmt.Errorf("no configured secret for peer %s", entry.PeerName))
 	}
 	req.Header.Set("Authorization", "Bearer "+secret)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := federationHTTPClient.Do(req)
 	if err != nil {
 		return s.retryFederation(ctx, entry, err)
 	}
