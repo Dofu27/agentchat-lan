@@ -342,13 +342,56 @@ func (s *Store) FederationOutbox(ctx context.Context, limit int) ([]FederationOu
 	return out, rows.Err()
 }
 
+func (s *Store) ClaimFederationOutbox(ctx context.Context, limit int) ([]FederationOutboxEntry, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC()
+	nowText := now.Format(time.RFC3339Nano)
+	lease := now.Add(30 * time.Second).Format(time.RFC3339Nano)
+	rows, err := tx.QueryContext(ctx, `SELECT o.id,o.link_id,o.message_id,o.origin_node,o.origin_message_id,o.payload_json,o.attempts,p.name,p.url,l.remote_room FROM federation_outbox o JOIN federation_links l ON l.id=o.link_id JOIN federation_peers p ON p.id=l.peer_id WHERE p.enabled=1 AND o.attempts<8 AND o.next_attempt<=? AND (o.status='pending' OR (o.status='inflight' AND o.lease_until<=?)) ORDER BY o.created_at LIMIT ?`, nowText, nowText, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := []FederationOutboxEntry{}
+	for rows.Next() {
+		var e FederationOutboxEntry
+		if err := rows.Scan(&e.ID, &e.LinkID, &e.MessageID, &e.OriginNode, &e.OriginID, &e.Payload, &e.Attempts, &e.PeerName, &e.PeerURL, &e.RemoteRoom); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		e.Attempts++
+		if _, err := tx.ExecContext(ctx, `UPDATE federation_outbox SET status='inflight',attempts=?,lease_until=? WHERE id=?`, e.Attempts, lease, e.ID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	rows.Close()
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (s *Store) MarkFederationDelivered(ctx context.Context, id string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE federation_outbox SET status='delivered',last_error='' WHERE id=?`, id)
+	_, err := s.db.ExecContext(ctx, `UPDATE federation_outbox SET status='delivered',lease_until='',last_error='' WHERE id=?`, id)
 	return err
 }
 
 func (s *Store) MarkFederationFailed(ctx context.Context, id string, attempts int, next time.Time, lastErr string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE federation_outbox SET attempts=?,next_attempt=?,last_error=? WHERE id=?`, attempts, next.UTC().Format(time.RFC3339Nano), lastErr, id)
+	status := "pending"
+	if attempts >= 8 {
+		status = "dead"
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE federation_outbox SET status=?,attempts=?,next_attempt=?,lease_until='',last_error=? WHERE id=?`, status, attempts, next.UTC().Format(time.RFC3339Nano), lastErr, id)
 	return err
 }
 

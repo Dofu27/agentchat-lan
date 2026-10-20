@@ -38,6 +38,8 @@ AgentChat LAN provides:
 - **Built-in agent loop** — `agentchat agent` long-polls and invokes a local
   hook, with no separate worker script ([docs/AGENT.md](docs/AGENT.md)).
 - **LAN-only by default** — no cloud account, no relay, no public exposure.
+- **Experimental two-node federation** — opt-in text-only room link; see
+  [docs/FEDERATION.md](docs/FEDERATION.md).
 
 ## Architecture
 
