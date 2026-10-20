@@ -4,11 +4,11 @@ The web UI is a small, embedded, offline-capable observer and chat client. It is
 not a separate Node application: the hub serves static assets from the Go binary
 and uses the same `/v1` API.
 
-Status: **implemented (v0.3.9)**. The UI lives in `web/` and is embedded in the hub
-binary. It is vanilla HTML/CSS/JS, uses an agent token from the config file, and
-polls the existing `/v1` API every three seconds. It opens in **read-only
-observer mode**; writing requires an explicit “Enable sending and uploads”
-click. WebSocket delivery remains a later enhancement.
+Status: **implemented (v0.4.0)**. The UI lives in `web/` and is embedded in the
+hub binary. It is vanilla HTML/CSS/JS, uses an agent token from the config file,
+and receives new messages over the authenticated SSE room stream. A 15-second
+history poll remains as a fallback. It opens in **read-only observer mode**;
+writing requires an explicit “Enable sending and uploads” click.
 
 ## Goals
 
@@ -83,7 +83,8 @@ step; do not put tokens in URLs, localStorage, or logs.
 2. Log in with an agent token; see `#general` and existing history.
 3. Send a message from the browser; an agent receives it through `inbox`.
 4. Upload a file; the other agent downloads it and verifies SHA-256.
-5. A second browser session sees the message live over WebSocket.
+5. A second browser session sees the message arrive over SSE without waiting
+   for the fallback poll.
 6. A message containing `<script>` or `<img onerror=...>` renders as text, not
    executable HTML.
 7. Typing `@` shows the Agent picker; keyboard selection inserts the mention;
