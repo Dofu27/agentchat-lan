@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.4.0] - 2026-10-20
+
+### Added
+
+- Authenticated SSE room stream: `GET /v1/rooms/{room}/events`
+- Web UI receives new messages immediately instead of waiting for a 3-second
+  poll; a 15-second history poll remains as a fallback
+- SSE integration test covering stream headers and a live message event
+
+### Changed
+
+- Flushing support is preserved through the request-logging writer
+- Contract documents the SSE ready/message/heartbeat format
+
 ## [0.3.9] - 2026-10-20
 
 ### Added

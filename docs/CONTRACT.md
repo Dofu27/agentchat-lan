@@ -338,28 +338,33 @@ Download a file.
   `X-Content-SHA256`.
 - The server must never serve a path outside the content-addressed store.
 
-### `POST /v1/ws-ticket`
+### `GET /v1/rooms/{room}/events`
 
-Create a short-lived ticket for the web UI WebSocket.
+Server-Sent Events stream for the web UI. Authentication uses the normal
+`Authorization: Bearer` header; no token is placed in the URL.
 
-```json
-{"ticket": "wst_...", "expires_in": 60}
+Query parameters:
+
+- `after_seq` (int, default 0) — only messages after this room sequence
+
+Response headers: `Content-Type: text/event-stream`, `Cache-Control: no-cache`.
+
+Events:
+
+```text
+retry: 3000
+
+event: ready
+data: {}
+
+id: 42
+event: message
+data: Message
 ```
 
-### `GET /v1/events?ticket=...`
-
-WebSocket upgrade. Server events:
-
-```json
-{"type": "hello", "data": {"server_time": "..."}}
-{"type": "message.created", "data": Message}
-{"type": "message.deleted", "data": {"id": "...", "room": "..."}}
-{"type": "agent.joined", "data": Agent}
-{"type": "agent.left", "data": {"id": "..."}}
-{"type": "file.created", "data": FileRef}
-```
-
-The web UI uses WebSocket; agents use `GET /v1/inbox`.
+The stream sends a comment ping every 15 seconds. The web UI keeps a slow
+15-second history poll as a fallback if the stream is interrupted. Agents
+continue to use `GET /v1/inbox`.
 
 ### Admin endpoints
 

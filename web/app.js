@@ -16,6 +16,7 @@
     activities: new Map(),
     mention: { open: false, items: [], index: 0, start: 0, end: 0 },
     composing: false,
+    eventsAbort: null,
   };
 
   const login = $("login");
@@ -461,6 +462,7 @@
   }
 
   async function selectRoom(roomID) {
+    stopEvents();
     state.room = roomID;
     state.lastSeq = 0;
     state.activities.clear();
@@ -474,6 +476,7 @@
       for (const message of body.messages || []) appendMessage(message);
       $("messages").scrollTop = $("messages").scrollHeight;
       setConnection(true, "connected");
+      if (state.room === roomID) void startEvents();
     } catch (err) {
       setConnection(false, "offline");
       showError(err.message || String(err));
@@ -535,9 +538,72 @@
     }
   }
 
+  function stopEvents() {
+    if (state.eventsAbort) {
+      state.eventsAbort.abort();
+      state.eventsAbort = null;
+    }
+  }
+
+  function handleEventBlock(block) {
+    let event = "message";
+    const data = [];
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event:")) {
+        event = line.slice(6).trim();
+      } else if (line.startsWith("data:")) {
+        data.push(line.slice(5).replace(/^ /, ""));
+      }
+    }
+    if (event !== "message" || data.length === 0) return;
+    try {
+      appendMessage(JSON.parse(data.join("\n")));
+      setConnection(true, "live");
+    } catch (_) {
+      // ignore malformed events; the fallback poll will catch up
+    }
+  }
+
+  async function startEvents() {
+    stopEvents();
+    if (!state.room) return;
+    const room = state.room;
+    const controller = new AbortController();
+    state.eventsAbort = controller;
+    while (!controller.signal.aborted && state.room === room) {
+      try {
+        const res = await fetch(
+          "/v1/rooms/" + encodeURIComponent(room) + "/events?after_seq=" + state.lastSeq,
+          { headers: authHeaders(), signal: controller.signal }
+        );
+        if (!res.ok || !res.body) throw new Error("event stream HTTP " + res.status);
+        setConnection(true, "live");
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let boundary;
+          while ((boundary = buffer.indexOf("\n\n")) >= 0) {
+            handleEventBlock(buffer.slice(0, boundary));
+            buffer = buffer.slice(boundary + 2);
+          }
+        }
+        if (!controller.signal.aborted) throw new Error("event stream ended");
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setConnection(false, "reconnecting");
+        await new Promise((resolve) => window.setTimeout(resolve, 3000));
+      }
+    }
+  }
+
   function startPolling() {
     if (state.timer) window.clearInterval(state.timer);
-    state.timer = window.setInterval(poll, 3000);
+    // Slow fallback only; the SSE stream is the primary delivery path.
+    state.timer = window.setInterval(poll, 15000);
     window.setInterval(loadAgents, 10000);
   }
 
@@ -570,6 +636,7 @@
   function logout() {
     setWriteEnabled(false);
     closeMentionMenu();
+    stopEvents();
     state.token = "";
     state.me = null;
     state.room = null;

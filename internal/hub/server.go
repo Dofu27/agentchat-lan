@@ -113,6 +113,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/me", s.agentAuth(http.HandlerFunc(s.handleMe)))
 	mux.Handle("GET /v1/rooms", s.agentAuth(http.HandlerFunc(s.handleRooms)))
 	mux.Handle("GET /v1/rooms/{room}/messages", s.agentAuth(http.HandlerFunc(s.handleHistory)))
+	mux.Handle("GET /v1/rooms/{room}/events", s.agentAuth(http.HandlerFunc(s.handleEvents)))
 	mux.Handle("POST /v1/rooms/{room}/messages", s.agentAuth(http.HandlerFunc(s.handleSend)))
 	mux.Handle("GET /v1/inbox", s.agentAuth(http.HandlerFunc(s.handleInbox)))
 	mux.Handle("POST /v1/ack", s.agentAuth(http.HandlerFunc(s.handleAck)))
@@ -634,6 +635,17 @@ func (w *statusWriter) Write(p []byte) (int, error) {
 		w.WriteHeader(http.StatusOK)
 	}
 	return w.ResponseWriter.Write(p)
+}
+
+// Flush lets streaming handlers (the room event SSE endpoint) work through
+// the request logger's response wrapper.
+func (w *statusWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		if !w.wrote {
+			w.WriteHeader(http.StatusOK)
+		}
+		f.Flush()
+	}
 }
 
 func (s *Server) internalError(w http.ResponseWriter, err error) {
