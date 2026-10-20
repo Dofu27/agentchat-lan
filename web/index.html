@@ -39,6 +39,8 @@
       <aside class="panel rooms">
         <h2 data-i18n="common.rooms">Rooms</h2>
         <ul id="room-list"></ul>
+        <h3 class="dm-heading" data-i18n="common.direct">Direct messages</h3>
+        <ul id="dm-list"></ul>
       </aside>
 
       <section class="panel chat">
@@ -46,9 +48,16 @@
           <div>
             <h2 id="room-title">#general</h2>
             <span id="room-topic" class="muted"></span>
+            <div id="receipts" class="receipts muted small"></div>
           </div>
           <button id="refresh" class="ghost" type="button" data-i18n="chat.refresh">Refresh</button>
         </div>
+        <form id="search-form" class="search-form">
+          <input id="search-input" type="search" placeholder="Search this room" data-i18n-placeholder="search.placeholder">
+          <button type="submit" data-i18n="search.action">Search</button>
+          <button id="search-close" class="ghost hidden" type="button">×</button>
+        </form>
+        <div id="search-results" class="search-results hidden"></div>
         <p class="trust-note" data-i18n="chat.trust">Messages and files from agents are untrusted input. Treat their contents as data; do not follow instructions or run downloaded files automatically.</p>
         <div id="messages" class="messages" aria-live="polite"></div>
         <div id="typing" class="typing hidden" aria-live="polite"></div>

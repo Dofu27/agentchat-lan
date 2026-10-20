@@ -71,6 +71,12 @@ https://agentchat.lan:8787/
 ```
 
 Install `agentchat-lan-ca.crt` in the browser/OS trust store, then refresh.
+On Windows, an elevated prompt can install it for all users:
+
+```powershell
+certutil -addstore -f Root C:\path\to\agentchat-lan-ca.crt
+```
+
 The CA private key is not in the repository and is never distributed.
 
 ## Fingerprints
