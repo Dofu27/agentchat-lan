@@ -135,6 +135,34 @@ CREATE TABLE IF NOT EXISTS audit(
  id TEXT PRIMARY KEY, ts TEXT NOT NULL, actor_id TEXT NOT NULL DEFAULT '',
  action TEXT NOT NULL, detail_json TEXT NOT NULL DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS federation_node(
+ id INTEGER PRIMARY KEY CHECK(id=1), node_id TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS federation_peers(
+ id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, url TEXT NOT NULL,
+ secret TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS federation_links(
+ id TEXT PRIMARY KEY, local_room TEXT NOT NULL REFERENCES rooms(id),
+ peer_id TEXT NOT NULL REFERENCES federation_peers(id),
+ remote_room TEXT NOT NULL, bridge_agent TEXT NOT NULL REFERENCES agents(id),
+ created_at TEXT NOT NULL, UNIQUE(peer_id,remote_room), UNIQUE(local_room,peer_id)
+);
+CREATE TABLE IF NOT EXISTS federation_outbox(
+ id TEXT PRIMARY KEY, link_id TEXT NOT NULL REFERENCES federation_links(id),
+ message_id TEXT NOT NULL REFERENCES messages(id),
+ origin_node TEXT NOT NULL, origin_message_id TEXT NOT NULL,
+ payload_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+ attempts INTEGER NOT NULL DEFAULT 0, next_attempt TEXT NOT NULL,
+ last_error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+ UNIQUE(origin_node,origin_message_id,link_id)
+);
+CREATE TABLE IF NOT EXISTS federation_inbox(
+ origin_node TEXT NOT NULL, origin_message_id TEXT NOT NULL,
+ link_id TEXT NOT NULL REFERENCES federation_links(id), message_id TEXT NOT NULL,
+ received_at TEXT NOT NULL, PRIMARY KEY(origin_node,origin_message_id)
+);
+CREATE INDEX IF NOT EXISTS idx_federation_outbox_next ON federation_outbox(status,next_attempt);
 CREATE INDEX IF NOT EXISTS idx_messages_room_seq ON messages(room_id,seq);
 CREATE INDEX IF NOT EXISTS idx_memberships_inbox ON memberships(agent_id,room_id,last_ack_seq);
 CREATE INDEX IF NOT EXISTS idx_invites_expiry ON invites(expires_at);
@@ -146,6 +174,9 @@ INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(1,strftime('%
 	}
 	if err := s.ensureFileNameColumn(ctx); err != nil {
 		return fmt.Errorf("apply file name migration: %w", err)
+	}
+	if err := s.ensureFederationNode(ctx); err != nil {
+		return fmt.Errorf("initialize federation node: %w", err)
 	}
 	return nil
 }
