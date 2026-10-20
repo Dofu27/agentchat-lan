@@ -17,6 +17,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	agentID := agentFrom(r.Context()).ID
+	token := bearer(r)
 	roomID := r.PathValue("room")
 
 	// Validate room membership before sending SSE headers so errors remain JSON.
@@ -40,6 +41,11 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	for {
 		ch := s.eventChannel()
 		for {
+			// agentAuth validates only at connection time. Re-check the token
+			// on every wakeup/heartbeat so a revocation closes an existing stream.
+			if _, err := s.store.AgentByToken(r.Context(), token); err != nil {
+				return
+			}
 			messages, more, err := s.store.History(r.Context(), agentID, roomID, last, 0, 200)
 			if err != nil {
 				return
