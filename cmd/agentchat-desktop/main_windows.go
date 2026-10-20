@@ -25,6 +25,7 @@ import (
 	"time"
 
 	webview2 "github.com/jchv/go-webview2"
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
 )
@@ -46,7 +47,14 @@ type app struct {
 	http  *http.Client
 }
 
+var instanceMutex windows.Handle
+
 func main() {
+	mutexName, _ := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
+	instanceMutex, _ = windows.CreateMutex(nil, false, mutexName)
+	if instanceMutex != 0 && windows.GetLastError() == windows.ERROR_ALREADY_EXISTS {
+		return
+	}
 	var cfgPath string
 	var service string
 	var hub string
@@ -169,8 +177,10 @@ func main() {
 		log.Fatal("WebView2 runtime is not available; install Microsoft Edge WebView2 Runtime")
 	}
 	defer w.Destroy()
-	w.Init("window.__agentchatDesktopCapability = " + strconv.Quote(a.cap) + ";")
-	w.Navigate("http://" + ln.Addr().String() + "/")
+	origin := "http://" + ln.Addr().String()
+	w.Init("if (window.top === window && location.origin === " + strconv.Quote(origin) +
+		") { window.__agentchatDesktopCapability = " + strconv.Quote(a.cap) + "; }")
+	w.Navigate(origin + "/")
 	w.Run()
 }
 
@@ -327,11 +337,20 @@ func serviceAction(name, action, startup string) error {
 	defer s.Close()
 	switch action {
 	case "start":
+		if st, e := s.Query(); e == nil && (st.State == svc.Running || st.State == svc.StartPending) {
+			return nil
+		}
 		return s.Start()
 	case "stop":
+		if st, e := s.Query(); e == nil && (st.State == svc.Stopped || st.State == svc.StopPending) {
+			return nil
+		}
 		_, err = s.Control(svc.Stop)
 		return err
 	case "restart":
+		if st, e := s.Query(); e == nil && st.State == svc.Stopped {
+			return s.Start()
+		}
 		_, _ = s.Control(svc.Stop)
 		deadline := time.Now().Add(15 * time.Second)
 		for time.Now().Before(deadline) {
