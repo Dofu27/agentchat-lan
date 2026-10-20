@@ -32,6 +32,8 @@ func (a *App) cmdHub(args []string) int {
 		return a.hubServe(args[1:])
 	case "federation-id":
 		return a.hubFederationID(args[1:])
+	case "federation":
+		return a.hubFederationOperations(args[1:])
 	case "invite":
 		return a.hubInvite(args[1:])
 	case "list-invites":
@@ -67,6 +69,7 @@ Usage:
                        [--federation-config <path>] (two-node PoC only)
                        [--max-storage-bytes <n>]
   agentchat hub federation-id --data <dir>
+  agentchat hub federation status --data <dir> (read-only persisted state)
   agentchat hub invite --data <dir> [--room general] [--name <agent>]
                        [--ttl 24h] [--uses 1] [--json]
   agentchat hub list-invites --data <dir> [--json]

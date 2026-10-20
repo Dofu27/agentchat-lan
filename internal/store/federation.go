@@ -40,7 +40,13 @@ type FederationJob struct {
 	ID, PeerID, Payload, Lease string
 	Attempts, MaxAttempts      int
 }
-type FederationQueueStats struct{ Pending, Inflight, Delivered, Dead, Attempts int }
+type FederationQueueStats struct {
+	Pending   int `json:"pending"`
+	Inflight  int `json:"inflight"`
+	Delivered int `json:"delivered"`
+	Dead      int `json:"dead"`
+	Attempts  int `json:"attempts"`
+}
 
 func (s *Store) migrateFederation(ctx context.Context) error {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -95,6 +101,8 @@ CREATE TABLE IF NOT EXISTS federation_outbox(id TEXT PRIMARY KEY, peer_id TEXT N
 CREATE INDEX IF NOT EXISTS federation_outbox_due ON federation_outbox(state,next_attempt,lease_until);
 CREATE TABLE IF NOT EXISTS federation_inbox(origin_node_id TEXT NOT NULL, origin_message_id TEXT NOT NULL, local_message_id TEXT NOT NULL, payload_hash TEXT NOT NULL, received_at INTEGER NOT NULL, PRIMARY KEY(origin_node_id,origin_message_id));
 INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(2,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+CREATE TABLE IF NOT EXISTS federation_operator_retries(job_id TEXT NOT NULL, key_hash TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(job_id,key_hash));
+INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(3,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 `)
 	if err != nil {
 		return err
