@@ -2,6 +2,8 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
+  const i18n = window.AgentChatI18n;
+  const t = (key, vars) => (i18n ? i18n.t(key, vars) : key);
   const state = { token: "", timer: null };
 
   function setStatus(text, ok) {
@@ -92,15 +94,17 @@
       inv.expires_at || "",
       String(inv.uses_left ?? inv.uses ?? ""),
     ]);
-    $("invite-list").replaceChildren(table(["Room", "Name", "Expires", "Uses"], rows));
+    $("invite-list").replaceChildren(table([
+      t("admin.room"), t("admin.name"), t("admin.expires"), t("admin.uses"),
+    ], rows));
   }
 
   async function loadAgents() {
     const body = await api("/v1/admin/agents");
     const agents = body.agents || [];
     const rows = agents.map((agent) => {
-      const button = actionButton("Revoke", async () => {
-        if (!window.confirm("Revoke " + agent.name + "? Its token stops working.")) return;
+      const button = actionButton(t("admin.revoke"), async () => {
+        if (!window.confirm(t("admin.revoke_confirm", { name: agent.name }))) return;
         try {
           await api("/v1/admin/agents/" + encodeURIComponent(agent.id), { method: "DELETE" });
           await refresh();
@@ -110,7 +114,9 @@
       }, true);
       return [agent.name, agent.kind, agent.status || "", button];
     });
-    $("agent-list-admin").replaceChildren(table(["Name", "Kind", "Status", ""], rows));
+    $("agent-list-admin").replaceChildren(table([
+      t("admin.name"), t("admin.kind"), t("admin.status"), "",
+    ], rows));
   }
 
   async function loadAudit() {
@@ -122,14 +128,16 @@
       e.actor_id || e.actor || "",
       JSON.stringify(e.detail || {}).slice(0, 180),
     ]);
-    $("audit-list").replaceChildren(table(["Time", "Action", "Actor", "Detail"], rows));
+    $("audit-list").replaceChildren(table([
+      t("admin.time"), t("admin.action"), t("admin.actor"), t("admin.detail"),
+    ], rows));
   }
 
   async function refresh() {
-    setStatus("loading", false);
+    setStatus(t("admin.loading"), false);
     try {
       await Promise.all([loadInvites(), loadAgents(), loadAudit()]);
-      setStatus("connected", true);
+      setStatus(t("admin.connected"), true);
     } catch (err) {
       setStatus(err.message || String(err), false);
     }
@@ -145,7 +153,7 @@
         ttl_seconds: (Number($("invite-ttl").value) || 60) * 60,
       };
       const out = await api("/v1/admin/invites", { method: "POST", body: JSON.stringify(body) });
-      $("invite-result").textContent = "Invite: " + out.code;
+      $("invite-result").textContent = t("admin.invite_result", { code: out.code });
       await refresh();
     } catch (err) {
       setStatus(err.message || String(err), false);
@@ -153,7 +161,7 @@
   }
 
   function logout(message) {
-    setStatus("offline", false);
+    setStatus(t("status.offline"), false);
     state.token = "";
     if (state.timer) window.clearInterval(state.timer);
     state.timer = null;
@@ -173,6 +181,20 @@
     $("admin-login").classList.add("hidden");
     $("admin-app").classList.remove("hidden");
     state.timer = window.setInterval(refresh, 15000);
+  }
+
+  function updateLangToggle() {
+    const button = $("lang-toggle");
+    if (button) button.textContent = t("lang.switch");
+  }
+
+  if (i18n) {
+    $("lang-toggle").addEventListener("click", () => i18n.toggle());
+    window.addEventListener("agentchat:lang", () => {
+      i18n.apply();
+      updateLangToggle();
+      if (state.token) refresh();
+    });
   }
 
   $("admin-login-form").addEventListener("submit", async (event) => {

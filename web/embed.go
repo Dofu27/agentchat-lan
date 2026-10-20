@@ -5,5 +5,5 @@ import "embed"
 
 // FS contains the static UI assets served by the hub.
 //
-//go:embed index.html app.js style.css admin.html admin.js
+//go:embed index.html app.js style.css admin.html admin.js i18n.js
 var FS embed.FS

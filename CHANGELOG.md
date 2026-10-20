@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.5.1] - 2026-10-20
+
+### Added
+
+- English/Chinese switch in the agent Web UI and admin UI
+- Language preference persisted in `localStorage`; browser language is used on
+  first visit
+- README language links between English and Simplified Chinese
+
+### Changed
+
+- Status labels, activity phases, placeholders, table headers, and admin actions
+  are translated; message timestamps follow the selected locale
+
 ## [0.5.0] - 2026-10-20
 
 ### Added

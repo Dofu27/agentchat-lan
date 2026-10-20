@@ -2,6 +2,8 @@
   "use strict";
 
   const $ = (id) => document.getElementById(id);
+  const i18n = window.AgentChatI18n;
+  const t = (key, vars) => (i18n ? i18n.t(key, vars) : key);
   const state = {
     token: "",
     me: null,
@@ -17,12 +19,21 @@
     mention: { open: false, items: [], index: 0, start: 0, end: 0 },
     composing: false,
     eventsAbort: null,
+    connection: { ok: true, key: "connected" },
   };
 
   const login = $("login");
   const app = $("app");
   const errorBanner = $("error-banner");
   const mentionMenu = $("mention-menu");
+
+  function phaseLabel(phase) {
+    return phase ? t("phase." + phase) : "";
+  }
+
+  function formatTime(ts) {
+    return new Date(ts).toLocaleString(i18n && i18n.getLang() === "zh" ? "zh-CN" : "en-US");
+  }
 
   function authHeaders() {
     return { Authorization: "Bearer " + state.token };
@@ -60,9 +71,10 @@
     window.setTimeout(() => errorBanner.classList.add("hidden"), 7000);
   }
 
-  function setConnection(ok, text) {
+  function setConnection(ok, key) {
+    state.connection = { ok, key };
     const el = $("connection");
-    el.textContent = text;
+    el.textContent = t("status." + key);
     el.classList.toggle("ok", ok);
     el.classList.toggle("bad", !ok);
   }
@@ -120,13 +132,13 @@
     head.className = "activity-head";
     const author = document.createElement("span");
     author.className = "message-author";
-    author.textContent = (message.from && message.from.name) || "unknown";
+    author.textContent = (message.from && message.from.name) || t("common.unknown");
     const phase = document.createElement("span");
     phase.className = "activity-phase";
-    phase.textContent = activity.phase;
+    phase.textContent = phaseLabel(activity.phase);
     const time = document.createElement("span");
     time.className = "message-time";
-    time.textContent = new Date(message.ts).toLocaleString();
+    time.textContent = formatTime(message.ts);
     head.appendChild(author);
     head.appendChild(phase);
     head.appendChild(time);
@@ -349,10 +361,10 @@
     head.className = "message-head";
     const author = document.createElement("span");
     author.className = "message-author";
-    author.textContent = (message.from && message.from.name) || "unknown";
+    author.textContent = (message.from && message.from.name) || t("common.unknown");
     const time = document.createElement("span");
     time.className = "message-time";
-    time.textContent = new Date(message.ts).toLocaleString();
+    time.textContent = formatTime(message.ts);
     head.appendChild(author);
     head.appendChild(time);
 
@@ -436,8 +448,9 @@
       const activity = latestActivityFor(agent.name);
       const status = document.createElement("span");
       const phase = activity && activity.message.meta.activity.phase;
+      const statusKey = phase || (agent.status === "online" ? "online" : "offline");
       status.className = "agent-status " + (phase || (agent.status === "online" ? "online" : "offline"));
-      status.textContent = phase || agent.status;
+      status.textContent = phase ? phaseLabel(phase) : t("status." + statusKey);
       li.appendChild(name);
       li.appendChild(status);
       if (activity) {
@@ -651,6 +664,23 @@
     app.classList.add("hidden");
     login.classList.remove("hidden");
     $("token").value = "";
+  }
+
+  function updateLangToggle() {
+    const button = $("lang-toggle");
+    if (button) button.textContent = t("lang.switch");
+  }
+
+  if (i18n) {
+    $("lang-toggle").addEventListener("click", () => i18n.toggle());
+    window.addEventListener("agentchat:lang", () => {
+      i18n.apply();
+      updateLangToggle();
+      setConnection(state.connection.ok, state.connection.key);
+      renderAgents();
+      if (state.room) void selectRoom(state.room);
+      if (state.mention.open) updateMentionMenu();
+    });
   }
 
   $("login-form").addEventListener("submit", async (event) => {
