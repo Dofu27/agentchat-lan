@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.12.0] - 2026-10-20
+
+### Added
+
+- Windows desktop console (`AgentChatConsole.exe`) using an embedded WebView2
+  window, independent of a browser
+- Service start/stop/restart, health, federation status and dead-letter retry
+- **Start with Windows** switch backed by the Windows service start type
+- Loopback-only local console API for the embedded UI
+
+### Security
+
+- Admin token is read from a local file, not browser storage
+- Desktop server binds an ephemeral loopback-only port
+- Service control requires administrator rights
+
 ## [0.11.0] - 2026-10-20
 
 ### Added

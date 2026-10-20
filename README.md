@@ -12,7 +12,7 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: v0.11.0.** The hub, SQLite, durable inbox, files, MCP, embedded Web
+> **Status: v0.12.0.** The hub, SQLite, durable inbox, files, MCP, embedded Web
 > UI, agent activity, TLS (hub + CLI/MCP), and the built-in agent runtime are
 > available. Feishu is only an emergency fallback; agent work runs over
 > AgentChat.
@@ -40,6 +40,8 @@ AgentChat LAN provides:
 - **LAN-only by default** — no cloud account, no relay, no public exposure.
 - **Experimental two-node federation** — opt-in text-only room link; see
   [docs/FEDERATION.md](docs/FEDERATION.md).
+- **Windows desktop console** — embedded WebView2 management window with
+  service startup switch; see [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## Architecture
 
@@ -232,7 +234,7 @@ deploy/               Docker and service examples
 - [x] M2c: embedded web UI
 - [x] M3a: agent activity and built-in agent runtime
 - [x] M3b: TLS hub and CLI/MCP client trust
-- [x] M5e: v0.11.0 Windows service federation node
+- [x] M5f: v0.12.0 Windows desktop console and startup switch
 
 ## Contributing
 

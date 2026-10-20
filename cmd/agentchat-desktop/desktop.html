@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>AgentChat Console</title>
+<style>
+  :root { --bg:#0d1117; --panel:#151b24; --line:#2b3545; --text:#e6edf3; --muted:#8b98a9; --accent:#5b9dff; --ok:#3fb950; --bad:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 "Segoe UI",system-ui,sans-serif; }
+  header { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); }
+  h1 { font-size:16px; margin:0; font-weight:650; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 12px; }
+  main { max-width:1080px; margin:0 auto; padding:18px; display:grid; gap:14px; grid-template-columns:1fr 1fr; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; min-width:0; }
+  section.wide { grid-column:1 / -1; }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .between { justify-content:space-between; }
+  .pill { border:1px solid var(--line); border-radius:999px; padding:3px 9px; font-size:12px; color:var(--muted); }
+  .pill.ok { color:var(--ok); border-color:rgba(63,185,80,.45); }
+  .pill.bad { color:var(--bad); border-color:rgba(248,81,73,.45); }
+  .muted { color:var(--muted); }
+  .small { font-size:12px; }
+  button { border:1px solid var(--line); background:#1b2430; color:var(--text); border-radius:8px; padding:7px 11px; cursor:pointer; font:inherit; }
+  button:hover { background:#243143; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#07111f; font-weight:600; }
+  button.danger { background:#3a1c22; border-color:#6e2832; color:#ffb4b4; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  select { background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; }
+  label.check { display:flex; align-items:center; gap:8px; user-select:none; }
+  input[type=checkbox] { width:16px; height:16px; accent-color:var(--accent); }
+  .kv { display:grid; grid-template-columns:max-content 1fr; gap:6px 14px; margin-top:12px; font-size:13px; }
+  .kv .k { color:var(--muted); }
+  .kv .v { overflow-wrap:anywhere; }
+  table { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+  th,td { text-align:left; padding:7px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; }
+  #toast { min-height:20px; color:var(--muted); margin-top:10px; white-space:pre-wrap; }
+  #toast.bad { color:var(--bad); }
+  @media (max-width:800px) { main { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>AgentChat Console</h1>
+  <div class="row">
+    <span id="hub-pill" class="pill">hub …</span>
+    <button id="lang-toggle" type="button">中文</button>
+    <button id="refresh" type="button">Refresh</button>
+  </div>
+</header>
+<main>
+  <section>
+    <h2 data-i18n="service.title">Windows service</h2>
+    <div class="row between">
+      <div class="row">
+        <span id="service-state" class="pill">…</span>
+        <strong id="service-name" class="small"></strong>
+      </div>
+      <span id="service-pid" class="muted small"></span>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button id="start" class="primary" type="button" data-i18n="service.start">Start</button>
+      <button id="stop" class="danger" type="button" data-i18n="service.stop">Stop</button>
+      <button id="restart" type="button" data-i18n="service.restart">Restart</button>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <label class="check">
+        <input id="startup" type="checkbox">
+        <span data-i18n="service.start_with_windows">Start with Windows</span>
+      </label>
+      <span id="startup-state" class="muted small"></span>
+    </div>
+    <div class="kv">
+      <span class="k" data-i18n="service.hub">Hub</span><span class="v" id="hub-url"></span>
+      <span class="k" data-i18n="service.health">Health</span><span class="v" id="hub-health">…</span>
+    </div>
+    <div id="toast" role="status"></div>
+  </section>
+
+  <section>
+    <h2 data-i18n="fed.title">Federation</h2>
+    <div class="kv">
+      <span class="k" data-i18n="fed.runtime">Runtime</span><span class="v" id="fed-runtime">…</span>
+      <span class="k" data-i18n="fed.node">Node</span><span class="v" id="fed-node"></span>
+      <span class="k" data-i18n="fed.peer">Peer</span><span class="v" id="fed-peer"></span>
+      <span class="k" data-i18n="fed.link">Link</span><span class="v" id="fed-link"></span>
+      <span class="k" data-i18n="fed.outbox">Outbox</span><span class="v" id="fed-outbox"></span>
+    </div>
+    <div id="fed-error" class="small muted" style="margin-top:10px"></div>
+  </section>
+
+  <section class="wide">
+    <div class="row between">
+      <h2 style="margin:0" data-i18n="dead.title">Dead letters</h2>
+      <span class="muted small" data-i18n="dead.hint">Retry re-arms a dead delivery. Remote deduplication still applies.</span>
+    </div>
+    <div id="dead"></div>
+  </section>
+</main>
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const dict = {
+    en: {
+      "service.title":"Windows service", "service.start":"Start", "service.stop":"Stop", "service.restart":"Restart",
+      "service.start_with_windows":"Start with Windows", "service.hub":"Hub", "service.health":"Health",
+      "fed.title":"Federation", "fed.runtime":"Runtime", "fed.node":"Node", "fed.peer":"Peer", "fed.link":"Link", "fed.outbox":"Outbox",
+      "dead.title":"Dead letters", "dead.hint":"Retry re-arms a dead delivery. Remote deduplication still applies.",
+      "dead.empty":"No dead letters.", "dead.id":"ID", "dead.peer":"Peer", "dead.origin":"Origin", "dead.attempts":"Attempts", "dead.error":"Error", "dead.created":"Created", "dead.retry":"Retry",
+      "state.running":"running", "state.stopped":"stopped", "state.starting":"starting", "state.stopping":"stopping", "state.paused":"paused", "state.unknown":"unknown",
+      "startup.automatic":"automatic", "startup.manual":"manual", "startup.disabled":"disabled",
+      "common.yes":"enabled", "common.no":"disabled", "common.loading":"loading", "common.ok":"healthy", "common.bad":"unreachable",
+      "service.not_installed":"service not installed", "service.need_admin":"Run as administrator to control the service.",
+      "dead.retry_failed":"Retry failed", "dead.confirm":"Retry this dead delivery?"
+    },
+    zh: {
+      "service.title":"Windows 服务", "service.start":"启动", "service.stop":"停止", "service.restart":"重启",
+      "service.start_with_windows":"开机自动启动", "service.hub":"Hub", "service.health":"健康",
+      "fed.title":"联邦", "fed.runtime":"运行状态", "fed.node":"节点", "fed.peer":"对端", "fed.link":"房间链接", "fed.outbox":"发件箱",
+      "dead.title":"死信", "dead.hint":"重投只会重新激活死信；对端幂等仍然生效。",
+      "dead.empty":"没有死信。", "dead.id":"ID", "dead.peer":"对端", "dead.origin":"来源", "dead.attempts":"尝试次数", "dead.error":"错误", "dead.created":"创建时间", "dead.retry":"重投",
+      "state.running":"运行中", "state.stopped":"已停止", "state.starting":"启动中", "state.stopping":"停止中", "state.paused":"已暂停", "state.unknown":"未知",
+      "startup.automatic":"自动", "startup.manual":"手动", "startup.disabled":"禁用",
+      "common.yes":"已启用", "common.no":"已关闭", "common.loading":"加载中", "common.ok":"健康", "common.bad":"不可达",
+      "service.not_installed":"服务未安装", "service.need_admin":"请以管理员身份运行控制台。",
+      "dead.retry_failed":"重投失败", "dead.confirm":"确认重投这条死信？"
+    }
+  };
+  let lang = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+  let last = null;
+  let busy = false;
+  const t = (key) => (dict[lang] && dict[lang][key]) || dict.en[key] || key;
+  const setText = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+  function applyLang() {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    $("lang-toggle").textContent = lang === "zh" ? "English" : "中文";
+  }
+  function toast(message, bad) {
+    const el = $("toast"); el.textContent = message || ""; el.classList.toggle("bad", !!bad);
+  }
+  async function api(path, options) {
+    const res = await fetch(path, options);
+    let body = null;
+    try { body = await res.json(); } catch (_) {}
+    if (!res.ok) throw new Error((body && body.error) || ("HTTP " + res.status));
+    return body;
+  }
+  function pill(id, text, ok) {
+    const el = $(id); el.textContent = text; el.classList.toggle("ok", ok === true); el.classList.toggle("bad", ok === false);
+  }
+  function renderService(st) {
+    if (!st || !st.installed) { pill("service-state", t("service.not_installed"), false); return; }
+    pill("service-state", t("state." + st.state) || st.state, st.state === "running");
+    setText("service-name", st.name || "");
+    setText("service-pid", st.pid ? "PID " + st.pid : "");
+    const auto = st.startup === "automatic";
+    $("startup").checked = auto;
+    setText("startup-state", t("startup." + st.startup) || st.startup || "");
+  }
+  function renderFederation(fed, err) {
+    setText("fed-error", err || "");
+    if (!fed) { setText("fed-runtime", t("common.no")); return; }
+    setText("fed-runtime", fed.runtime_enabled ? t("common.yes") : t("common.no"));
+    setText("fed-node", fed.node_id || "");
+    setText("fed-peer", (fed.peers || []).map((p) => p.node_id + (p.enabled ? "" : " (" + t("common.no") + ")")).join(", "));
+    setText("fed-link", (fed.room_links || []).map((l) => l.local_room + " → " + l.remote_room).join(", "));
+    const o = fed.outbox || {};
+    setText("fed-outbox", ["pending","inflight","delivered","dead","attempts"].map((k) => k + " " + (o[k] ?? 0)).join(" · "));
+  }
+  function table(headers, rows) {
+    const el = document.createElement("table");
+    const hr = document.createElement("tr");
+    for (const h of headers) { const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
+    el.appendChild(hr);
+    for (const row of rows) {
+      const tr = document.createElement("tr");
+      for (const cell of row) {
+        const td = document.createElement("td");
+        if (cell instanceof Node) td.appendChild(cell); else td.textContent = cell == null ? "" : String(cell);
+        tr.appendChild(td);
+      }
+      el.appendChild(tr);
+    }
+    return el;
+  }
+  function retryKey() {
+    const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function loadDead() {
+    try {
+      const body = await api("/api/federation/outbox?state=dead");
+      const items = (body && body.items) || [];
+      const box = $("dead");
+      if (!items.length) { box.replaceChildren(document.createTextNode(t("dead.empty"))); return; }
+      const rows = items.map((job) => {
+        const btn = document.createElement("button");
+        btn.type = "button"; btn.textContent = t("dead.retry");
+        btn.addEventListener("click", async () => {
+          if (!confirm(t("dead.confirm"))) return;
+          btn.disabled = true;
+          try {
+            await api("/api/federation/retry", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ id: job.id, key: retryKey() }) });
+            await refresh();
+          } catch (err) { toast(t("dead.retry_failed") + ": " + err.message, true); btn.disabled = false; }
+        });
+        return [job.id, job.peer_id, job.origin_node_id + "/" + job.origin_message_id, job.attempts, job.last_error, job.created_at, btn];
+      });
+      box.replaceChildren(table([t("dead.id"), t("dead.peer"), t("dead.origin"), t("dead.attempts"), t("dead.error"), t("dead.created"), ""], rows));
+    } catch (err) {
+      $("dead").textContent = err.message;
+    }
+  }
+  async function refresh() {
+    if (busy) return; busy = true;
+    try {
+      const status = await api("/api/status");
+      renderService(status.service);
+      setText("hub-url", status.hub_url || "");
+      setText("hub-health", status.hub_ok ? t("common.ok") : t("common.bad"));
+      pill("hub-pill", status.hub_ok ? "hub " + t("common.ok") : "hub " + t("common.bad"), status.hub_ok === true);
+      if (status.service_error) toast(status.service_error, true);
+      renderFederation(status.federation, status.federation_error);
+      await loadDead();
+    } catch (err) {
+      toast(err.message, true);
+    } finally { busy = false; }
+  }
+  async function serviceAction(action) {
+    try {
+      toast(t("common.loading"));
+      await api("/api/service", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action }) });
+      toast("");
+      await refresh();
+    } catch (err) { toast(err.message + (err.message.includes("administrator") ? "" : ""), true); }
+  }
+  $("start").addEventListener("click", () => serviceAction("start"));
+  $("stop").addEventListener("click", () => serviceAction("stop"));
+  $("restart").addEventListener("click", () => serviceAction("restart"));
+  $("refresh").addEventListener("click", refresh);
+  $("startup").addEventListener("change", async (event) => {
+    const startup = event.target.checked ? "automatic" : "manual";
+    try {
+      await api("/api/service", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"startup", startup }) });
+      toast("");
+      await refresh();
+    } catch (err) { event.target.checked = !event.target.checked; toast(err.message, true); }
+  });
+  $("lang-toggle").addEventListener("click", () => { lang = lang === "zh" ? "en" : "zh"; applyLang(); if (last) renderFederation(last.federation, last.federation_error); refresh(); });
+  applyLang();
+  refresh();
+  setInterval(refresh, 3000);
+})();
+</script>
+</body>
+</html>
