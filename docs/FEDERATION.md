@@ -1,88 +1,173 @@
-# Two-node federation (experimental)
+# Two-node federation PoC
 
-This is a deliberately small federation PoC, not production HA. It links one
-local room on hub A to one remote room on hub B and forwards **text messages**.
-Single-node behavior is unchanged and federation is disabled unless
-`--federation-config` is passed.
+This is an explicitly enabled, **two-node text-room proof of concept**. It is
+not production HA, a consensus protocol, automatic discovery, or a multi-hop
+network. Existing single-node operation remains the default. No production hub
+needs to be changed to run the tests.
 
-## What is forwarded
+## Scope and identity
 
-Only ordinary text messages created by local agents in a linked room. The
-message is written to the local outbox in the same SQLite transaction as the
-message; a background worker delivers it to the peer with retry, lease
-recovery, and a dead-letter state.
+- Only newly committed local text messages in explicitly linked ordinary rooms
+  are forwarded. DMs, attachments, activity cards, typing, receipts, edits and
+  historical backfill are not replicated. Messages with attachments remain local
+  in their entirety; their text is not silently sent without its files.
+- Local message IDs and room sequence numbers remain local. Remote attribution
+  is stored in optional `meta.federation` on imported messages, including the
+  origin node/message ID, origin room, sender and timestamp. `from` always names
+  this node's dedicated federation agent. Mentions and reply targets are not
+  translated into local agent identities or foreign keys.
+  `meta.federation` is read-only on the normal send API; forged local submissions
+  of that reserved field are rejected.
+- The local bridge agent has a randomly generated, discarded login credential.
+  Peers never receive it. Ordinary agents cannot authenticate as that agent.
+- A peer may submit only its own origin node ID, not relay another node's
+  messages. Imported messages use a separate insertion path and never enqueue
+  outbound work. Local senders of kind `bridge`, `system` or `federation` are
+  also excluded. This blocks transport loops; independently running agents can
+  still create new replies, which is outside transport deduplication.
 
-Inbound messages are stored under a dedicated `federation-*` bridge agent; the
-original node, message ID, sender, and room are kept in
-`meta.federation`. Inbound bridge messages are never forwarded again.
+## Isolated local setup
 
-Not forwarded: files/blob, direct messages, typing, read receipts, mentions,
-room membership changes.
+Use two **new** data directories and unused loopback ports. Provision public
+node identities before writing the two configurations:
 
-## Configuration
-
-Both hubs must have a stable `node_id`. Read it from:
-
-```bash
-curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://hub-a.example/v1/admin/federation
+```sh
+agentchat hub federation-id --data ./node-a
+agentchat hub federation-id --data ./node-b
 ```
 
-Create an operator-only JSON file on each hub. The secret must be the same
-shared secret on both sides; only its SHA-256 hash is stored in SQLite.
+Each prints only a `node_id`. The ID persists across restarts. Do not clone one
+initialized node directory to create its peer: the copy has the same identity.
+
+Generate a dedicated random secret with at least 256 bits of entropy, securely
+provision the same secret to `peer.secret` beside each config, and restrict both
+files to the service account. A secret is 32–4096 non-whitespace bytes; a final
+newline in the file is accepted. Do not use an agent/admin token. Secret values
+are not accepted on the command line or inline in the config; SQLite stores
+only their SHA-256 hashes, while the worker retains the secret in process memory.
+
+Example `node-a/federation.json` (replace the public peer ID):
 
 ```json
 {
-  "peers": [
-    {
-      "name": "hub-b",
-      "url": "https://hub-b.example:8787",
-      "secret": "replace-with-a-32-byte-shared-secret",
-      "remote_node_id": "node_...",
-      "local_room": "general",
-      "remote_room": "general"
-    }
-  ]
+  "peer": {
+    "node_id": "NODE_B_ID_FROM_COMMAND",
+    "base_url": "http://127.0.0.1:18082",
+    "secret_file": "peer.secret"
+  },
+  "links": [{"local_room": "general", "remote_room": "general"}],
+  "max_outbox": 1000,
+  "max_attempts": 5
 }
 ```
 
-Start the hub:
+For B use A's public ID and `http://127.0.0.1:18081`, with the reciprocal room
+link. At most one peer is active per node in this PoC. Peer and room mappings
+are persisted transactionally; startup config is authoritative. Both rooms must
+already exist, be unarchived, and have kind `room` locally. Imported text cannot
+choose a destination outside the configured link.
 
-```bash
-agentchat hub serve --data /data \
-  --tls-cert /tls/server.crt --tls-key /tls/server.key \
-  --federation-config /etc/agentchat/federation.json
+Run one command per terminal:
+
+```sh
+agentchat hub serve --data ./node-a --listen 127.0.0.1:18081 --federation-config ./node-a/federation.json
+agentchat hub serve --data ./node-b --listen 127.0.0.1:18082 --federation-config ./node-b/federation.json
 ```
 
-HTTP peer URLs are accepted only for loopback development; non-loopback peers
-must use HTTPS.
+Use the existing init/invite/join commands to provision separate normal clients
+on A and B, then send text in `general`. Do not share their agent tokens.
+`federation-id` creates the database if absent; `hub init` can subsequently
+initialize its separate admin credential.
 
-## Delivery semantics
+Omit `--federation-config` to disable the route, worker **and local enqueueing**,
+even when federation tables/config rows exist from a previous run. Existing
+pending work remains durable and can resume after explicit re-enablement.
+Migration 2 creates independent federation tables, not an automatic identity or
+an active peer. Normal `/v1` requests and ordinary message JSON stay unchanged.
 
-- Outbox states: `pending`, `inflight`, `delivered`, `dead`.
-- Claimed entries have a 30-second lease; expired leases are reclaimed after a
-  restart.
-- Failures retry with exponential backoff (1s, 2s, ... capped at 60s) and become
-  `dead` after 8 attempts.
-- Inbound idempotency is `(origin_node, origin_message_id)`. A duplicate returns
-  `replayed: true` and does not allocate a second local sequence.
-- A payload whose `origin_node` does not match the registered peer is rejected.
+For non-loopback peer addresses HTTPS is mandatory, using normal TLS validation.
+An enabled hub also refuses a non-loopback plaintext listener; a reverse proxy
+can instead connect to a loopback-only HTTP listener.
+`peer.tls_ca_file` optionally adds an operator-provisioned CA bundle via the
+existing shared client transport. All file paths are relative to the federation
+config. No TLS private key is read or transferred by the federation client.
+Redirects are never followed, including same-origin redirects.
 
-## PoC test
+## Wire protocol and authorization
 
-Two loopback hubs were tested with separate data directories:
+Only opted-in hubs expose `POST /federation/v1/messages`. It uses a dedicated
+`Authorization: Bearer` secret and `X-AgentChat-Node` header. An unknown peer or
+wrong secret gets 401. The secret hash is compared in constant time; a node ID
+header by itself grants nothing. Payload size is bounded to 512 KiB and message
+text to the existing 64 KiB limit. Unknown fields and multiple JSON documents
+are rejected. This is independent of normal agent/admin authentication.
 
-1. Both directions of text forwarding.
-2. Duplicate inbound payload: one local row, second response `replayed: true`.
-3. Peer unavailable: outbox stayed `pending`; after peer restart it became
-   `delivered`.
-4. SQLite did not contain the configured plaintext secret.
+The version-1 envelope contains `origin_node_id`, `origin_message_id`,
+`source_room`, `destination_room`, remote `sender`, `text` and `sent_at`.
+Unknown origins, invalid room mappings, archived rooms and a revoked local
+bridge agent are refused. The remote sender fields remain untrusted data.
 
-## Remaining before production
+The inbound transaction checks the unique `(origin_node_id, origin_message_id)`
+receipt, assigns a local room sequence, inserts the bridge-authored message and
+saves the receipt atomically. Exact retries return the original local message
+ID with `replayed: true`; conflicting content for that identity returns 409.
+Receipts survive local message retention, so an old retry does not recreate a
+GC'd message. Inbound delivery does not reuse remote IDs as local agent FKs.
 
-- Queue capacity/backpressure per link
-- Conflict detection for duplicate IDs with different payloads
-- HTTPS-only enforcement and certificate pinning policy
-- Signed node identity rather than shared bearer secrets
-- Membership/DM/file synchronization
-- Operational configuration UI and secret rotation
+## Durability, bounds and recovery
+
+Local insert and outbox insertion share the same SQLite transaction. On a full
+queue the linked-room send returns 503 `federation_backpressure` and rolls back
+both operations, including the sequence increment. Local idempotency keys still
+return their original successful result without creating another outbox row.
+
+Outbox states are `pending`, `inflight`, `delivered`, `dead`. Each claim increments
+attempts and persists a lease token and expiry. Default request timeout is five
+seconds, lease 30 seconds, scan interval 250 ms. Expired leases recover after
+restart; a stale worker cannot complete another attempt's lease. Responses must
+contain a receipt matching both origin IDs and a nonempty local message ID.
+
+Transport errors, bad ACKs, HTTP 408/429 and 5xx retry with exponential backoff
+starting at one second and capped at 30 seconds. Other unsuccessful statuses
+(including redirects, 401/403 and conflicts) become `dead`. Attempts are bounded
+to 1–20, default five. Dead work needs operator investigation; this PoC has no
+automatic retry-after-dead or management UI. Error records contain fixed error
+classes/HTTP statuses, not peer response bodies or credentials.
+
+The total outbox row cap is 1–10000 (default 1000). Oldest terminal rows can be
+evicted to admit new work; pending/inflight rows are never evicted. Dead payloads
+can consequently disappear from queue history, while their original local
+messages remain in normal message storage until local retention removes them.
+The deduplication receipt table has no automatic expiry, by design, and grows
+with unique imports. Monitor storage before any wider experiment.
+
+Changing or removing a mapping cannot retarget an immutable queued envelope:
+each dispatch checks the currently authorized peer and exact room mapping.
+Changing an address/secret is a coordinated startup operation, not live reload.
+One worker is run with the hub context and joined before closing the database.
+
+Backups include the federation tables. Restoring a node restores its identity
+and queue/receipt state; restoring an older snapshot can also roll back receipts.
+Do not treat this as exactly-once delivery across rollback, split brain, cloned
+identities, or concurrent restores. There is no cross-node ordering guarantee;
+the receiver assigns local order. This PoC deliberately makes no HA claim.
+
+## Verification
+
+```sh
+go test -count=1 ./internal/store -run Federation -v
+go test -count=1 ./internal/hub -run Federation -v
+go test -count=1 ./internal/cli -run Federation -v
+go test -count=1 ./...
+go vet ./...
+```
+
+The integration tests use two distinct temporary data directories and real
+loopback listeners on ephemeral ports. They cover bidirectional sends, lost ACK
+after successful import, concurrent duplicate/conflicting deliveries, unknown
+peers and wrong credentials, rejected third-node relay, unreachable-peer retry,
+queue/node restart recovery, default-off restart, maximum attempts and reverse
+links without re-forwarding. Store tests additionally exercise capacity rollback,
+lease expiry/stale-worker protection, persistent dedupe after local retention,
+bridge exclusion and mapping changes. No production data or real secrets are
+required.

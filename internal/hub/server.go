@@ -38,9 +38,9 @@ type Options struct {
 	FileUploadsPerMinute  int
 	MaxFileSize           int64
 	MaxStorageBytes       int64
-	FederationSecrets     map[string]string
 	FileDir               string
 	Logger                *log.Logger
+	Federation            *Federation
 }
 
 type Server struct {
@@ -115,6 +115,9 @@ func New(st *store.Store, opts Options) *Server {
 // Handler returns the contract HTTP handler. It listens on no socket itself.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	if s.opts.Federation != nil {
+		mux.HandleFunc("POST /federation/v1/messages", s.handleFederation)
+	}
 	mux.Handle("GET /", s.uiSecurity(http.HandlerFunc(s.handleUI)))
 	mux.Handle("GET /admin", s.uiSecurity(http.HandlerFunc(s.handleAdminUI)))
 	mux.Handle("GET /static/", s.uiSecurity(http.StripPrefix("/static/", http.FileServer(http.FS(web.FS)))))
@@ -130,7 +133,6 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/rooms/{room}/receipts", s.agentAuth(http.HandlerFunc(s.handleReceipts)))
 	mux.Handle("GET /v1/rooms/{room}/search", s.agentAuth(http.HandlerFunc(s.handleSearch)))
 	mux.Handle("POST /v1/dm", s.agentAuth(http.HandlerFunc(s.handleCreateDM)))
-	mux.Handle("POST /v1/federation/messages", http.HandlerFunc(s.handleFederationInbound))
 	mux.Handle("GET /v1/inbox", s.agentAuth(http.HandlerFunc(s.handleInbox)))
 	mux.Handle("POST /v1/ack", s.agentAuth(http.HandlerFunc(s.handleAck)))
 	mux.Handle("GET /v1/agents", s.agentAuth(http.HandlerFunc(s.handleAgents)))
@@ -144,16 +146,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/admin/audit", s.adminAuth(http.HandlerFunc(s.handleAudit)))
 	mux.Handle("POST /v1/admin/rooms", s.adminAuth(http.HandlerFunc(s.handleCreateRoom)))
 	mux.Handle("DELETE /v1/admin/rooms/{id}", s.adminAuth(http.HandlerFunc(s.handleArchiveRoom)))
-	mux.Handle("GET /v1/admin/federation", s.adminAuth(http.HandlerFunc(s.handleFederationStatus)))
-	mux.Handle("POST /v1/admin/federation/peers", s.adminAuth(http.HandlerFunc(s.handleCreateFederationPeer)))
-	mux.Handle("POST /v1/admin/federation/links", s.adminAuth(http.HandlerFunc(s.handleCreateFederationLink)))
 	return s.requestLog(mux)
 }
 
 // Serve runs an HTTP listener until ctx is cancelled and performs a bounded
 // graceful shutdown. The caller retains ownership of the Store.
 func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
-	go s.runFederation(ctx)
 	httpServer := &http.Server{Handler: s.Handler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
 	done := make(chan struct{})
 	go func() {
@@ -296,6 +294,10 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnprocessableEntity, "validation_failed", err.Error(), nil)
 			return
 		}
+	}
+	if req.Meta.Federation != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "meta.federation is reserved for authenticated peer imports", nil)
+		return
 	}
 	if len(req.Text) > protocol.MaxTextBytes {
 		writeError(w, http.StatusRequestEntityTooLarge, "payload_too_large", "message text is too large", map[string]any{"max_bytes": protocol.MaxTextBytes})
@@ -769,6 +771,8 @@ func (s *Server) internalError(w http.ResponseWriter, err error) {
 }
 func (s *Server) storeError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, store.ErrFederationFull):
+		writeError(w, http.StatusServiceUnavailable, "federation_backpressure", "federation outbox is full; retry later", nil)
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "resource not found", nil)
 	case errors.Is(err, store.ErrForbidden):

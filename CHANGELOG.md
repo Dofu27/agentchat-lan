@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.9.0] - 2026-10-20
+
+### Changed
+
+- Replaced the v0.8 prototype federation schema with Codex's durable PoC:
+  separate migration, stable node + bridge identity, room links, leased
+  outbox, atomic inbound receipts, payload-conflict detection, queue cap, and
+  explicit operator config.
+- Empty v0.8 federation tables are removed automatically; non-empty legacy
+  data requires manual migration.
+
+### Known limits
+
+- Text-only, one peer per hub, no file/DM/typing/receipt/backfill replication
+- Production HA and signed node identity remain out of scope
+
 ## [0.8.0] - 2026-10-20
 
 ### Added
