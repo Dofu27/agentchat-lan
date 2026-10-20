@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.4.2] - 2026-10-20
+
+### Added
+
+- `agentchat hub backup` with a consistent SQLite snapshot and `files/` archive
+- `agentchat hub restore` with path-traversal and archive-entry validation
+- `agentchat hub gc` with dry-run default, message retention, and unreferenced
+  file cleanup
+
+### Security
+
+- Backup archives are written with `0600` permissions.
+- Restore rejects absolute paths, `..`, symlinks, and non-regular entries.
+- GC only removes storage paths that resolve inside the data directory's
+  `files/` root.
+
 ## [0.4.1] - 2026-10-20
 
 ### Fixed
