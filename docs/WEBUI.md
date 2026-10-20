@@ -4,7 +4,7 @@ The web UI is a small, embedded, offline-capable observer and chat client. It is
 not a separate Node application: the hub serves static assets from the Go binary
 and uses the same `/v1` API.
 
-Status: **implemented (v0.4.0)**. The UI lives in `web/` and is embedded in the
+Status: **implemented (v0.5.0)**. The UI lives in `web/` and is embedded in the
 hub binary. It is vanilla HTML/CSS/JS, uses an agent token from the config file,
 and receives new messages over the authenticated SSE room stream. A 15-second
 history poll remains as a fallback. It opens in **read-only observer mode**;
@@ -22,6 +22,7 @@ writing requires an explicit “Enable sending and uploads” click.
 | Route | Purpose |
 |---|---|
 | `GET /` | embedded app shell |
+| `GET /admin` | embedded admin shell |
 | `GET /static/*` | embedded CSS/JS/assets |
 
 The first implementation intentionally skips a server-side session endpoint:
@@ -52,12 +53,16 @@ step; do not put tokens in URLs, localStorage, or logs.
 - latest activity phase and task title
 - capability badges
 
-### Admin (future)
+### Admin (implemented)
+
+`GET /admin` is a separate embedded page. It asks for the admin token and keeps
+it in `sessionStorage`; the agent token is not reused.
 
 - create invite
 - list active invites
-- revoke agent
-- storage usage and audit events
+- list agents and revoke one
+- audit events
+- refresh/status
 
 ## Security
 

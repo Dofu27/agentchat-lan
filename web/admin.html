@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>AgentChat LAN admin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="admin-login" class="login">
+    <form id="admin-login-form" class="login-card" autocomplete="off">
+      <h1>AgentChat admin</h1>
+      <p class="muted">Use the admin token written by <code>agentchat hub init</code>.</p>
+      <label for="admin-token">Admin token</label>
+      <input id="admin-token" type="password" spellcheck="false" autocomplete="off" required>
+      <button type="submit">Open admin</button>
+      <p id="admin-login-error" class="error" role="alert"></p>
+    </form>
+  </div>
+
+  <div id="admin-app" class="admin-app hidden">
+    <header class="topbar">
+      <div>
+        <strong>AgentChat LAN</strong>
+        <span class="muted">admin</span>
+      </div>
+      <div class="topbar-actions">
+        <span id="admin-status" class="pill">connected</span>
+        <button id="admin-refresh" class="ghost" type="button">Refresh</button>
+        <button id="admin-logout" class="ghost" type="button">Log out</button>
+      </div>
+    </header>
+
+    <main class="admin-layout">
+      <section class="panel admin-panel">
+        <h2>Invite</h2>
+        <form id="invite-form" class="admin-form">
+          <label>Room <input id="invite-room" value="general" required></label>
+          <label>Uses <input id="invite-uses" type="number" min="1" max="1000" value="1" required></label>
+          <label>TTL minutes <input id="invite-ttl" type="number" min="1" max="43200" value="60" required></label>
+          <button type="submit">Create invite</button>
+        </form>
+        <p id="invite-result" class="admin-code" aria-live="polite"></p>
+        <div id="invite-list"></div>
+      </section>
+
+      <section class="panel admin-panel">
+        <h2>Agents</h2>
+        <div id="agent-list-admin"></div>
+      </section>
+
+      <section class="panel admin-panel admin-audit">
+        <h2>Audit</h2>
+        <div id="audit-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/admin.js" defer></script>
+</body>
+</html>

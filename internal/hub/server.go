@@ -107,6 +107,7 @@ func New(st *store.Store, opts Options) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /", s.uiSecurity(http.HandlerFunc(s.handleUI)))
+	mux.Handle("GET /admin", s.uiSecurity(http.HandlerFunc(s.handleAdminUI)))
 	mux.Handle("GET /static/", s.uiSecurity(http.StripPrefix("/static/", http.FileServer(http.FS(web.FS)))))
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleReady)
@@ -122,6 +123,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /v1/files", s.agentAuth(s.fileUploadRate(http.HandlerFunc(s.handleUpload))))
 	mux.Handle("GET /v1/files/{id}", s.agentAuth(http.HandlerFunc(s.handleDownload)))
 	mux.Handle("HEAD /v1/files/{id}", s.agentAuth(http.HandlerFunc(s.handleDownload)))
+	mux.Handle("GET /v1/admin/agents", s.adminAuth(http.HandlerFunc(s.handleAgents)))
 	mux.Handle("POST /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleCreateInvite)))
 	mux.Handle("GET /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleListInvites)))
 	mux.Handle("DELETE /v1/admin/agents/{id}", s.adminAuth(http.HandlerFunc(s.handleRevokeAgent)))

@@ -26,12 +26,20 @@ func (s *Server) handleUI(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := web.FS.ReadFile("index.html")
+	s.serveWebFile(w, r, "index.html")
+}
+
+func (s *Server) handleAdminUI(w http.ResponseWriter, r *http.Request) {
+	s.serveWebFile(w, r, "admin.html")
+}
+
+func (s *Server) serveWebFile(w http.ResponseWriter, r *http.Request, name string) {
+	data, err := web.FS.ReadFile(name)
 	if err != nil {
 		s.internalError(w, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
-	http.ServeContent(w, r, "index.html", time.Time{}, bytes.NewReader(data))
+	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
 }
