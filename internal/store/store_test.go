@@ -51,7 +51,7 @@ func TestMigrationsAndAdminTokenAreDurableAndHashed(t *testing.T) {
 	if err = s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM rooms WHERE id=?`, protocol.DefaultRoom).Scan(&defaultRooms); err != nil {
 		t.Fatal(err)
 	}
-	if migrations != 3 || defaultRooms != 1 {
+	if migrations != 4 || defaultRooms != 1 {
 		t.Fatalf("migration/default room counts = %d/%d", migrations, defaultRooms)
 	}
 }

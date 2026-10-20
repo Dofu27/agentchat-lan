@@ -35,9 +35,10 @@ var (
 
 // Store owns a SQLite database. All public operations are safe for concurrent use.
 type Store struct {
-	db         *sql.DB
-	writeMu    sync.Mutex
-	federation *FederationLimits // runtime opt-in; nil on every ordinary Open
+	db              *sql.DB
+	writeMu         sync.Mutex
+	federationFiles bool
+	federation      *FederationLimits // runtime opt-in; nil on every ordinary Open
 }
 
 // Open opens or creates a database, applies forward-only migrations, and seeds

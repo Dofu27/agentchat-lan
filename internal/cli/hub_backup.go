@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Dofu27/agentchat-lan/internal/blobguard"
 	_ "modernc.org/sqlite"
 )
 
@@ -62,8 +63,24 @@ func (a *App) hubBackup(args []string) int {
 	if _, err := db.Exec(`PRAGMA busy_timeout=5000`); err != nil {
 		return a.fail(err)
 	}
+	var fileSchema int
+	if err = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name='federation_file_outbox' AND type='table'`).Scan(&fileSchema); err != nil {
+		return a.fail(err)
+	}
+	if fileSchema > 0 {
+		release, err := blobguard.Acquire(filepath.Join(absData, "files"))
+		if err != nil {
+			return a.fail(fmt.Errorf("stop attachment hub before backup: %w", err))
+		}
+		defer release()
+	}
 	if _, err := db.Exec(`VACUUM INTO '` + strings.ReplaceAll(filepath.ToSlash(snapshot), "'", "''") + `'`); err != nil {
 		return a.fail(fmt.Errorf("snapshot database: %w", err))
+	}
+	if fileSchema > 0 {
+		if err = validateFileRefs(snapshot, filepath.Join(absData, "files")); err != nil {
+			return a.fail(err)
+		}
 	}
 
 	tmpOut, err := os.CreateTemp(filepath.Dir(absOut), ".agentchat-backup-*")
@@ -190,6 +207,11 @@ func (a *App) hubRestore(args []string) int {
 	if err := os.MkdirAll(absData, 0o700); err != nil {
 		return a.fail(err)
 	}
+	release, err := blobguard.Acquire(filesPath)
+	if err != nil {
+		return a.fail(fmt.Errorf("stop attachment hub before restore: %w", err))
+	}
+	defer release()
 
 	oldDir := filepath.Join(absData, ".restore-old-"+time.Now().UTC().Format("20060102-150405"))
 	var oldDB, oldFiles string
@@ -297,7 +319,12 @@ func validateFileRefs(dbPath, filesRoot string) error {
 			return fmt.Errorf("file reference %q is not a regular file", rel)
 		}
 	}
-	return rows.Err()
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	return validateFederationSnapshot(db, filesRoot)
 }
 
 func movePath(src, dst string) error {

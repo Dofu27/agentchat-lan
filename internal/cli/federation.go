@@ -64,7 +64,7 @@ func (a *App) hubFederationOperations(args []string) int {
 
 // Credentials are read only from an operator-owned file, not stored in SQLite
 // or accepted as CLI arguments. All paths are relative to this config file.
-func loadFederation(ctx context.Context, st *store.Store, path string) (*hub.Federation, error) {
+func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs ...string) (*hub.Federation, error) {
 	var cfg struct {
 		Peer struct {
 			NodeID     string `json:"node_id"`
@@ -73,8 +73,11 @@ func loadFederation(ctx context.Context, st *store.Store, path string) (*hub.Fed
 			CAFile     string `json:"tls_ca_file"`
 		} `json:"peer"`
 		Links []struct {
-			LocalRoom  string `json:"local_room"`
-			RemoteRoom string `json:"remote_room"`
+			Attachments bool   `json:"attachments"`
+			LinkID      string `json:"link_id"`
+			Epoch       int64  `json:"epoch"`
+			LocalRoom   string `json:"local_room"`
+			RemoteRoom  string `json:"remote_room"`
 		} `json:"links"`
 		MaxOutbox   int `json:"max_outbox"`
 		MaxAttempts int `json:"max_attempts"`
@@ -119,7 +122,15 @@ func loadFederation(ctx context.Context, st *store.Store, path string) (*hub.Fed
 		return nil, errors.New("cannot read federation secret")
 	}
 	opts := hub.FederationOptions{Peer: hub.FederationPeerOptions{NodeID: cfg.Peer.NodeID, BaseURL: cfg.Peer.BaseURL, Secret: strings.TrimSpace(string(raw)), TLS: client.TLSOptions{CAFile: resolve(cfg.Peer.CAFile)}}, MaxOutbox: cfg.MaxOutbox, MaxAttempts: cfg.MaxAttempts}
+	if len(fileDirs) > 0 {
+		opts.FileDir = fileDirs[0]
+	}
 	for _, l := range cfg.Links {
+		if l.Attachments {
+			opts.FileLinks = append(opts.FileLinks, store.FederationFileLink{PeerID: cfg.Peer.NodeID, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom, LinkID: l.LinkID, Epoch: l.Epoch})
+		} else if l.LinkID != "" || l.Epoch != 0 {
+			return nil, errors.New("attachment link identity requires attachments=true")
+		}
 		opts.Links = append(opts.Links, store.FederationLink{PeerID: cfg.Peer.NodeID, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom})
 	}
 	return hub.NewFederation(ctx, st, opts)

@@ -34,6 +34,7 @@ type federationNode struct {
 	dropAck         atomic.Bool
 	requests        atomic.Int32
 	opts            hub.FederationOptions
+	handler         atomic.Pointer[http.Handler]
 }
 
 func newFederationNode(t *testing.T) *federationNode {
@@ -66,6 +67,7 @@ func (n *federationNode) startWithOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler := hub.New(n.st, hub.Options{Federation: n.fed, RequestsPerMinute: 1000, Burst: 100, Logger: log.New(io.Discard, "", 0), FileDir: filepath.Join(filepath.Dir(n.dbPath), "files")}).Handler()
+	n.handler.Store(&handler)
 	n.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/federation/v1/messages" {
 			n.requests.Add(1)
@@ -86,10 +88,11 @@ func (n *federationNode) startWithOptions(t *testing.T) {
 				return
 			}
 		}
-		handler.ServeHTTP(w, r)
+		(*n.handler.Load()).ServeHTTP(w, r)
 	})
 	n.server.Start()
 }
+func (n *federationNode) setHandler(h http.Handler) { n.handler.Store(&h) }
 func (n *federationNode) run() {
 	ctx, cancel := context.WithCancel(context.Background())
 	n.cancel = cancel

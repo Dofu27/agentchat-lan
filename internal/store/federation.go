@@ -107,7 +107,10 @@ INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(3,strftime('%
 	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return s.migrateFederationFiles(ctx)
 }
 
 // FederationIdentity explicitly provisions one stable node and an unloggable
@@ -207,8 +210,11 @@ func (s *Store) ConfigureFederation(ctx context.Context, peers []FederationPeer,
 }
 
 func (s *Store) enqueueFederation(ctx context.Context, tx *sql.Tx, m protocol.Message, kind string) error {
-	if s.federation == nil || kind != "room" || len(m.Files) > 0 || m.Meta.Activity != nil || m.Meta.Federation != nil || m.From.Kind == "federation" || m.From.Kind == "bridge" || m.From.Kind == "system" {
+	if s.federation == nil || kind != "room" || m.Meta.Activity != nil || m.Meta.Federation != nil || m.From.Kind == "federation" || m.From.Kind == "bridge" || m.From.Kind == "system" {
 		return nil
+	}
+	if len(m.Files) > 0 {
+		return s.enqueueFederationFiles(ctx, tx, m)
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT l.peer_id,l.remote_room,n.node_id FROM federation_room_links l JOIN federation_peers p ON p.node_id=l.peer_id CROSS JOIN federation_node n WHERE l.local_room=? AND l.enabled=1 AND p.enabled=1`, m.Room)
 	if err != nil {
@@ -294,6 +300,13 @@ func (s *Store) ImportFederation(ctx context.Context, peer string, e FederationE
 	}
 	if err != nil {
 		return receipt, err
+	}
+	var staged int
+	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM federation_file_transfers WHERE origin_node_id=? AND origin_message_id=?`, e.OriginNodeID, e.OriginMessageID).Scan(&staged); err != nil {
+		return receipt, err
+	}
+	if staged > 0 {
+		return receipt, ErrFederationConflict
 	}
 	var existingHash string
 	err = tx.QueryRowContext(ctx, "SELECT local_message_id,payload_hash FROM federation_inbox WHERE origin_node_id=? AND origin_message_id=?", e.OriginNodeID, e.OriginMessageID).Scan(&receipt.LocalMessageID, &existingHash)
