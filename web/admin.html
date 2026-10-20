@@ -48,6 +48,12 @@
 
       <section class="panel admin-panel">
         <h2 data-i18n="admin.agents">Agents</h2>
+        <form id="create-user-form" class="admin-form">
+          <label><span data-i18n="admin.name">Name</span> <input id="user-name" required pattern="[A-Za-z0-9._-]{1,64}"></label>
+          <label><span data-i18n="admin.kind">Kind</span> <input id="user-kind" value="human" required></label>
+          <label><span data-i18n="admin.room">Room</span> <input id="user-room" value="general" required></label>
+          <button type="submit" data-i18n="admin.create_user">Create user + token</button>
+        </form>
         <div id="agent-list-admin"></div>
         <div id="agent-token-result" class="admin-token-result hidden" aria-live="polite"></div>
       </section>

@@ -567,6 +567,62 @@ func (s *Store) ListAgents(ctx context.Context) ([]protocol.Agent, error) {
 	return out, rows.Err()
 }
 
+// CreateUserAgent creates an ordinary agent and returns its token once. This is
+// the one-step admin path for onboarding a human user.
+func (s *Store) CreateUserAgent(ctx context.Context, name, kind, room, actor string) (protocol.Agent, string, error) {
+	name = strings.TrimSpace(name)
+	kind = strings.TrimSpace(kind)
+	room = strings.TrimSpace(room)
+	if err := protocol.ValidateAgentName(name); err != nil {
+		return protocol.Agent{}, "", err
+	}
+	if kind == "" {
+		kind = "human"
+	}
+	if len(kind) > protocol.MaxNameLength {
+		return protocol.Agent{}, "", errors.New("agent kind is too long")
+	}
+	if room == "" {
+		room = protocol.DefaultRoom
+	}
+	if err := protocol.ValidateAgentName(room); err != nil {
+		return protocol.Agent{}, "", err
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return protocol.Agent{}, "", err
+	}
+	defer tx.Rollback()
+	var archived sql.NullString
+	if err := tx.QueryRowContext(ctx, `SELECT archived_at FROM rooms WHERE id=?`, room).Scan(&archived); errors.Is(err, sql.ErrNoRows) || archived.Valid {
+		return protocol.Agent{}, "", ErrNotFound
+	} else if err != nil {
+		return protocol.Agent{}, "", err
+	}
+	token := protocol.NewToken("agt")
+	now := time.Now().UTC()
+	agent := protocol.Agent{ID: "agt_" + protocol.NewID(), Name: name, Kind: kind, Status: protocol.StatusOffline, LastSeen: now}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO agents(id,name,kind,token_hash,status,created_at,last_seen) VALUES(?,?,?,?,?,?,?)`,
+		agent.ID, agent.Name, agent.Kind, hashToken(token), agent.Status, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)); err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "unique") {
+			return protocol.Agent{}, "", ErrConflict
+		}
+		return protocol.Agent{}, "", err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO memberships(room_id,agent_id,role,joined_at) VALUES(?,?,?,?)`, room, agent.ID, "member", now.Format(time.RFC3339Nano)); err != nil {
+		return protocol.Agent{}, "", err
+	}
+	if err := insertAudit(ctx, tx, actor, "agent.created_by_admin", map[string]any{"agent": agent.ID, "name": agent.Name, "room": room}); err != nil {
+		return protocol.Agent{}, "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return protocol.Agent{}, "", err
+	}
+	return agent, token, nil
+}
+
 // RotateAgentToken issues a new agent token and invalidates the previous one.
 // The plaintext token is returned exactly once; only its hash is stored.
 func (s *Store) RotateAgentToken(ctx context.Context, id, actor string) (string, error) {

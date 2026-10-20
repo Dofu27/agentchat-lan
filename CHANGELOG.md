@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.14.0] - 2026-10-20
+
+### Added
+
+- Admin **Create user + token** form in the Agents panel
+- `POST /v1/admin/agents` creates an ordinary agent in a room and returns its
+  token once
+- New user appears in the Agents table immediately; old invite/join flow remains
+- Audit event `agent.created_by_admin`
+
 ## [0.13.1] - 2026-10-20
 
 ### Added

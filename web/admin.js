@@ -188,6 +188,27 @@
     }
   }
 
+  async function createUser(event) {
+    event.preventDefault();
+    const name = $("user-name").value.trim();
+    if (!name) return;
+    try {
+      const out = await api("/v1/admin/agents", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          kind: $("user-kind").value.trim() || "human",
+          room: $("user-room").value.trim() || "general",
+        }),
+      });
+      showAgentToken(out.agent.name, out.token);
+      $("user-name").value = "";
+      await refresh();
+    } catch (err) {
+      setStatus(err.message || String(err), false);
+    }
+  }
+
   async function createInvite(event) {
     event.preventDefault();
     $("invite-result").textContent = "";
@@ -256,6 +277,7 @@
     }
   });
   $("invite-form").addEventListener("submit", createInvite);
+  $("create-user-form").addEventListener("submit", createUser);
   $("admin-refresh").addEventListener("click", refresh);
   $("admin-logout").addEventListener("click", () => logout(""));
 
