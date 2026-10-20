@@ -143,6 +143,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/files/{id}", s.agentAuth(http.HandlerFunc(s.handleDownload)))
 	mux.Handle("HEAD /v1/files/{id}", s.agentAuth(http.HandlerFunc(s.handleDownload)))
 	mux.Handle("GET /v1/admin/agents", s.adminAuth(http.HandlerFunc(s.handleAgents)))
+	mux.Handle("POST /v1/admin/token", s.adminAuth(http.HandlerFunc(s.handleRotateAdminToken)))
 	mux.Handle("POST /v1/admin/agents", s.adminAuth(http.HandlerFunc(s.handleCreateUserAgent)))
 	mux.Handle("POST /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleCreateInvite)))
 	mux.Handle("GET /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleListInvites)))
@@ -522,6 +523,15 @@ func (s *Server) handleListInvites(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"invites": invites})
 }
+func (s *Server) handleRotateAdminToken(w http.ResponseWriter, r *http.Request) {
+	token, err := s.store.RotateAdminToken(r.Context(), "admin")
+	if err != nil {
+		s.internalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"token": token})
+}
+
 func (s *Server) handleCreateUserAgent(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`

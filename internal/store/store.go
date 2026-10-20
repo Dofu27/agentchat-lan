@@ -217,6 +217,35 @@ func (s *Store) EnsureAdminToken(ctx context.Context) (string, bool, error) {
 	return "", false, errors.New("admin token was initialized concurrently; retrieve it from the initializer")
 }
 
+// RotateAdminToken replaces the admin credential and returns the new plaintext
+// token exactly once. The caller is already authenticated with the old token.
+func (s *Store) RotateAdminToken(ctx context.Context, actor string) (string, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	token := protocol.NewToken("adm")
+	res, err := tx.ExecContext(ctx, `UPDATE settings SET value=? WHERE key='admin_token_hash'`, hashToken(token))
+	if err != nil {
+		return "", err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO settings(key,value) VALUES('admin_token_hash',?)`, hashToken(token)); err != nil {
+			return "", err
+		}
+	}
+	if err := insertAudit(ctx, tx, actor, "admin.token_rotated", nil); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
 func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
