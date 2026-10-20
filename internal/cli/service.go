@@ -13,7 +13,7 @@ const defaultServiceName = "agentchat-agent"
 
 func (a *App) cmdService(args []string) int {
 	if len(args) == 0 {
-		return a.fail(fmt.Errorf("usage: agentchat service install|uninstall|status"))
+		return a.fail(fmt.Errorf("usage: agentchat service install|uninstall|status|run"))
 	}
 	switch args[0] {
 	case "install":
@@ -22,6 +22,8 @@ func (a *App) cmdService(args []string) int {
 		return a.serviceUninstall(args[1:])
 	case "status":
 		return a.serviceStatus(args[1:])
+	case "run":
+		return a.serviceRun(args[1:])
 	default:
 		return a.fail(fmt.Errorf("unknown service command %q", args[0]))
 	}

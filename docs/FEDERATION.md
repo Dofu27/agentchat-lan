@@ -162,6 +162,25 @@ existing shared client transport. All file paths are relative to the federation
 config. No TLS private key is read or transferred by the federation client.
 Redirects are never followed, including same-origin redirects.
 
+## Windows always-on node
+
+`agentchat service run --name <name> --log <path> -- <hub arguments>` is a
+small Windows service wrapper. It starts the child `hub serve` process, reports
+`Running`, and terminates the child on SCM stop/shutdown. Install it as an
+Automatic LocalSystem service with an explicit command line, for example:
+
+```powershell
+sc.exe create AgentChatFedB binPath= `
+  '"C:\agentchat\agentchat.exe" service run --name AgentChatFedB --log C:\agentchat\hub.log -- hub serve --data C:\agentchat\data --listen 0.0.0.0:8788 --tls-cert C:\agentchat\server.crt --tls-key C:\agentchat\server.key --federation-config C:\agentchat\federation.json' `
+  start= auto obj= LocalSystem
+sc.exe failure AgentChatFedB reset= 86400 actions= restart/5000/restart/5000/restart/5000
+sc.exe start AgentChatFedB
+```
+
+The data directory, TLS key, federation config and secret must be readable by
+the service account. Do not use a logon-only scheduled task for a node that
+must stay online. Verify with `sc.exe query` and the hub `/healthz` endpoint.
+
 ## Wire protocol and authorization
 
 Only opted-in hubs expose `POST /federation/v1/messages`. It uses a dedicated
