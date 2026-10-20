@@ -146,6 +146,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleCreateInvite)))
 	mux.Handle("GET /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleListInvites)))
 	mux.Handle("DELETE /v1/admin/agents/{id}", s.adminAuth(http.HandlerFunc(s.handleRevokeAgent)))
+	mux.Handle("POST /v1/admin/agents/{id}/token", s.adminAuth(http.HandlerFunc(s.handleRotateAgentToken)))
 	mux.Handle("GET /v1/admin/audit", s.adminAuth(http.HandlerFunc(s.handleAudit)))
 	mux.Handle("POST /v1/admin/rooms", s.adminAuth(http.HandlerFunc(s.handleCreateRoom)))
 	mux.Handle("DELETE /v1/admin/rooms/{id}", s.adminAuth(http.HandlerFunc(s.handleArchiveRoom)))
@@ -520,6 +521,16 @@ func (s *Server) handleListInvites(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"invites": invites})
 }
+func (s *Server) handleRotateAgentToken(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	token, err := s.store.RotateAgentToken(r.Context(), id, "admin")
+	if err != nil {
+		s.storeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"agent_id": id, "token": token})
+}
+
 func (s *Server) handleRevokeAgent(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.RevokeAgent(r.Context(), r.PathValue("id"), "admin"); err != nil {
 		s.storeError(w, err)
