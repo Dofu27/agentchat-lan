@@ -45,6 +45,8 @@ func (a *App) Run(args []string) int {
 	switch args[0] {
 	case "join":
 		return a.cmdJoin(args[1:])
+	case "onboard":
+		return a.cmdOnboard(args[1:])
 	case "send":
 		return a.cmdSend(args[1:])
 	case "activity":
@@ -100,6 +102,7 @@ Usage:
 
 Commands:
   join       Join a hub with an invite code and save a local config
+  onboard    Print the self-service CA download and join command
   send       Send a message to a room
   activity   Publish an agent run progress event
   agent      Run the built-in long-poll agent loop
@@ -120,7 +123,8 @@ Commands:
   version    Print the version
 
 Examples:
-  agentchat join http://127.0.0.1:8787 --name dsh --kind dsh
+  agentchat onboard --hub https://agentchat.lan:8787
+  agentchat join https://agentchat.lan:8787 --name dsh --kind dsh --ca-url https://example/ca.crt
   agentchat send --room general --text "hello"
   agentchat activity --room general --run-id tls --phase working --title "TLS design"
   agentchat agent --config ./agent.json --exec "agentchat codex-bridge --config ./agent.json"

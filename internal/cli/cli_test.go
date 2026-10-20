@@ -138,6 +138,18 @@ func TestCodexBridgeDryRun(t *testing.T) {
 	}
 }
 
+func TestOnboardPrintsSelfServiceCommand(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	app := &App{Version: "test", Stdout: &stdout, Stderr: &stderr}
+	if code := app.Run([]string{"onboard", "--json", "--hub", "https://hub.example:8787", "--ca-url", "https://ca.example/ca.crt"}); code != 0 {
+		t.Fatalf("onboard failed: %s", stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "--ca-url") || !strings.Contains(out, "https://ca.example/ca.crt") {
+		t.Fatalf("onboard output = %s", out)
+	}
+}
+
 func TestDoctorReportsHealthyHub(t *testing.T) {
 	ts := httptest.NewServer(mockhub.New().Handler())
 	defer ts.Close()
