@@ -125,6 +125,12 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("POST /v1/admin/federation/outbox/{id}/retry", s.adminAuth(http.HandlerFunc(s.handleFederationOperatorRetry)))
 		mux.HandleFunc("POST /federation/v1/messages", s.handleFederation)
 		mux.HandleFunc("GET /federation/v2/capabilities", s.handleFederationCapabilities)
+		if len(s.opts.Federation.opts.DMConversations) > 0 {
+			mux.HandleFunc("POST /federation/v2/dm/messages", s.handleFederationDM)
+			for _, method := range []string{"GET", "POST", "DELETE"} {
+				mux.Handle(method+" /v1/dm/remote", s.agentAuth(http.HandlerFunc(s.handleRemoteDM)))
+			}
+		}
 		if len(s.opts.Federation.opts.FileLinks) > 0 {
 			mux.HandleFunc("POST /federation/v2/messages", s.handleFederationFiles)
 			mux.HandleFunc("GET /federation/v2/blobs/{sha}", s.handleFederationBlob)
@@ -163,12 +169,17 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /v1/admin/rooms", s.adminAuth(http.HandlerFunc(s.handleCreateRoom)))
 	mux.Handle("DELETE /v1/admin/rooms/{id}", s.adminAuth(http.HandlerFunc(s.handleArchiveRoom)))
 	var handler http.Handler = mux
-	if s.opts.Federation == nil || len(s.opts.Federation.opts.FileLinks) == 0 {
+	{
 		// The UI's GET / catch-all otherwise turns unknown POSTs into 405.
 		// Keep the entire disabled operations namespace at 404 without
 		// registering admin routes or exposing authentication behavior.
 		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if (s.opts.Federation == nil && (r.URL.Path == "/v1/admin/federation" || strings.HasPrefix(r.URL.Path, "/v1/admin/federation/"))) || (strings.HasPrefix(r.URL.Path, "/federation/v2/") && (s.opts.Federation == nil || r.URL.Path != "/federation/v2/capabilities")) {
+			f := s.opts.Federation
+			disabled := f == nil
+			dmRoute := r.URL.Path == "/v1/dm/remote" || strings.HasPrefix(r.URL.Path, "/v1/dm/remote/") || r.URL.Path == "/federation/v2/dm" || strings.HasPrefix(r.URL.Path, "/federation/v2/dm/")
+			fileRoute := r.URL.Path == "/federation/v2/messages" || strings.HasPrefix(r.URL.Path, "/federation/v2/blobs/")
+			federationRoute := strings.HasPrefix(r.URL.Path, "/federation/") || strings.HasPrefix(r.URL.Path, "/v1/admin/federation")
+			if disabled && federationRoute || dmRoute && (disabled || len(f.opts.DMConversations) == 0) || fileRoute && (disabled || len(f.opts.FileLinks) == 0) {
 				http.NotFound(w, r)
 				return
 			}
@@ -637,6 +648,9 @@ func (s *Server) handleCreateDM(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleReceipts(w http.ResponseWriter, r *http.Request) {
+	if s.federatedDMControlDisabled(w, r) {
+		return
+	}
 	room := r.PathValue("room")
 	me := agentFrom(r.Context())
 	if _, _, err := s.store.History(r.Context(), me.ID, room, 0, 0, 1); err != nil {

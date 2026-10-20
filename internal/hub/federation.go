@@ -28,17 +28,18 @@ type FederationPeerOptions struct {
 	TLS     client.TLSOptions
 }
 type FederationOptions struct {
-	Peer           FederationPeerOptions
-	FileLinks      []store.FederationFileLink
-	FileDir        string
-	notify         func()
-	Links          []store.FederationLink
-	MaxOutbox      int
-	MaxAttempts    int
-	RetryBase      time.Duration
-	PollInterval   time.Duration
-	RequestTimeout time.Duration
-	LeaseDuration  time.Duration
+	Peer            FederationPeerOptions
+	FileLinks       []store.FederationFileLink
+	DMConversations []store.FederationDMConversation
+	FileDir         string
+	notify          func()
+	Links           []store.FederationLink
+	MaxOutbox       int
+	MaxAttempts     int
+	RetryBase       time.Duration
+	PollInterval    time.Duration
+	RequestTimeout  time.Duration
+	LeaseDuration   time.Duration
 }
 type Federation struct {
 	store      *store.Store
@@ -102,6 +103,10 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 		return nil, err
 	}
 	if err = st.ConfigureFederationFiles(ctx, opts.FileLinks); err != nil {
+		c.HTTP.CloseIdleConnections()
+		return nil, err
+	}
+	if err = st.ConfigureFederationDM(ctx, p.NodeID, opts.DMConversations); err != nil {
 		c.HTTP.CloseIdleConnections()
 		return nil, err
 	}

@@ -169,6 +169,7 @@ type MessageMeta struct {
 
 // FederationMeta records untrusted remote attribution; From remains a local agent.
 type FederationMeta struct {
+	ConversationID  string    `json:"conversation_id,omitempty"`
 	OriginNodeID    string    `json:"origin_node_id"`
 	OriginMessageID string    `json:"origin_message_id"`
 	OriginRoom      string    `json:"origin_room"`

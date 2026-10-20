@@ -109,6 +109,7 @@
   }
 
   async function sendTyping(typing) {
+    if (isFederatedDM()) return;
     if (!state.room || !state.writeEnabled) return;
     state.typingSent = typing;
     try {
@@ -333,6 +334,7 @@
   }
 
   function updateMentionMenu() {
+    if (isFederatedDM()) {closeMentionMenu();return;}
     if (state.composing) return;
     const ctx = mentionContext();
     if (!ctx) {
@@ -487,6 +489,8 @@
     scheduleAck();
   }
 
+  function isFederatedDM() { return state.rooms.some((room) => room.id === state.room && room.kind === "federated_dm"); }
+
   function renderRooms() {
     const list = $("room-list");
     const dmList = $("dm-list");
@@ -496,8 +500,9 @@
       const li = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      const direct = room.kind === "dm";
-      button.textContent = direct ? "@" + (room.name || room.id) : "#" + room.id;
+      const remote = room.kind === "federated_dm";
+      const direct = room.kind === "dm" || remote;
+      button.textContent = remote ? t("chat.federated_dm") + " · " + (room.name || room.id) : direct ? "@" + (room.name || room.id) : "#" + room.id;
       button.classList.toggle("active", room.id === state.room);
       button.addEventListener("click", () => selectRoom(room.id));
       li.appendChild(button);
@@ -539,6 +544,7 @@
   }
 
   async function loadReceipts() {
+    if (isFederatedDM()) return;
     if (!state.room) return;
     try {
       const body = await api("/v1/rooms/" + encodeURIComponent(state.room) + "/receipts");
@@ -663,8 +669,14 @@
     state.lastSeq = 0;
     state.activities.clear();
     const room = state.rooms.find((r) => r.id === roomID);
-    $("room-title").textContent = room && room.kind === "dm" ? "@" + (room.name || roomID) : "#" + roomID;
-    $("room-topic").textContent = room && room.topic ? room.topic : "";
+    const remote = room && room.kind === "federated_dm";
+    $("room-title").textContent = remote ? t("chat.federated_dm") + " · " + room.name : room && room.kind === "dm" ? "@" + (room.name || roomID) : "#" + roomID;
+    $("room-topic").textContent = (remote ? t("chat.federated_notice") + " " : "") + (room && room.topic ? room.topic : "");
+    $("file-input").disabled = !!remote;
+    $("file-input").closest("label").classList.toggle("hidden", !!remote);
+    state.selectedFile = null;
+    $("file-input").value = "";
+    $("file-label").textContent = "";
     $("receipts").textContent = "";
     $("messages").replaceChildren();
     closeSearch();
@@ -700,6 +712,7 @@
   }
 
   async function uploadSelectedFile() {
+    if (isFederatedDM()) throw new Error(t("chat.federated_notice"));
     if (!state.selectedFile) return null;
     const form = new FormData();
     form.append("file", state.selectedFile);
