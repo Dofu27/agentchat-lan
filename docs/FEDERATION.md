@@ -1,5 +1,8 @@
 # Two-node federation PoC
 
+Opt-in v2 attachment work is documented in [F0/F1 attachments](FEDERATION_FILES.md).
+V1 text and its defaults remain unchanged; test attachment links separately.
+
 ## Operator operations
 
 The following routes are registered **only** when `hub serve
