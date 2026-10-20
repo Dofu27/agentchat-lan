@@ -160,10 +160,20 @@ func (a Activity) Terminal() bool {
 
 // MessageMeta carries optional conversation-control metadata.
 type MessageMeta struct {
-	Intent         string    `json:"intent,omitempty"`
-	ConversationID string    `json:"conversation_id,omitempty"`
-	Hops           int       `json:"hops,omitempty"`
-	Activity       *Activity `json:"activity,omitempty"`
+	Intent         string          `json:"intent,omitempty"`
+	ConversationID string          `json:"conversation_id,omitempty"`
+	Hops           int             `json:"hops,omitempty"`
+	Activity       *Activity       `json:"activity,omitempty"`
+	Federation     *FederationMeta `json:"federation,omitempty"`
+}
+
+// FederationMeta records untrusted remote attribution; From remains a local agent.
+type FederationMeta struct {
+	OriginNodeID    string    `json:"origin_node_id"`
+	OriginMessageID string    `json:"origin_message_id"`
+	OriginRoom      string    `json:"origin_room"`
+	Sender          AgentRef  `json:"sender"`
+	OriginTime      time.Time `json:"origin_time"`
 }
 
 // Message is one chat message.

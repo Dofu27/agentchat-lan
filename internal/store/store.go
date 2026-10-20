@@ -35,8 +35,9 @@ var (
 
 // Store owns a SQLite database. All public operations are safe for concurrent use.
 type Store struct {
-	db      *sql.DB
-	writeMu sync.Mutex
+	db         *sql.DB
+	writeMu    sync.Mutex
+	federation *FederationLimits // runtime opt-in; nil on every ordinary Open
 }
 
 // Open opens or creates a database, applies forward-only migrations, and seeds
@@ -81,6 +82,10 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, err
 	}
 	if err := s.ensureDefaultRoom(ctx); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := s.migrateFederation(ctx); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -746,10 +751,13 @@ func (s *Store) SendMessage(ctx context.Context, agentID, roomID string, req pro
 			return SendResult{}, err
 		}
 	}
+	m := protocol.Message{ID: id, Room: roomID, Seq: seq, From: sender, Kind: kind, Text: req.Text, ReplyTo: req.ReplyTo, Mentions: append([]string(nil), mentions...), Files: files, Meta: req.Meta, TS: now}
+	if err = s.enqueueFederation(ctx, tx, m, roomKind); err != nil {
+		return SendResult{}, err
+	}
 	if err = tx.Commit(); err != nil {
 		return SendResult{}, err
 	}
-	m := protocol.Message{ID: id, Room: roomID, Seq: seq, From: sender, Kind: kind, Text: req.Text, ReplyTo: req.ReplyTo, Mentions: append([]string(nil), mentions...), Files: files, Meta: req.Meta, TS: now}
 	return SendResult{Message: m}, nil
 }
 

@@ -30,6 +30,8 @@ func (a *App) cmdHub(args []string) int {
 		return a.hubInit(args[1:])
 	case "serve":
 		return a.hubServe(args[1:])
+	case "federation-id":
+		return a.hubFederationID(args[1:])
 	case "invite":
 		return a.hubInvite(args[1:])
 	case "list-invites":
@@ -62,7 +64,9 @@ Usage:
   agentchat hub init   --data <dir> [--admin-token-file <path>] [--json]
   agentchat hub serve  --data <dir> [--listen 127.0.0.1:8787]
                        [--tls-cert <path> --tls-key <path>]
+                       [--federation-config <path>] (two-node PoC only)
                        [--max-storage-bytes <n>]
+  agentchat hub federation-id --data <dir>
   agentchat hub invite --data <dir> [--room general] [--name <agent>]
                        [--ttl 24h] [--uses 1] [--json]
   agentchat hub list-invites --data <dir> [--json]
@@ -146,6 +150,7 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 	burst := fs.Int("burst", 20, "per-agent burst")
 	uploadsPerMinute := fs.Int("uploads-per-minute", 10, "per-agent file upload budget")
 	maxStorageBytes := fs.Int64("max-storage-bytes", 0, "hub-wide file storage quota in bytes; 0 is unlimited")
+	federationConfig := fs.String("federation-config", "", "operator federation config; omitted disables federation")
 	codeExit, ok := a.parse(fs, args)
 	if !ok {
 		return codeExit
@@ -184,6 +189,13 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 		return a.fail(err)
 	}
 	defer st.Close()
+	var fed *hub.Federation
+	if *federationConfig != "" {
+		fed, err = loadFederation(ctx, st, *federationConfig)
+		if err != nil {
+			return a.fail(err)
+		}
+	}
 
 	srv := hub.New(st, hub.Options{
 		Version:              a.Version,
@@ -194,10 +206,18 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 		MaxStorageBytes:      *maxStorageBytes,
 		FileDir:              filepath.Join(*data, "files"),
 		Logger:               log.New(a.Stderr, "hub ", log.LstdFlags),
+		Federation:           fed,
 	})
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return a.fail(err)
+	}
+	if fed != nil && tlsConfig == nil {
+		addr, ok := ln.Addr().(*net.TCPAddr)
+		if !ok || !addr.IP.IsLoopback() {
+			ln.Close()
+			return a.fail(fmt.Errorf("federation requires HTTPS on non-loopback listeners"))
+		}
 	}
 	scheme := "http"
 	if tlsConfig != nil {
@@ -207,7 +227,26 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 		fmt.Fprintln(a.Stderr, "WARNING: non-loopback HTTP listener is insecure; tokens and traffic are unencrypted. Use --tls-cert and --tls-key to enable HTTPS.")
 	}
 	fmt.Fprintf(a.Stdout, "hub listening on %s://%s data=%s\n", scheme, ln.Addr().String(), *data)
-	if err := srv.Serve(ctx, ln); err != nil {
+	serveCtx, cancelServe := context.WithCancel(ctx)
+	defer cancelServe()
+	workerDone := make(chan error, 1)
+	if fed != nil {
+		go func() {
+			err := fed.Run(serveCtx)
+			workerDone <- err
+			if err != nil {
+				cancelServe()
+			}
+		}()
+	}
+	err = srv.Serve(serveCtx, ln)
+	cancelServe()
+	if fed != nil {
+		if workerErr := <-workerDone; workerErr != nil {
+			return a.fail(workerErr)
+		}
+	}
+	if err != nil {
 		return a.fail(err)
 	}
 	fmt.Fprintln(a.Stdout, "hub stopped")
