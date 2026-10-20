@@ -40,8 +40,9 @@ The console binds an ephemeral loopback-only HTTP port for its own WebView2
 page and closes it when the window closes. All `/api` requests require a
 per-launch random capability injected by the native WebView; the HTML alone
 does not grant access. Host/Origin and JSON content-type checks reject
-cross-site and DNS-rebinding attempts. Only literal loopback listen addresses
-are accepted, and the bound address is checked again after `listen`.
+cross-site and DNS-rebinding attempts. Listen addresses must resolve to a
+loopback address (`127.0.0.1`, `::1`, or `localhost`), and the bound address is
+checked again after `listen`.
 Hub admin requests refuse redirects and only attach the token to the configured
 HTTPS origin; `tls_ca_file` can pin the internal CA.
 

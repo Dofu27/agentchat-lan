@@ -157,13 +157,23 @@
     const el = $(id); el.textContent = text; el.classList.toggle("ok", ok === true); el.classList.toggle("bad", ok === false);
   }
   function renderService(st) {
-    if (!st || !st.installed) { pill("service-state", t("service.not_installed"), false); return; }
+    if (!st || !st.installed) {
+      pill("service-state", t("service.not_installed"), false);
+      $("start").disabled = true; $("stop").disabled = true; $("restart").disabled = true; $("startup").disabled = true;
+      return;
+    }
     pill("service-state", t("state." + st.state) || st.state, st.state === "running");
     setText("service-name", st.name || "");
     setText("service-pid", st.pid ? "PID " + st.pid : "");
     const auto = st.startup === "automatic";
     $("startup").checked = auto;
+    $("startup").disabled = false;
     setText("startup-state", t("startup." + st.startup) || st.startup || "");
+    const running = st.state === "running" || st.state === "starting";
+    const stopped = st.state === "stopped" || st.state === "stopping";
+    $("start").disabled = running;
+    $("stop").disabled = stopped;
+    $("restart").disabled = false;
   }
   function renderFederation(fed, err) {
     setText("fed-error", err || "");

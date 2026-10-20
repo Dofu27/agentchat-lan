@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.12.3] - 2026-10-20
+
+### Fixed
+
+- Desktop console no longer reports "An instance of the service is already
+  running" when Start is clicked during normal operation; Start/Stop are
+  disabled according to service state and backend start/stop are idempotent
+- Single-instance mutex prevents duplicate console windows
+- Capability injection is restricted to the exact console origin and top frame
+
 ## [0.12.2] - 2026-10-20
 
 ### Security
