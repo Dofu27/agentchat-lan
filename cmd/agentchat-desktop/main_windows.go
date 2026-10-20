@@ -4,6 +4,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -12,8 +17,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,6 +42,7 @@ type config struct {
 type app struct {
 	cfg   config
 	token string
+	cap   string
 	http  *http.Client
 }
 
@@ -87,13 +95,54 @@ func main() {
 	if cfg.Height < 600 {
 		cfg.Height = 780
 	}
+	hubURL, err := url.Parse(cfg.HubURL)
+	if err != nil || hubURL.Host == "" || (hubURL.Scheme != "https" && hubURL.Scheme != "http") {
+		log.Fatalf("hub_url must be an http(s) URL")
+	}
+	if hubURL.Scheme != "https" && !isLoopbackHostName(hubURL.Hostname()) {
+		log.Fatalf("hub_url must use https outside loopback")
+	}
+	caFile := cfg.CAFile
+	if caFile != "" && !filepath.IsAbs(caFile) && cfgPath != "" {
+		caFile = filepath.Join(filepath.Dir(cfgPath), caFile)
+	}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+	if caFile != "" {
+		pem, err := os.ReadFile(caFile)
+		if err != nil {
+			log.Fatalf("read hub CA: %v", err)
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(pem) {
+			log.Fatalf("hub CA contains no certificates")
+		}
+		tlsConfig.RootCAs = pool
+	}
+	client := &http.Client{
+		Timeout:   8 * time.Second,
+		Transport: &http.Transport{TLSClientConfig: tlsConfig, ForceAttemptHTTP2: true},
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return errors.New("hub redirect refused")
+		},
+	}
 	token := ""
 	if cfg.TokenFile != "" {
-		if data, err := os.ReadFile(cfg.TokenFile); err == nil {
+		tokenFile := cfg.TokenFile
+		if !filepath.IsAbs(tokenFile) && cfgPath != "" {
+			tokenFile = filepath.Join(filepath.Dir(cfgPath), tokenFile)
+		}
+		if data, err := os.ReadFile(tokenFile); err == nil {
 			token = strings.TrimSpace(string(data))
 		}
 	}
-	a := &app{cfg: cfg, token: token, http: &http.Client{Timeout: 8 * time.Second}}
+	capability, err := newCapability()
+	if err != nil {
+		log.Fatal(err)
+	}
+	a := &app{cfg: cfg, token: token, cap: capability, http: client}
 
 	ln, srv, err := a.startServer(listen)
 	if err != nil {
@@ -106,7 +155,7 @@ func main() {
 		}
 	}()
 	if headless {
-		fmt.Printf("http://%s/\n", ln.Addr().String())
+		fmt.Printf("url=http://%s/\ncapability=%s\n", ln.Addr().String(), a.cap)
 		select {}
 	}
 
@@ -120,25 +169,97 @@ func main() {
 		log.Fatal("WebView2 runtime is not available; install Microsoft Edge WebView2 Runtime")
 	}
 	defer w.Destroy()
+	w.Init("window.__agentchatDesktopCapability = " + strconv.Quote(a.cap) + ";")
 	w.Navigate("http://" + ln.Addr().String() + "/")
 	w.Run()
 }
 
+func newCapability() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func isLoopbackHostName(host string) bool {
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func validateLoopbackListen(listen string) error {
+	host, _, err := net.SplitHostPort(listen)
+	if err != nil {
+		return err
+	}
+	if !isLoopbackHostName(host) {
+		return fmt.Errorf("desktop console may only bind a loopback address")
+	}
+	return nil
+}
+
+func (a *app) hostAllowed(hostport string) bool {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return false
+	}
+	return isLoopbackHostName(host)
+}
+
+func (a *app) api(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !a.hostAllowed(r.Host) {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "untrusted host"})
+			return
+		}
+		if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "untrusted origin"})
+			return
+		}
+		if r.Method == http.MethodPost && !strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "application/json") {
+			writeJSON(w, http.StatusUnsupportedMediaType, map[string]any{"error": "application/json required"})
+			return
+		}
+		got := strings.TrimSpace(r.Header.Get("X-AgentChat-Desktop-Capability"))
+		if subtle.ConstantTimeCompare([]byte(got), []byte(a.cap)) != 1 {
+			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "desktop capability required"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
+	if err := validateLoopbackListen(listen); err != nil {
+		return nil, nil, err
+	}
 	ln, err := net.Listen("tcp", listen)
 	if err != nil {
 		return nil, nil, err
 	}
+	tcp, ok := ln.Addr().(*net.TCPAddr)
+	if !ok || tcp.IP == nil || !tcp.IP.IsLoopback() {
+		ln.Close()
+		return nil, nil, fmt.Errorf("desktop console bound a non-loopback address")
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		if !a.hostAllowed(r.Host) {
+			http.Error(w, "untrusted host", http.StatusForbidden)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = io.WriteString(w, desktopHTML)
 	})
-	mux.HandleFunc("GET /api/status", a.handleStatus)
-	mux.HandleFunc("POST /api/service", a.handleService)
-	mux.HandleFunc("GET /api/federation/outbox", a.handleOutbox)
-	mux.HandleFunc("POST /api/federation/retry", a.handleRetry)
+	mux.Handle("GET /api/status", a.api(http.HandlerFunc(a.handleStatus)))
+	mux.Handle("POST /api/service", a.api(http.HandlerFunc(a.handleService)))
+	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
+	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
 }
 

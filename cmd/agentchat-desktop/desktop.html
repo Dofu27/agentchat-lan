@@ -143,7 +143,11 @@
     const el = $("toast"); el.textContent = message || ""; el.classList.toggle("bad", !!bad);
   }
   async function api(path, options) {
-    const res = await fetch(path, options);
+    const opts = Object.assign({}, options || {});
+    const headers = Object.assign({}, opts.headers || {});
+    if (window.__agentchatDesktopCapability) headers["X-AgentChat-Desktop-Capability"] = window.__agentchatDesktopCapability;
+    opts.headers = headers;
+    const res = await fetch(path, opts);
     let body = null;
     try { body = await res.json(); } catch (_) {}
     if (!res.ok) throw new Error((body && body.error) || ("HTTP " + res.status));

@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.12.2] - 2026-10-20
+
+### Security
+
+- Desktop API requires a per-launch capability injected into the embedded
+  WebView; fetching the HTML alone is not authentication
+- Strict loopback Host/Origin checks and JSON Content-Type on POST
+- Listener rejects non-loopback addresses and rechecks the bound address
+- Hub client refuses redirects and loads `tls_ca_file` into its TLS transport
+- Admin token is never followed across a redirect or downgraded to HTTP
+
 ## [0.12.0] - 2026-10-20
 
 ### Added
