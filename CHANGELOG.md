@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.4.6] - 2026-10-20
+
+### Security
+
+- Restore now validates the backup database with `PRAGMA integrity_check`,
+  required tables, file references, and regular-file checks before replacing
+  existing data.
+- Restore removes stale `-wal`/`-shm` sidecars and keeps the previous database
+  and files in `.restore-old-*` for rollback.
+- GC resolves the files root and refuses symlink/junction escapes; unsafe rows
+  are retained instead of being deleted.
+- Codex bridge dedupe keys include hub, agent, thread, and message ID; queue
+  command failure clears the pending entry so a later turn cannot falsely
+  confirm a message that was never enqueued.
+
 ## [0.4.5] - 2026-10-20
 
 ### Changed

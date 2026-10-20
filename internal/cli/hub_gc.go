@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -80,9 +79,10 @@ func (a *App) hubGC(args []string) int {
 	}
 	type orphan struct {
 		id   string
-		path string
+		full string
 		size int64
 	}
+	filesRoot := filepath.Join(absData, "files")
 	rows, err := tx.Query(`SELECT f.id, f.storage_path, f.size FROM files f LEFT JOIN attachments a ON a.file_id = f.id WHERE a.file_id IS NULL`)
 	if err != nil {
 		return a.fail(err)
@@ -90,13 +90,20 @@ func (a *App) hubGC(args []string) int {
 	var orphans []orphan
 	var fileBytes int64
 	for rows.Next() {
-		var o orphan
-		if err := rows.Scan(&o.id, &o.path, &o.size); err != nil {
+		var id, path string
+		var size int64
+		if err := rows.Scan(&id, &path, &size); err != nil {
 			rows.Close()
 			return a.fail(err)
 		}
-		orphans = append(orphans, o)
-		fileBytes += o.size
+		full, ok := safeUnderRoot(filesRoot, path)
+		if !ok {
+			// Keep the row: its storage path escapes the files root, so it is
+			// not safe to delete automatically.
+			continue
+		}
+		orphans = append(orphans, orphan{id: id, full: full, size: size})
+		fileBytes += size
 	}
 	if err := rows.Close(); err != nil {
 		return a.fail(err)
@@ -119,21 +126,11 @@ func (a *App) hubGC(args []string) int {
 		_ = tx.Rollback()
 	}
 
-	filesRoot := filepath.Join(absData, "files")
 	var removed int64
 	var removedBytes int64
 	if *apply {
 		for _, o := range orphans {
-			rel := filepath.Clean(filepath.FromSlash(o.path))
-			if rel == "." || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-				continue
-			}
-			full := filepath.Join(filesRoot, rel)
-			rootClean := filepath.Clean(filesRoot)
-			if !strings.HasPrefix(filepath.Clean(full), rootClean+string(filepath.Separator)) {
-				continue
-			}
-			if err := os.Remove(full); err == nil {
+			if err := os.Remove(o.full); err == nil {
 				removed++
 				removedBytes += o.size
 			}

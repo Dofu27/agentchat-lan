@@ -80,8 +80,8 @@ func (a *App) cmdCodexBridge(args []string) int {
 	key := ""
 	entry := bridgeEntry{}
 	alreadyQueued := false
-	if msg.Seq > 0 && *dedupeWindow > 0 && *waitTurn > 0 {
-		key = fmt.Sprintf("%s:%d", msg.Room, msg.Seq)
+	if msg.ID != "" && *dedupeWindow > 0 && *waitTurn > 0 {
+		key = cfg.HubURL + "|" + cfg.AgentID + "|" + *thread + "|" + msg.ID
 		entry = state[key]
 		if entry.Confirmed {
 			return 0
@@ -113,6 +113,12 @@ func (a *App) cmdCodexBridge(args []string) int {
 		cmd.Stdout = a.Stdout
 		cmd.Stderr = a.Stderr
 		if err := cmd.Run(); err != nil {
+			if key != "" {
+				delete(state, key)
+				if saveErr := saveBridgeState(statePath, state); saveErr != nil {
+					fmt.Fprintf(a.Stderr, "codex-bridge: clear failed pending state: %v\n", saveErr)
+				}
+			}
 			return a.fail(fmt.Errorf("codex queue: %w", err))
 		}
 	}

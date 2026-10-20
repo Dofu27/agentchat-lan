@@ -23,7 +23,11 @@ agentchat hub restore --data /data --in /secure/agentchat.tar.gz --force
 
 `--force` replaces `agentchat.db` and `files/` under `--data`. The archive
 reader rejects absolute paths, traversal entries, symlinks, and non-regular
-files. Start the hub and verify with `agentchat hub audit` and a test message.
+files. Before replacing anything, restore runs SQLite `PRAGMA integrity_check`,
+checks the required tables, and verifies every stored file reference exists.
+Stale `-wal`/`-shm` sidecars are removed. The previous database and files are
+kept in `.restore-old-*` for rollback. Start the hub and verify with
+`agentchat hub audit` and a test message.
 
 ## Storage quota
 
@@ -50,6 +54,8 @@ agentchat hub gc --data /data --days 30
   attachments, and any file blobs no longer referenced.
 - Without `--apply`, nothing is changed.
 - File deletion is permanent; take a backup first.
+- Paths are resolved under the real `files/` root; symlink/junction escapes are
+  retained and not deleted.
 - Stop the hub for the safest run. Running it live is possible but a download
   that races with GC can fail.
 
