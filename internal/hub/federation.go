@@ -46,9 +46,10 @@ func (s *Server) handleFederationStatus(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleCreateFederationPeer(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name   string `json:"name"`
-		URL    string `json:"url"`
-		Secret string `json:"secret"`
+		Name         string `json:"name"`
+		URL          string `json:"url"`
+		Secret       string `json:"secret"`
+		RemoteNodeID string `json:"remote_node_id"`
 	}
 	if !decodeJSON(w, r, &req) {
 		return
@@ -59,7 +60,7 @@ func (s *Server) handleCreateFederationPeer(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusBadRequest, "invalid_request", "url must be an http(s) URL", nil)
 		return
 	}
-	peer, err := s.store.CreateFederationPeer(r.Context(), req.Name, req.URL, req.Secret)
+	peer, err := s.store.CreateFederationPeer(r.Context(), req.Name, req.URL, req.Secret, req.RemoteNodeID)
 	if err != nil {
 		s.storeError(w, err)
 		return
@@ -112,6 +113,10 @@ func (s *Server) handleFederationInbound(w http.ResponseWriter, r *http.Request)
 	}
 	if payload.OriginNode == ownNode {
 		writeError(w, http.StatusBadRequest, "invalid_request", "federation loop rejected", nil)
+		return
+	}
+	if peer.RemoteNodeID != "" && payload.OriginNode != peer.RemoteNodeID {
+		writeError(w, http.StatusForbidden, "forbidden", "payload origin does not match registered peer", nil)
 		return
 	}
 	if len(payload.Text) > protocol.MaxTextBytes {
@@ -170,7 +175,11 @@ func (s *Server) deliverFederationEntry(ctx context.Context, entry store.Federat
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+entry.PeerSecret)
+	secret := s.opts.FederationSecrets[entry.PeerName]
+	if secret == "" {
+		return s.retryFederation(ctx, entry, fmt.Errorf("no configured secret for peer %s", entry.PeerName))
+	}
+	req.Header.Set("Authorization", "Bearer "+secret)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return s.retryFederation(ctx, entry, err)

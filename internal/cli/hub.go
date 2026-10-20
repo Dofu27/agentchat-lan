@@ -63,6 +63,7 @@ Usage:
   agentchat hub serve  --data <dir> [--listen 127.0.0.1:8787]
                        [--tls-cert <path> --tls-key <path>]
                        [--max-storage-bytes <n>]
+                       [--federation-config <operator.json>]
   agentchat hub invite --data <dir> [--room general] [--name <agent>]
                        [--ttl 24h] [--uses 1] [--json]
   agentchat hub list-invites --data <dir> [--json]
@@ -146,6 +147,7 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 	burst := fs.Int("burst", 20, "per-agent burst")
 	uploadsPerMinute := fs.Int("uploads-per-minute", 10, "per-agent file upload budget")
 	maxStorageBytes := fs.Int64("max-storage-bytes", 0, "hub-wide file storage quota in bytes; 0 is unlimited")
+	federationConfig := fs.String("federation-config", "", "operator JSON for two-node federation (disabled when empty)")
 	codeExit, ok := a.parse(fs, args)
 	if !ok {
 		return codeExit
@@ -185,6 +187,14 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 	}
 	defer st.Close()
 
+	federationSecrets := map[string]string{}
+	if *federationConfig != "" {
+		federationSecrets, err = loadFederationConfig(ctx, st, *federationConfig)
+		if err != nil {
+			return a.fail(err)
+		}
+	}
+
 	srv := hub.New(st, hub.Options{
 		Version:              a.Version,
 		RequestsPerMinute:    *rpm,
@@ -192,6 +202,7 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 		FileUploadsPerMinute: *uploadsPerMinute,
 		MaxFileSize:          protocol.MaxFileSize,
 		MaxStorageBytes:      *maxStorageBytes,
+		FederationSecrets:    federationSecrets,
 		FileDir:              filepath.Join(*data, "files"),
 		Logger:               log.New(a.Stderr, "hub ", log.LstdFlags),
 	})

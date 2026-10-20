@@ -140,7 +140,8 @@ CREATE TABLE IF NOT EXISTS federation_node(
 );
 CREATE TABLE IF NOT EXISTS federation_peers(
  id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, url TEXT NOT NULL,
- secret TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
+ secret_hash TEXT NOT NULL, remote_node_id TEXT NOT NULL DEFAULT '',
+ enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS federation_links(
  id TEXT PRIMARY KEY, local_room TEXT NOT NULL REFERENCES rooms(id),
@@ -777,10 +778,13 @@ func (s *Store) SendMessage(ctx context.Context, agentID, roomID string, req pro
 			return SendResult{}, err
 		}
 	}
+	m := protocol.Message{ID: id, Room: roomID, Seq: seq, From: sender, Kind: kind, Text: req.Text, ReplyTo: req.ReplyTo, Mentions: append([]string(nil), mentions...), Files: files, Meta: req.Meta, TS: now}
+	if err = enqueueFederationTx(ctx, tx, m); err != nil {
+		return SendResult{}, err
+	}
 	if err = tx.Commit(); err != nil {
 		return SendResult{}, err
 	}
-	m := protocol.Message{ID: id, Room: roomID, Seq: seq, From: sender, Kind: kind, Text: req.Text, ReplyTo: req.ReplyTo, Mentions: append([]string(nil), mentions...), Files: files, Meta: req.Meta, TS: now}
 	return SendResult{Message: m}, nil
 }
 

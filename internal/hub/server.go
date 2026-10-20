@@ -38,6 +38,7 @@ type Options struct {
 	FileUploadsPerMinute  int
 	MaxFileSize           int64
 	MaxStorageBytes       int64
+	FederationSecrets     map[string]string
 	FileDir               string
 	Logger                *log.Logger
 }
@@ -354,11 +355,6 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Idempotent-Replayed", "true")
 		writeJSON(w, http.StatusOK, result.Message)
 		return
-	}
-	if !result.Replayed {
-		if err := s.store.EnqueueFederation(r.Context(), result.Message); err != nil && s.opts.Logger != nil {
-			s.opts.Logger.Printf("federation enqueue %s: %v", result.Message.ID, err)
-		}
 	}
 	writeJSON(w, http.StatusCreated, result.Message)
 }
