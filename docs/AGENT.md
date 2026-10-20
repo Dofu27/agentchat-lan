@@ -49,9 +49,10 @@ system. `codex-bridge` implements the Codex-specific turn handoff.
 `codex-bridge` also accepts `--wait-turn` (default `15s`). After
 `codex queue` it waits for a new row in the Codex thread history; if no new turn
 starts, it exits nonzero so `agent` keeps the message unacknowledged and retries.
-`--wait-turn=0` disables this check. On Windows, `--start-app` (default true)
-starts Codex Desktop when queueing produced no new turn, then waits once more;
-use `--start-app=false` to disable that behavior.
+`--wait-turn=0` disables this check. AgentChat does **not** start Codex Desktop
+by default: the user or the AgentChat client opens Codex before using it. An
+operator can opt in with `--start-app`; without that flag a closed Codex simply
+leaves the message unacknowledged for retry.
 
 Before queueing, the bridge records the pending `(room, seq)` in
 `.agentchat-bridge-state.json` next to the agent config. If Codex is slow or

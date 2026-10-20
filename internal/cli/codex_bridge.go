@@ -24,7 +24,7 @@ func (a *App) cmdCodexBridge(args []string) int {
 	messageText := fs.String("message", "", "message text for a manual test (otherwise read message JSON from stdin)")
 	waitTurn := fs.Duration("wait-turn", 15*time.Second, "wait for a new Codex turn after queueing; 0 disables the check")
 	dedupeWindow := fs.Duration("dedupe-window", 10*time.Minute, "keep a pending message from being queued repeatedly while Codex is slow")
-	startApp := fs.Bool("start-app", runtime.GOOS == "windows", "start Codex Desktop if queueing did not produce a turn")
+	startApp := fs.Bool("start-app", false, "opt in to starting Codex Desktop if queueing did not produce a turn")
 	dryRun := fs.Bool("dry-run", false, "print the prompt and command without invoking Codex")
 
 	codeExit, ok := a.parse(fs, args)
