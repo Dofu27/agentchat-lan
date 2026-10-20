@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.3.8] - 2026-10-20
+
+### Security
+
+- Removed the private LAN address from public docs, examples, tests, and the
+  default `agentchat onboard` example; public docs use `agentchat.lan` as a
+  placeholder.
+- `agentchat join --ca-url` still performs the real join against the hub the
+  operator passes explicitly.
+
 ## [0.3.7] - 2026-10-20
 
 ### Added

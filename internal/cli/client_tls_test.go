@@ -170,7 +170,7 @@ func TestInsecureHTTPWarningAndDoctor(t *testing.T) {
 		insecure bool
 	}{
 		{"http://127.0.0.1:8787", false}, {"http://127.9.8.7:8787", false}, {"http://[::1]:8787", false}, {"http://localhost:8787", false},
-		{"http://agentchat.lan:8787", true}, {"http://hub.lan:8787", true}, {"http://[::]:8787", true}, {"https://hub.lan:8787", false},
+		{"http://192.0.2.10:8787", true}, {"http://hub.lan:8787", true}, {"http://[::]:8787", true}, {"https://hub.lan:8787", false},
 	} {
 		if got := insecureHTTP(tc.url); got != tc.insecure {
 			t.Errorf("insecureHTTP(%s)=%v", tc.url, got)

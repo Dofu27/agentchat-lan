@@ -97,8 +97,8 @@ Codex implemented and DSH fixed/integrated:
 - The UI logs in with an agent token, lists rooms and agents, renders messages
   with `textContent`, polls history every three seconds, and downloads file
   attachments with the Bearer header.
-- It opens read-only; sending and uploading require an explicit “Enable sending
-  and uploads” click.
+- It opens read-only; sending and uploading require an explicit 鈥淓nable sending
+  and uploads鈥?click.
 - Strict CSP, `X-Content-Type-Options`, `Referrer-Policy`, and
   `X-Frame-Options` are applied to the UI routes.
 - `TestEmbeddedUIAndCSP` covers the shell, static JS, CSP, and 404 behavior.
