@@ -430,7 +430,11 @@
     head.className = "message-head";
     const author = document.createElement("span");
     author.className = "message-author";
-    author.textContent = (message.from && message.from.name) || t("common.unknown");
+    const fed = message.meta && message.meta.federation;
+    const fedSender = fed && fed.sender && fed.sender.name;
+    author.textContent = fedSender
+      ? fedSender + " · " + t("chat.remote")
+      : (message.from && message.from.name) || t("common.unknown");
     const time = document.createElement("span");
     time.className = "message-time";
     time.textContent = formatTime(message.ts);
