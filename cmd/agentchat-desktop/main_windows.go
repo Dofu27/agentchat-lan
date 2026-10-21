@@ -49,6 +49,7 @@ type config struct {
 	AgentConfig   string            `json:"agent_config,omitempty"`
 	BridgeName    string            `json:"bridge_name,omitempty"`
 	BridgeExec    string            `json:"bridge_exec,omitempty"`
+	Role          string            `json:"role,omitempty"`
 }
 
 type app struct {
@@ -122,6 +123,14 @@ func main() {
 	}
 	if cfg.BridgeName == "" {
 		cfg.BridgeName = "AgentChatBridge"
+	}
+	if cfg.Role == "" {
+		cfg.Role = "hub"
+	}
+	switch cfg.Role {
+	case "hub", "client", "bridge", "observer":
+	default:
+		log.Fatalf("desktop role must be hub, client, bridge, or observer")
 	}
 	if cfg.AgentConfig != "" && !filepath.IsAbs(cfg.AgentConfig) && cfgPath != "" {
 		cfg.AgentConfig = filepath.Join(filepath.Dir(cfgPath), cfg.AgentConfig)
@@ -426,6 +435,8 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("POST /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
 	mux.Handle("GET /api/chat", a.api(http.HandlerFunc(a.handleChat)))
 	mux.Handle("POST /api/client/join", a.api(http.HandlerFunc(a.handleJoin)))
+	mux.Handle("GET /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
+	mux.Handle("POST /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
 	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
@@ -551,6 +562,44 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "agent_id": joined.Agent.ID, "agent_name": joined.Agent.Name, "rooms": rooms, "agent_config": path})
+}
+
+func (a *app) saveDesktopConfig() error {
+	if a.configPath == "" {
+		return nil
+	}
+	data, err := json.MarshalIndent(a.cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(a.configPath, data, 0o600)
+}
+
+func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		var req struct {
+			Role string `json:"role"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+			return
+		}
+		switch req.Role {
+		case "hub", "client", "bridge", "observer":
+		default:
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid role"})
+			return
+		}
+		a.cfg.Role = req.Role
+		if err := a.saveDesktopConfig(); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save desktop config"})
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"role": a.cfg.Role, "config_path": a.configPath,
+		"hub_url": a.cfg.HubURL, "agent_config": a.cfg.AgentConfig,
+	})
 }
 
 func (a *app) handleChat(w http.ResponseWriter, r *http.Request) {

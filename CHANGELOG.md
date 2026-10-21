@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.6] - 2026-10-21
+
+### Added
+
+- Desktop role tabs for `hub`, `client`, `bridge`, and `observer`, persisted in
+  `desktop.json`; the Settings tab can change the role without a restart
+
 ## [0.22.5] - 2026-10-21
 
 ### Added

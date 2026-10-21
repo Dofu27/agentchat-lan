@@ -27,7 +27,8 @@ Create `%APPDATA%\AgentChat\desktop.json` (or pass `--config`):
   "agentchat_path": "C:/AgentChat/agentchat.exe",
   "agent_config": "C:/AgentChat/agent-dsh.json",
   "bridge_name": "AgentChatBridge-dsh-main",
-  "bridge_exec": "C:/AgentChat/dsh-hook.cmd"
+  "bridge_exec": "C:/AgentChat/dsh-hook.cmd",
+  "role": "hub"
 }
 ```
 
@@ -57,6 +58,9 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
 
 - **Open Web admin**: opens the hub admin UI in a second embedded WebView2
   window and auto-fills the configured admin token on the configured origin
+- **Settings tab**: changes the console role (`hub`, `client`, `bridge`,
+  `observer`) and persists it to `desktop.json`. Role changes hide unrelated
+  tabs immediately.
 - **Chat tab**: shows the configured agent identity and opens the hub Web UI in
   an embedded WebView2 window. The token is injected only when the page origin
   matches the configured hub. With no agent config, the tab offers an invite

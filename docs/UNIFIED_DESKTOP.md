@@ -1,6 +1,6 @@
 # Unified desktop console
 
-Status: in progress (P2; single-instance, Chat/Join, and Bridge tabs implemented in v0.22.5)
+Status: in progress (P2; single-instance, Chat/Join, Bridge, and role tabs implemented in v0.22.6)
 
 ## Goal
 
