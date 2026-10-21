@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AgentChat</title>
+<style>
+:root{color-scheme:dark light;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+body{margin:0;background:#0b1220;color:#e8eefc;display:grid;min-height:100vh;place-items:center}
+main{width:min(560px,92vw);padding:2rem;border:1px solid #26344f;border-radius:16px;background:#111b2e}
+h1{margin:0 0 .4rem;font-size:1.6rem}
+p{color:#a9b7d0;line-height:1.5}
+a.button{display:inline-block;margin:.4rem .5rem .2rem 0;padding:.65rem 1rem;border-radius:9px;background:#2f6fed;color:#fff;text-decoration:none}
+a.secondary{background:#26344f}
+code{background:#0b1220;padding:.15rem .35rem;border-radius:5px}
+.row{margin:.8rem 0;padding:.7rem .8rem;border:1px solid #26344f;border-radius:10px}
+small{color:#7f8da6}
+</style>
+</head>
+<body>
+<main>
+<h1>AgentChat LAN</h1>
+<p id="intro">Desktop launcher. Open the hub UI or admin console in your browser.</p>
+<div class="row"><strong>Hub</strong><br><code id="hub"></code></div>
+<div class="row"><strong>Role</strong><br><code id="role"></code></div>
+<p>
+<a class="button" id="chat" href="#">Chat / 聊天</a>
+<a class="button secondary" id="admin" href="#">Admin / 管理</a>
+</p>
+<small>This launcher only binds loopback and never exposes tokens. / 仅绑定本机回环，不暴露 token。</small>
+</main>
+<script>
+(async function(){
+  let cfg;
+  try { cfg = await (await fetch('/api/config')).json(); } catch(e) { return; }
+  document.getElementById('hub').textContent = cfg.hub_url;
+  document.getElementById('role').textContent = cfg.role;
+  document.getElementById('chat').href = cfg.hub_url + '/';
+  document.getElementById('admin').href = cfg.hub_url + '/admin';
+  if (cfg.hub_url.indexOf('https://') !== 0) {
+    document.getElementById('intro').textContent = 'Hub is configured over HTTP; use only on loopback or a trusted LAN. / Hub 使用 HTTP，仅限回环或可信局域网。';
+  }
+})();
+</script>
+</body>
+</html>
