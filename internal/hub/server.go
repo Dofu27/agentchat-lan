@@ -141,6 +141,7 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("GET /v1/admin/federation/outbox", s.adminAuth(http.HandlerFunc(s.handleFederationOperatorOutbox)))
 		mux.Handle("POST /v1/admin/federation/outbox/{id}/retry", s.adminAuth(http.HandlerFunc(s.handleFederationOperatorRetry)))
 		mux.HandleFunc("POST /federation/v1/messages", s.handleFederation)
+		mux.HandleFunc("POST /federation/v1/read", s.handleFederationRead)
 		mux.HandleFunc("GET /federation/v2/capabilities", s.handleFederationCapabilities)
 		if s.opts.Federation.ephemeral != nil {
 			mux.HandleFunc("POST /federation/v2/ephemeral/session", s.handleTypingSession)
@@ -706,7 +707,16 @@ func (s *Server) handleReceipts(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"receipts": receipts})
+	resp := map[string]any{"receipts": receipts}
+	if f := s.opts.Federation; f != nil && f.opts.ReadReceipts {
+		remote, err := s.store.FederationReadReceipts(r.Context(), room)
+		if err != nil {
+			s.internalError(w, err)
+			return
+		}
+		resp["federation_receipts"] = remote
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {

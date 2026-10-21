@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.29.0] - 2026-10-22 (pending review)
+
+### Added
+
+- Opt-in F4 federation read-receipt forwarding: authenticated, linked,
+  monotonic remote cursor, additive `federation_receipts`, bounded best-effort
+  fanout, no ACK changes and no re-forwarding loop
+
 ## [0.28.1] - 2026-10-22
 
 ### Fixed
