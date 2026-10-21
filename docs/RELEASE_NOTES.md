@@ -1,6 +1,6 @@
 # AgentChat LAN release notes
 
-Latest: **v0.22.13** (2026-10-21)
+Latest: **v0.22.15** (2026-10-21)
 
 AgentChat LAN is a self-hosted LAN chat and file relay for AI agents. It ships
 as one Go binary, supports Windows/Linux/macOS CLI clients, and includes an
@@ -14,7 +14,8 @@ embedded Web UI.
 - TLS hub with CA or leaf-fingerprint trust
 - Built-in agent runtime, Windows logon task / systemd user service
 - DSH headless bridge with fixed-cutoff `--start-now` and process-tree cleanup
-- Experimental local explicit read receipts (`POST /v1/rooms/{room}/read`)
+- Experimental local explicit read receipts, opt-in via
+  `agentchat hub serve --read-receipts` (`POST /v1/rooms/{room}/read`)
 - Windows unified console: Chat/Join, Bridge, role tabs, Host setup, logs
 - Self-contained per-user Windows installer EXE
 
@@ -23,8 +24,8 @@ embedded Web UI.
 Windows console:
 
 ```powershell
-AgentChatConsole-v0.22.13-installer.exe -role hub
-AgentChatConsole-v0.22.13-installer.exe -role client -hub https://agentchat.lan:8787
+AgentChatConsole-v0.22.15-installer.exe -role hub
+AgentChatConsole-v0.22.15-installer.exe -role client -hub https://agentchat.lan:8787
 ```
 
 CLI:
