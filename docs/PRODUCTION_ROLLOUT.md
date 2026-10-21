@@ -50,11 +50,12 @@ On 2026-10-21 the following non-disruptive checks passed:
 - restore into a temporary directory: succeeded
 - restored `hub federation status`: node, one peer, one room link, and
   `delivered=100` outbox rows present
-- upgrade rehearsal: restored the same v0.14.1 backup into a temporary
-  directory and started the staged `v0.26.4` binary on `127.0.0.1:18791`;
-  `/healthz` returned `{"status":"ok","version":"v0.26.4"}`, `/readyz`
-  returned `{"status":"ready"}`, and the federation peer/link/outbox state
-  remained readable. No production service was touched.
+- upgrade rehearsal: restored the same v0.14.1 backup into temporary
+  directories and started the staged binaries read-only. `v0.26.4` passed, and
+  the final `v0.28.1` rehearsal on `127.0.0.1:18792` returned
+  `{"status":"ok","version":"0.28.1"}` and `{"status":"ready"}` with the
+  federation peer/link/outbox state readable. No production service was
+  touched.
 
 The backup was copied to an operator-only directory with mode `0600`; it
 contains tokens and federation secrets and must never be committed.
