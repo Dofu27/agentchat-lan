@@ -561,11 +561,14 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invite and name are required"})
 		return
 	}
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.mu.RLock()
 	path := a.cfg.AgentConfig
+	hubURL := a.cfg.HubURL
+	configPath := a.configPath
+	client := a.http
+	a.mu.RUnlock()
 	if path == "" {
-		base := a.configPath
+		base := configPath
 		if base == "" {
 			if dir, err := os.UserConfigDir(); err == nil {
 				base = filepath.Join(dir, "AgentChat", "desktop.json")
@@ -583,13 +586,13 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 	body, _ := json.Marshal(protocol.JoinRequest{InviteCode: req.Invite, Name: req.Name, Kind: req.Kind})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, a.cfg.HubURL+"/v1/join", bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, hubURL+"/v1/join", bytes.NewReader(body))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot build join request"})
 		return
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	resp, err := a.http.Do(httpReq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "hub is unreachable"})
 		return
@@ -609,19 +612,23 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 		rooms = append(rooms, room.ID)
 	}
 	agentCfg := agentconfig.Config{
-		HubURL: a.cfg.HubURL, Token: joined.Token, AgentID: joined.Agent.ID,
+		HubURL: hubURL, Token: joined.Token, AgentID: joined.Agent.ID,
 		AgentName: joined.Agent.Name, AgentKind: joined.Agent.Kind, Rooms: rooms,
 	}
 	if err := agentconfig.Save(path, &agentCfg); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save agent config"})
 		return
 	}
-	a.cfg.AgentConfig = path
-	if a.configPath != "" {
-		if data, err := json.MarshalIndent(a.cfg, "", "  "); err == nil {
-			_ = os.WriteFile(a.configPath, data, 0o600)
-		}
+	a.mu.Lock()
+	candidate := a.cfg
+	candidate.AgentConfig = path
+	if err := a.saveConfig(candidate); err != nil {
+		a.mu.Unlock()
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save desktop config"})
+		return
 	}
+	a.cfg = candidate
+	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "agent_id": joined.Agent.ID, "agent_name": joined.Agent.Name, "rooms": rooms, "agent_config": path})
 }
 
