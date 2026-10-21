@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.26.4] - 2026-10-21
+
+### Security
+
+- Bridge CLI execution now bounds stdout/stderr to 16 KiB and kills the whole
+  child tree via `taskkill /T` on timeout/cancellation
+
 ## [0.26.3] - 2026-10-21
 
 ### Fixed
