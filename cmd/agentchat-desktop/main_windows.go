@@ -157,31 +157,9 @@ func main() {
 	if hubURL.Scheme != "https" && !isLoopbackHostName(hubURL.Hostname()) {
 		log.Fatalf("hub_url must use https outside loopback")
 	}
-	caFile := cfg.CAFile
-	if caFile != "" && !filepath.IsAbs(caFile) && cfgPath != "" {
-		caFile = filepath.Join(filepath.Dir(cfgPath), caFile)
-	}
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	if caFile != "" {
-		pem, err := os.ReadFile(caFile)
-		if err != nil {
-			log.Fatalf("read hub CA: %v", err)
-		}
-		pool, err := x509.SystemCertPool()
-		if err != nil || pool == nil {
-			pool = x509.NewCertPool()
-		}
-		if !pool.AppendCertsFromPEM(pem) {
-			log.Fatalf("hub CA contains no certificates")
-		}
-		tlsConfig.RootCAs = pool
-	}
-	client := &http.Client{
-		Timeout:   8 * time.Second,
-		Transport: &http.Transport{TLSClientConfig: tlsConfig, ForceAttemptHTTP2: true},
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return errors.New("hub redirect refused")
-		},
+	client, err := newHubClient(cfg, cfgPath)
+	if err != nil {
+		log.Fatal(err)
 	}
 	token := ""
 	if cfg.TokenFile != "" {
@@ -271,6 +249,35 @@ func newCapability() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func newHubClient(cfg config, cfgPath string) (*http.Client, error) {
+	caFile := cfg.CAFile
+	if caFile != "" && !filepath.IsAbs(caFile) && cfgPath != "" {
+		caFile = filepath.Join(filepath.Dir(cfgPath), caFile)
+	}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+	if caFile != "" {
+		pem, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("read hub CA: %w", err)
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, errors.New("hub CA contains no certificates")
+		}
+		tlsConfig.RootCAs = pool
+	}
+	return &http.Client{
+		Timeout:   8 * time.Second,
+		Transport: &http.Transport{TLSClientConfig: tlsConfig, ForceAttemptHTTP2: true},
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return errors.New("hub redirect refused")
+		},
+	}, nil
 }
 
 func isLoopbackHostName(host string) bool {
@@ -661,15 +668,25 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but desktop config could not be saved"})
 		return
 	}
+	clientError := ""
+	if client, err := newHubClient(a.cfg, a.configPath); err != nil {
+		clientError = err.Error()
+	} else {
+		a.http = client
+	}
 	next := `sc.exe create AgentChatHub binPath= "\"` + a.cfg.AgentchatPath + `\" service run --name AgentChatHub --log \"` + filepath.Join(req.Data, "hub.log") + `\" -- hub serve --data \"` + req.Data + `\" --listen "` + req.Listen + `"`
 	if req.TLSCert != "" {
 		next += ` --tls-cert "` + req.TLSCert + `" --tls-key "` + req.TLSKey + `"`
 	}
 	next += `" start= auto obj= LocalSystem`
-	writeJSON(w, http.StatusOK, map[string]any{
+	result := map[string]any{
 		"ok": true, "hub_url": hubURL, "data": req.Data,
 		"token_file": req.TokenFile, "next": next,
-	})
+	}
+	if clientError != "" {
+		result["client_error"] = clientError
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (a *app) hubServiceBinPath() (string, error) {

@@ -11,7 +11,7 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.22.11` adds desktop hub service install/start and control actions. An
+- `v0.22.13` adds automatic HTTP-client rebuild after Host TLS setup. An
   elevated temporary service (`AgentChatHubTest`) started successfully,
   `/healthz` returned 200, and the service was stopped/deleted cleanly; reboot
   and installer Startup acceptance remain.
