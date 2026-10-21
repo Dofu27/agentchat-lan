@@ -11,8 +11,8 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.22.10` adds desktop Host setup (data/admin token/TLS + service command);
-  full service-install and reboot acceptance remain.
+- `v0.22.11` adds desktop hub service install/start and control actions; an
+  elevated install + reboot acceptance remains.
 - Live DSH bridge: real headless replies `DSH_2111_OK` (`#349`) and
   `DSH_RESTART_OK` (`#335`); one-time fixed cutoff initialization is durable.
 - Windows bridge install has a Startup-folder fallback when Task Scheduler is
