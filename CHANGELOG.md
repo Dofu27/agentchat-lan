@@ -21,6 +21,8 @@ v1.0.
   longer overwrite the first successful config.
 - The self-contained Windows installer embeds the release version in its CLI
   (`agentchat v0.29.0`) instead of `dev`.
+- Linux `.desktop` and macOS `.app` launcher packages, attached by the release
+  workflow with checksums.
 
 ## [0.28.1] - 2026-10-22
 

@@ -32,11 +32,16 @@ jobs:
       - name: Build self-contained desktop installer
         run: VERSION="${GITHUB_REF_NAME}" bash scripts/build-desktop-installer.sh
 
-      - name: Upload desktop installer and complete checksums
+      - name: Build Linux/macOS launcher packages
+        run: VERSION="${GITHUB_REF_NAME}" bash scripts/package-launcher.sh "${GITHUB_REF_NAME}" dist/launcher
+
+      - name: Upload desktop assets and complete checksums
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           (cd dist && sha256sum "AgentChatConsole-${GITHUB_REF_NAME}-installer.exe") >> dist/checksums.txt
+          (cd dist/launcher && sha256sum *.tar.gz) >> dist/checksums.txt
           gh release upload "${GITHUB_REF_NAME}" \
             "dist/AgentChatConsole-${GITHUB_REF_NAME}-installer.exe" \
+            dist/launcher/*.tar.gz \
             dist/checksums.txt --clobber
