@@ -56,9 +56,9 @@ Updated: 2026-10-21
 - P4 topology, trust, per-peer queue, loop prevention, and three-node acceptance
   criteria documented in
   [THREE_NODE_FEDERATION.md](THREE_NODE_FEDERATION.md); `v0.23.3` adds
-  multi-peer text, attachment, and DM fanout. Multi-peer typing remains
-  single-peer. `v0.25.0` adds a Linux/macOS loopback launcher; `v0.29.0`
-  hardens its URL handling, but it is not yet a full native console.
+  multi-peer text, attachment, DM, and typing fanout. `v0.25.0` adds a
+  Linux/macOS loopback launcher; `v0.29.0` hardens its URL handling, but it is
+  not yet a full native console.
 - `v0.28.1` is staged on A for the future window; no service was replaced.
   A runs in Docker; staged image `agentchat:v0.28.1` was built and version-
   checked without replacing the live container.
@@ -298,9 +298,8 @@ go test ./...
 
 - P3: local explicit read receipts and opt-in federation forwarding are
   implemented; forwarding is best-effort/advisory.
-- P4: multi-peer text, attachments, and DM are implemented; multi-peer typing
-  remains single-peer. Linux/macOS ship a hardened launcher, not the full
-  WebView console.
+- P4: multi-peer text, attachments, DM, and typing are implemented. Linux/macOS
+  ship a hardened launcher, not the full WebView console.
 - P5: screenshots are pending Codex desktop capture.
 
 ## Blockers / pending

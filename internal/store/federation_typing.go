@@ -11,6 +11,7 @@ import (
 )
 
 type FederationTypingLink struct {
+	PeerID         string `json:"peer_id,omitempty"`
 	Kind           string `json:"kind"`
 	LinkID         string `json:"link_id"`
 	Epoch          int64  `json:"epoch"`
