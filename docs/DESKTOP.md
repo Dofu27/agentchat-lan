@@ -23,9 +23,16 @@ Create `%APPDATA%\AgentChat\desktop.json` (or pass `--config`):
   "token_file": "C:/AgentChat/data/admin.token",
   "title": "AgentChat Console",
   "width": 1100,
-  "height": 780
+  "height": 780,
+  "agentchat_path": "C:/AgentChat/agentchat.exe",
+  "agent_config": "C:/AgentChat/agent-dsh.json",
+  "bridge_name": "AgentChatBridge-dsh-main",
+  "bridge_exec": "C:/AgentChat/dsh-hook.cmd"
 }
 ```
+
+`agentchat_path` defaults to `agentchat.exe` beside the console. The optional
+bridge fields enable the Bridge tab; they never contain agent tokens.
 
 `token_file` is read locally and sent only to the configured hub. Keep the
 desktop config and token file private.
@@ -50,6 +57,9 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
 
 - **Open Web admin**: opens the hub admin UI in a second embedded WebView2
   window and auto-fills the configured admin token on the configured origin
+- **Bridge tab**: shows the configured agent bridge name/config/hook/binary and
+  runs `agentchat bridge status|install|uninstall` with explicit arguments.
+  Install uses mention-only, typing, and start-now defaults.
 - **Logs tab**: tails local Desktop/Hub/Bridge JSONL or plain log files with a
   1-second refresh, pause/resume and source switch. `log_files` in `desktop.json`
   accepts either a plain file or a directory of `component-*.jsonl` segments;

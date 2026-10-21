@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.2] - 2026-10-21
+
+### Added
+
+- Desktop Bridge tab: agent bridge status/install/uninstall through fixed,
+  capability-authenticated local API actions
+- Desktop config fields for `agentchat_path`, `agent_config`, `bridge_name`, and
+  `bridge_exec`
+
 ## [0.22.1] - 2026-10-21
 
 ### Added

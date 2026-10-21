@@ -59,6 +59,7 @@
 </header>
 <nav class="tabs" role="tablist">
   <button id="tab-overview-btn" type="button" class="active" data-i18n="tab.overview">Overview</button>
+  <button id="tab-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
   <button id="tab-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
 </nav>
 <main id="overview-view">
@@ -110,6 +111,26 @@
     <div id="dead"></div>
   </section>
 </main>
+<main id="bridge-view" class="hidden">
+  <section class="wide">
+    <div class="row between">
+      <h2 style="margin:0" data-i18n="bridge.title">Agent bridge</h2>
+      <div class="row">
+        <button id="bridge-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
+        <button id="bridge-install" class="primary" type="button" data-i18n="bridge.install">Install bridge</button>
+        <button id="bridge-uninstall" class="danger" type="button" data-i18n="bridge.uninstall">Uninstall</button>
+      </div>
+    </div>
+    <div class="kv">
+      <span class="k" data-i18n="bridge.name">Bridge name</span><span class="v" id="bridge-name"></span>
+      <span class="k" data-i18n="bridge.agent_config">Agent config</span><span class="v" id="bridge-agent-config"></span>
+      <span class="k" data-i18n="bridge.exec">Hook command</span><span class="v" id="bridge-exec"></span>
+      <span class="k" data-i18n="bridge.binary">agentchat binary</span><span class="v" id="bridge-binary"></span>
+    </div>
+    <pre id="bridge-output" class="logs" style="height:220px"></pre>
+    <div id="bridge-error" class="small" style="margin-top:8px"></div>
+  </section>
+</main>
 <main id="logs-view" class="logs hidden">
   <section class="wide">
     <div class="row between">
@@ -134,8 +155,12 @@
   const dict = {
     en: {
       "open.admin":"Open Web admin",
-      "tab.overview":"Overview", "tab.logs":"Logs",
+      "tab.overview":"Overview", "tab.bridge":"Bridge", "tab.logs":"Logs",
       "logs.title":"Logs", "logs.desktop":"Desktop", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "bridge.title":"Agent bridge", "bridge.install":"Install bridge", "bridge.uninstall":"Uninstall",
+      "bridge.name":"Bridge name", "bridge.agent_config":"Agent config", "bridge.exec":"Hook command",
+      "bridge.binary":"agentchat binary", "bridge.confirm":"Uninstall the bridge startup entry?",
+      "bridge.install_failed":"Bridge command failed", "bridge.done":"Bridge status refreshed.",
       "logs.pause":"Pause", "logs.resume":"Resume", "logs.refresh":"Refresh", "logs.empty":"No log file yet.",
       "service.title":"Windows service", "service.start":"Start", "service.stop":"Stop", "service.restart":"Restart",
       "service.start_with_windows":"Start with Windows", "service.hub":"Hub", "service.health":"Health",
@@ -150,8 +175,12 @@
     },
     zh: {
       "open.admin":"打开管理网页",
-      "tab.overview":"概览", "tab.logs":"日志",
+      "tab.overview":"概览", "tab.bridge":"桥接", "tab.logs":"日志",
       "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "bridge.title":"Agent 桥接", "bridge.install":"安装桥接", "bridge.uninstall":"卸载",
+      "bridge.name":"桥接名称", "bridge.agent_config":"Agent 配置", "bridge.exec":"Hook 命令",
+      "bridge.binary":"agentchat 可执行文件", "bridge.confirm":"确认卸载桥接启动项？",
+      "bridge.install_failed":"桥接命令失败", "bridge.done":"桥接状态已刷新。",
       "logs.pause":"暂停", "logs.resume":"继续", "logs.refresh":"刷新", "logs.empty":"还没有日志文件。",
       "service.title":"Windows 服务", "service.start":"启动", "service.stop":"停止", "service.restart":"重启",
       "service.start_with_windows":"开机自动启动", "service.hub":"Hub", "service.health":"健康",
@@ -307,16 +336,46 @@
       $("log-output").textContent = err.message || String(err);
     } finally { logsBusy = false; }
   }
+  async function refreshBridge() {
+    const body = await api("/api/bridge");
+    $("bridge-name").textContent = body.name || "";
+    $("bridge-agent-config").textContent = body.agent_config || t("service.not_installed");
+    $("bridge-exec").textContent = body.bridge_exec || "";
+    $("bridge-binary").textContent = body.agentchat || "";
+    $("bridge-output").textContent = body.output || "";
+    $("bridge-error").textContent = body.error || "";
+    $("bridge-error").style.color = body.ok ? "" : "var(--bad)";
+  }
+  async function bridgeAction(action) {
+    if (action === "uninstall" && !confirm(t("bridge.confirm"))) return;
+    try {
+      const body = await api("/api/bridge", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action }) });
+      $("bridge-output").textContent = body.output || "";
+      $("bridge-error").textContent = body.error || (body.ok ? t("bridge.done") : t("bridge.install_failed"));
+      $("bridge-error").style.color = body.ok ? "" : "var(--bad)";
+      await refreshBridge();
+    } catch (err) {
+      $("bridge-error").textContent = err.message || String(err);
+      $("bridge-error").style.color = "var(--bad)";
+    }
+  }
   function showTab(tab) {
     activeTab = tab;
     $("overview-view").classList.toggle("hidden", tab !== "overview");
+    $("bridge-view").classList.toggle("hidden", tab !== "bridge");
     $("logs-view").classList.toggle("hidden", tab !== "logs");
     $("tab-overview-btn").classList.toggle("active", tab === "overview");
+    $("tab-bridge-btn").classList.toggle("active", tab === "bridge");
     $("tab-logs-btn").classList.toggle("active", tab === "logs");
     if (tab === "logs") refreshLogs();
+    if (tab === "bridge") refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); });
   }
   $("tab-overview-btn").addEventListener("click", () => showTab("overview"));
+  $("tab-bridge-btn").addEventListener("click", () => showTab("bridge"));
   $("tab-logs-btn").addEventListener("click", () => showTab("logs"));
+  $("bridge-refresh").addEventListener("click", () => refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); }));
+  $("bridge-install").addEventListener("click", () => bridgeAction("install"));
+  $("bridge-uninstall").addEventListener("click", () => bridgeAction("uninstall"));
   $("log-source").addEventListener("change", refreshLogs);
   $("log-refresh").addEventListener("click", refreshLogs);
   $("log-pause").addEventListener("click", () => {
