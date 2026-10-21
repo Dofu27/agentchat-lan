@@ -10,8 +10,8 @@ message replication does not carry it.
 
 The experimental config accepts `peers` plus per-peer `links` instead of the
 legacy single `peer`. Multi-peer supports text, attachment room links, per-peer
-text DMs, and per-peer ephemeral typing (`typing_links[].peer_id` or DM
-`typing: true`).
+text DMs, and per-peer ephemeral typing (`links` entries with `"typing": true`,
+or DM `typing: true`).
 
 ```json
 {
@@ -21,7 +21,7 @@ text DMs, and per-peer ephemeral typing (`typing_links[].peer_id` or DM
   ],
   "links": [
     {"peer_id": "node_b", "local_room": "general", "remote_room": "general", "attachments": true, "link_id": "link-b", "epoch": 1},
-    {"peer_id": "node_c", "local_room": "general", "remote_room": "lobby"}
+    {"peer_id": "node_c", "local_room": "general", "remote_room": "lobby", "typing": true, "link_id": "type-c", "epoch": 1}
   ]
 }
 ```
