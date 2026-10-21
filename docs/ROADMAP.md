@@ -44,6 +44,8 @@ back, and the DSH bridge stays live through a host restart.
 
 ## P2 — Unified desktop
 
+Design: [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md).
+
 One `AgentChatConsole` entry point with role-aware tabs:
 
 - Hub: setup, start/stop, health, TLS, data directory, logs
