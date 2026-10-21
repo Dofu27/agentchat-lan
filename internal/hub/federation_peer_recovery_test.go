@@ -8,6 +8,7 @@ import (
 	"github.com/Dofu27/agentchat-lan/internal/store"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -31,12 +32,23 @@ func TestFederationAdmissionSlowPeerRecovery(t *testing.T) {
 		t.Fatal(e)
 	}
 	bSender := client.New(a.url, joined.Token)
-	entered := make(chan struct{}, 2)
+	entered := make(chan struct{}, 1)
 	release := make(chan struct{})
 	var once sync.Once
 	defer once.Do(func() { close(release) })
+	var active, maxActive, cancelled atomic.Int64
+	observe := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			n := active.Add(1)
+			defer active.Add(-1)
+			for old := maxActive.Load(); n > old && !maxActive.CompareAndSwap(old, n); old = maxActive.Load() {
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+	c.setHandler(observe(*c.handler.Load()))
 	baseHandler := *b.handler.Load()
-	b.setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	b.setHandler(observe(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case entered <- struct{}{}:
 		default:
@@ -44,21 +56,27 @@ func TestFederationAdmissionSlowPeerRecovery(t *testing.T) {
 		select {
 		case <-release:
 		case <-r.Context().Done():
+			cancelled.Add(1)
+			return
+		}
+		if r.Context().Err() != nil {
+			cancelled.Add(1)
+			return
 		}
 		baseHandler.ServeHTTP(w, r)
-	}))
+	})))
 	for range 6 {
 		if _, e := bSender.SendMessage(context.Background(), "b-only", protocol.SendMessageRequest{Text: "backlog"}); e != nil {
 			t.Fatal(e)
 		}
 	}
 	a.run()
-	for range 1 {
-		select {
-		case <-entered:
-		case <-time.After(3 * time.Second):
-			t.Fatal("both consumers did not enter B")
-		}
+	// B has one per-peer worker: hold its single in-flight request while six
+	// jobs are queued. This does not simulate filling eight shared consumers.
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("B's per-peer worker did not enter its first request")
 	}
 	baseline := c.requests.Load()
 	if _, e := sender.SendMessage(context.Background(), "general", protocol.SendMessageRequest{Text: "healthy peer"}); e != nil {
@@ -76,5 +94,15 @@ func TestFederationAdmissionSlowPeerRecovery(t *testing.T) {
 		stats, _ := a.st.FederationStats(context.Background())
 		return stats.Delivered == 7 && stats.Dead == 0
 	})
-	t.Log("PASS: healthy peer progresses while B has six queued jobs")
+	stats, err := a.st.FederationStats(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cancelled.Load() != 0 || stats.Attempts != 7 {
+		t.Fatalf("hold/release fixture unexpectedly timed out or retried: cancelled=%d stats=%+v", cancelled.Load(), stats)
+	}
+	if maxActive.Load() > 8 {
+		t.Fatalf("global concurrency budget exceeded: %d", maxActive.Load())
+	}
+	t.Logf("PASS: B's serial backlog drains after release, C progresses; max active=%d", maxActive.Load())
 }
