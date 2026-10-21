@@ -15,7 +15,7 @@ trap cleanup EXIT
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
   go build -trimpath -ldflags "-s -w" -o "$assets/AgentChatConsole.exe" ./cmd/agentchat-desktop
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
-  go build -trimpath -ldflags "-s -w" -o "$assets/agentchat.exe" ./cmd/agentchat
+  go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "$assets/agentchat.exe" ./cmd/agentchat
 
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
   go build -trimpath -ldflags "-s -w" \
