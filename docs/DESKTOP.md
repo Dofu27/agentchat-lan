@@ -94,6 +94,11 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
   so a TLS hub works without a console restart. It never prints the admin token. The service panel's
   **Install hub service** button runs the same install and starts the service;
   it needs an elevated console.
+  Start/restart in either service panel validates the SCM-registered executable
+  and holds its trust guard through Start. Old entries pointing into writable
+  user directories are refused; an administrator must provision a protected
+  service binary and review the registered path before retrying. See
+  [security prerequisites](SECURITY_BOOTSTRAP.md#windows-service-executable).
 - **Settings tab**: changes the console role (`hub`, `client`, `bridge`,
   `observer`) and persists it to `desktop.json`. Role changes hide unrelated
   tabs immediately.
@@ -122,6 +127,12 @@ configured local file at startup. Passwords, secrets and payloads are not
 rendered.
 
 ## Headless API (local diagnostics)
+
+Service executable validation, process containment, and explicit bootstrap
+credential recovery are specified in [SECURITY_BOOTSTRAP.md](SECURITY_BOOTSTRAP.md).
+An interrupted file-backed initializer retains its credential; inspect the
+reported path and use the CLI's `--resume-init` with the same data/token paths.
+Do not delete a retained credential merely because the desktop reported failure.
 
 For supervised diagnostics only:
 

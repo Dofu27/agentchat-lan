@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -65,7 +64,7 @@ func (a *App) hubUsage() {
 	fmt.Fprint(a.Stdout, `agentchat hub — run and administer the production hub
 
 Usage:
-  agentchat hub init   --data <dir> [--admin-token-file <path>] [--json]
+  agentchat hub init   --data <dir> [--admin-token-file <path>] [--resume-init] [--json]
   agentchat hub serve  --data <dir> [--listen 127.0.0.1:8787]
                        [--tls-cert <path> --tls-key <path>]
                        [--federation-config <path>] (two-node PoC only)
@@ -94,6 +93,7 @@ func (a *App) hubInit(args []string) int {
 	fs := a.newFlagSet("hub init")
 	data := fs.String("data", "./data", "data directory")
 	tokenFile := fs.String("admin-token-file", "", "write the admin token to this file instead of stdout")
+	resume := fs.Bool("resume-init", false, "resume initialization using a retained admin token file")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	codeExit, ok := a.parse(fs, args)
 	if !ok {
@@ -106,50 +106,18 @@ func (a *App) hubInit(args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var reserved *os.File
+	var token string
+	var err error
+	if *resume && *tokenFile == "" {
+		return a.fail(errors.New("--resume-init requires --admin-token-file"))
+	}
 	if *tokenFile != "" {
-		if err := os.MkdirAll(filepath.Dir(*tokenFile), 0o700); err != nil {
-			return a.fail(fmt.Errorf("create token directory: %w", err))
-		}
-		f, err := os.OpenFile(*tokenFile, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
-		if err != nil {
-			if errors.Is(err, os.ErrExist) {
-				return a.fail(fmt.Errorf("%s already exists; refusing to overwrite a secret", *tokenFile))
-			}
-			return a.fail(fmt.Errorf("reserve token file: %w", err))
-		}
-		reserved = f
+		err = bootstrapHub(ctx, hubDBPath(*data), *tokenFile, *resume, defaultBootstrapOps())
+	} else {
+		token, err = hub.Init(ctx, hubDBPath(*data))
 	}
-
-	token, err := hub.Init(ctx, hubDBPath(*data))
 	if err != nil {
-		if reserved != nil {
-			name := reserved.Name()
-			reserved.Close()
-			_ = os.Remove(name)
-		}
 		return a.fail(err)
-	}
-	if reserved != nil {
-		if _, err := reserved.Seek(0, io.SeekStart); err != nil {
-			reserved.Close()
-			return a.fail(fmt.Errorf("seek token file: %w", err))
-		}
-		if err := reserved.Truncate(0); err != nil {
-			reserved.Close()
-			return a.fail(fmt.Errorf("truncate token file: %w", err))
-		}
-		if _, err := reserved.WriteString(token + "\n"); err != nil {
-			reserved.Close()
-			return a.fail(fmt.Errorf("write token file: %w", err))
-		}
-		if err := reserved.Sync(); err != nil {
-			reserved.Close()
-			return a.fail(fmt.Errorf("sync token file: %w", err))
-		}
-		if err := reserved.Close(); err != nil {
-			return a.fail(fmt.Errorf("close token file: %w", err))
-		}
 	}
 	out := map[string]any{
 		"data":       *data,
