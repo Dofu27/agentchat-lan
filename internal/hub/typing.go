@@ -16,6 +16,9 @@ type typingRequest struct {
 }
 
 func (s *Server) handleTyping(w http.ResponseWriter, r *http.Request) {
+	if s.federatedDMControlDisabled(w, r) {
+		return
+	}
 	var req typingRequest
 	if !decodeJSON(w, r, &req) {
 		return

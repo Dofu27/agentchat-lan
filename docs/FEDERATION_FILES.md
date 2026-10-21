@@ -97,6 +97,9 @@ committed content always replays its final receipt.
   validated lowercase SHA. Existing parents resolve within the real blob root;
   symlink/junction escapes fail closed. MIME hints never control imported file
   response types (new imported rows use application/octet-stream).
+  Remote stored file names and attachment display names are normalized to a
+  portable basename (both slash styles, controls removed, safe empty fallback).
+  Original manifests remain unchanged for canonical replay/conflict detection.
 * A checkpoint is persisted only after fsync. Restart copies the checkpointed
   prefix into a different lease's file, then resumes exact Range/ETag/size
   responses. A bounded 200 restarts from zero. Invalid ranges/encoding, extra or

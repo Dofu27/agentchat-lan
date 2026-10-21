@@ -27,11 +27,12 @@ type FederationOperatorLink struct {
 	Enabled    bool   `json:"enabled"`
 }
 type FederationOperatorStatus struct {
-	NodeID      string                       `json:"node_id"`
-	Peers       []FederationOperatorPeer     `json:"peers"`
-	Links       []FederationOperatorLink     `json:"room_links"`
-	Outbox      FederationQueueStats         `json:"outbox"`
-	Attachments FederationFileOperatorStatus `json:"attachments"`
+	NodeID         string                       `json:"node_id"`
+	Peers          []FederationOperatorPeer     `json:"peers"`
+	Links          []FederationOperatorLink     `json:"room_links"`
+	Outbox         FederationQueueStats         `json:"outbox"`
+	Attachments    FederationFileOperatorStatus `json:"attachments"`
+	DirectMessages FederationQueueStats         `json:"direct_messages"`
 }
 type FederationOutboxItem struct {
 	ID              string    `json:"id"`
@@ -130,6 +131,15 @@ func (s *Store) FederationOperatorStatus(ctx context.Context) (FederationOperato
 			return out, err
 		}
 	}
+	var hasDM int
+	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='federation_dm_outbox'`).Scan(&hasDM); err != nil {
+		return out, err
+	}
+	if hasDM > 0 {
+		if err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(state='pending'),0),COALESCE(SUM(state='inflight'),0),COALESCE(SUM(state='delivered'),0),COALESCE(SUM(state='dead'),0),COALESCE(SUM(attempts),0) FROM federation_dm_outbox`).Scan(&out.DirectMessages.Pending, &out.DirectMessages.Inflight, &out.DirectMessages.Delivered, &out.DirectMessages.Dead, &out.DirectMessages.Attempts); err != nil {
+			return out, err
+		}
+	}
 	return out, tx.Commit()
 }
 
@@ -157,7 +167,7 @@ func (s *Store) ListFederationOutbox(ctx context.Context, state string, limit in
 	if !ValidFederationState(state) || limit < 1 || limit > 100 {
 		return nil, errors.New("invalid outbox state or limit")
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM (SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM federation_outbox UNION ALL SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM federation_file_outbox) WHERE state=? ORDER BY created_at DESC,id DESC LIMIT ?`, state, limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM (SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM federation_outbox UNION ALL SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM federation_file_outbox UNION ALL SELECT id,peer_id,origin_node_id,origin_message_id,state,attempts,last_error,created_at FROM federation_dm_outbox) WHERE state=? ORDER BY created_at DESC,id DESC LIMIT ?`, state, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -219,6 +229,13 @@ func (s *Store) RetryFederationOutbox(ctx context.Context, id, key string) (Fede
 			if deadline <= time.Now().UnixMilli() {
 				return out, ErrFederationExpired
 			}
+		}
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		table = "federation_dm_outbox"
+		err = tx.QueryRowContext(ctx, `SELECT state FROM federation_dm_outbox WHERE id=?`, id).Scan(&state)
+		if err == nil && !s.federationDM.Load() {
+			return out, ErrForbidden
 		}
 	}
 	if errors.Is(err, sql.ErrNoRows) {

@@ -9,8 +9,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"path"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
@@ -66,6 +68,23 @@ type FederationFileProgress struct {
 	Index  int
 	Offset int64
 	Temp   string
+}
+
+// Remote display names are presentation metadata, never paths. Normalize both
+// separators identically on every host; preserve the original wire manifest for
+// canonical replay/conflict detection.
+func federationDisplayName(name string) string {
+	name = path.Base(strings.ReplaceAll(name, `\`, "/"))
+	name = strings.TrimSpace(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, name))
+	if name == "" || name == "." || name == ".." || name == "/" {
+		return "attachment.bin"
+	}
+	return name
 }
 
 func (s *Store) migrateFederationFiles(ctx context.Context) error {
@@ -481,7 +500,7 @@ func (s *Store) FederationFileReady(ctx context.Context, j FederationFileJob, b 
 		return ErrFederationExpired
 	}
 	id := "fil_" + protocol.NewID()
-	_, err = tx.ExecContext(ctx, `INSERT INTO files(id,name,sha256,size,mime,storage_path,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(sha256) DO NOTHING`, id, b.Name, b.SHA256, b.Size, "application/octet-stream", path, time.Now().UTC().Format(time.RFC3339Nano))
+	_, err = tx.ExecContext(ctx, `INSERT INTO files(id,name,sha256,size,mime,storage_path,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(sha256) DO NOTHING`, id, federationDisplayName(b.Name), b.SHA256, b.Size, "application/octet-stream", path, time.Now().UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return err
 	}
@@ -549,7 +568,7 @@ func (s *Store) CommitFederationFiles(ctx context.Context, j FederationFileJob, 
 		if err = tx.QueryRowContext(ctx, `SELECT t.file_id FROM federation_transfer_blobs t JOIN files f ON f.id=t.file_id WHERE t.transfer_id=? AND t.sha256=? AND f.size=?`, j.ID, b.SHA256, b.Size).Scan(&fileID); err != nil {
 			return err
 		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO attachments VALUES(?,?,?)`, id, fileID, b.Name); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO attachments VALUES(?,?,?)`, id, fileID, federationDisplayName(b.Name)); err != nil {
 			return err
 		}
 	}
