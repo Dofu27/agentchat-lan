@@ -118,7 +118,7 @@ func (a *App) cmdJoin(args []string) int {
 		if name == "" {
 			name = "AgentChatBridge-" + resp.Agent.Name
 		}
-		args := []string{"--config", path, "--name", name, "--mention-only", "--typing"}
+		args := []string{"--config", path, "--name", name, "--mention-only", "--typing", "--start-now"}
 		if strings.TrimSpace(*bridgeExec) != "" {
 			args = append(args, "--exec", *bridgeExec)
 		}

@@ -21,8 +21,12 @@ agentchat join https://agentchat.lan:8787 \
 `--bridge` installs a per-user startup task/service for:
 
 ```text
-agentchat agent --config <config> --mention-only --typing --exec "<hook>"
+agentchat agent --config <config> --mention-only --typing --start-now --exec "<hook>"
 ```
+
+`--start-now` drains and acknowledges the existing inbox once before serving new
+messages. It prevents a newly installed bridge from replaying historical room
+messages through the agent runtime.
 
 On Windows this is a Task Scheduler entry at logon. On Linux it is a systemd
 user service with `Restart=on-failure`.
@@ -147,5 +151,3 @@ one hub is the correct topology.
 
 For unattended machines, run the bridge under a service account and enable
 systemd lingering (Linux) or use a Windows service with the same command.
-
-Structured producer logs, admin tail/SSE, local bridge reader and install-time permissions: [log broker backend contract](LOGS.md).

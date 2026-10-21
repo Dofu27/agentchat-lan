@@ -28,6 +28,7 @@ func (a *App) cmdAgent(args []string) (exit int) {
 	once := fs.Bool("once", false, "process one inbox batch and exit")
 	mentionOnly := fs.Bool("mention-only", false, "only invoke the hook for @me, @all, and DM messages")
 	typing := fs.Bool("typing", false, "publish typing while the hook runs")
+	startNow := fs.Bool("start-now", false, "ack the existing inbox before serving new messages")
 	jsonOut := fs.Bool("json", false, "print each message as JSON when no --exec is set")
 
 	codeExit, ok := a.parse(fs, args)
@@ -62,6 +63,14 @@ func (a *App) cmdAgent(args []string) (exit int) {
 	defer c.HTTP.CloseIdleConnections()
 	ctx, stop := signalContext()
 	defer stop()
+	if *startNow {
+		if !*ack {
+			return a.fail(fmt.Errorf("--start-now requires --ack"))
+		}
+		if err := drainInbox(ctx, c, *limit); err != nil {
+			return a.fail(fmt.Errorf("start-now: %w", err))
+		}
+	}
 
 	for {
 		if a.logs.Err() != nil {
@@ -148,6 +157,28 @@ func (a *App) cmdAgent(args []string) (exit int) {
 		}
 		if hookFailed && !sleepContext(ctx, 2*time.Second) {
 			return 0
+		}
+	}
+}
+
+func drainInbox(ctx context.Context, c *client.Client, limit int) error {
+	for {
+		resp, err := c.Inbox(ctx, 0, limit)
+		if err != nil {
+			return err
+		}
+		if len(resp.Messages) == 0 {
+			return nil
+		}
+		acks := make(map[string]int64)
+		for _, msg := range resp.Messages {
+			advanceAck(acks, msg)
+		}
+		if err := c.Ack(ctx, acks); err != nil {
+			return err
+		}
+		if len(resp.Messages) < limit {
+			return nil
 		}
 	}
 }
