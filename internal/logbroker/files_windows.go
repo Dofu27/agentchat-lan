@@ -11,16 +11,16 @@ func acquire(path string) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(10 * time.Second)
 	for {
 		h, err := windows.CreateFile(p, windows.GENERIC_READ|windows.GENERIC_WRITE, 0, nil, windows.OPEN_ALWAYS, windows.FILE_ATTRIBUTE_NORMAL, 0)
 		if err == nil {
 			return func() { windows.CloseHandle(h) }, nil
 		}
-		if err != windows.ERROR_SHARING_VIOLATION || time.Now().After(deadline) {
+		if err != windows.ERROR_SHARING_VIOLATION && err != windows.ERROR_LOCK_VIOLATION || time.Now().After(deadline) {
 			return nil, err
 		}
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 func openRead(path string) (*os.File, error) {
