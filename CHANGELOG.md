@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.13] - 2026-10-21
+
+### Fixed
+
+- Host setup rebuilds the desktop hub HTTP client with the newly configured CA,
+  so TLS hubs work without restarting the console
+
 ## [0.22.12] - 2026-10-21
 
 ### Fixed

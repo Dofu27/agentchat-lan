@@ -83,7 +83,8 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
   window and auto-fills the configured admin token on the configured origin
 - **Host setup**: initializes a hub data directory and admin token, optionally
   with TLS cert/key/CA, updates the desktop config, and prints the `sc.exe`
-  service-install command. It never prints the admin token. The service panel's
+  service-install command. It rebuilds the desktop HTTP client with the new CA,
+  so a TLS hub works without a console restart. It never prints the admin token. The service panel's
   **Install hub service** button runs the same install and starts the service;
   it needs an elevated console.
 - **Settings tab**: changes the console role (`hub`, `client`, `bridge`,
