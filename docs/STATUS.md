@@ -68,7 +68,8 @@ Updated: 2026-10-21
   checked without replacing the live container.
   A v0.14.1 backup was upgraded in temporary rehearsal directories; v0.26.4,
   v0.28.1, and the final v0.29.0 served healthy with federation state intact.
-  The v0.29.0 image also served health/ready against copied A data/TLS mounts.
+  The v0.29.0 image also served health/ready against copied A data/TLS mounts;
+  a gzipped image archive is staged for B.
 - P1 preflight on 2026-10-21: A health/ready passed at `v0.14.1`; B
   health/ready passed with `version=dev`. A 336 KiB backup was created, restored
   into a temporary directory, and its federation state verified. Production A
