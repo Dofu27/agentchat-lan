@@ -1,6 +1,6 @@
 # Unified desktop console
 
-Status: planned (P2)
+Status: in progress (P2; single-instance and Bridge tab implemented in v0.22.2)
 
 ## Goal
 

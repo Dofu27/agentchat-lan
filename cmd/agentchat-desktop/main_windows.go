@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -33,14 +34,18 @@ import (
 )
 
 type config struct {
-	Service   string            `json:"service"`
-	HubURL    string            `json:"hub_url"`
-	TokenFile string            `json:"token_file"`
-	CAFile    string            `json:"tls_ca_file,omitempty"`
-	Title     string            `json:"title,omitempty"`
-	Width     int               `json:"width,omitempty"`
-	Height    int               `json:"height,omitempty"`
-	LogFiles  map[string]string `json:"log_files,omitempty"`
+	Service       string            `json:"service"`
+	HubURL        string            `json:"hub_url"`
+	TokenFile     string            `json:"token_file"`
+	CAFile        string            `json:"tls_ca_file,omitempty"`
+	Title         string            `json:"title,omitempty"`
+	Width         int               `json:"width,omitempty"`
+	Height        int               `json:"height,omitempty"`
+	LogFiles      map[string]string `json:"log_files,omitempty"`
+	AgentchatPath string            `json:"agentchat_path,omitempty"`
+	AgentConfig   string            `json:"agent_config,omitempty"`
+	BridgeName    string            `json:"bridge_name,omitempty"`
+	BridgeExec    string            `json:"bridge_exec,omitempty"`
 }
 
 type app struct {
@@ -109,6 +114,22 @@ func main() {
 	}
 	if cfg.Height < 600 {
 		cfg.Height = 780
+	}
+	if cfg.BridgeName == "" {
+		cfg.BridgeName = "AgentChatBridge"
+	}
+	if cfg.AgentConfig != "" && !filepath.IsAbs(cfg.AgentConfig) && cfgPath != "" {
+		cfg.AgentConfig = filepath.Join(filepath.Dir(cfgPath), cfg.AgentConfig)
+	}
+	if cfg.BridgeExec != "" && !filepath.IsAbs(cfg.BridgeExec) && cfgPath != "" {
+		cfg.BridgeExec = filepath.Join(filepath.Dir(cfgPath), cfg.BridgeExec)
+	}
+	if cfg.AgentchatPath == "" {
+		if exe, err := os.Executable(); err == nil {
+			cfg.AgentchatPath = filepath.Join(filepath.Dir(exe), "agentchat.exe")
+		}
+	} else if !filepath.IsAbs(cfg.AgentchatPath) && cfgPath != "" {
+		cfg.AgentchatPath = filepath.Join(filepath.Dir(cfgPath), cfg.AgentchatPath)
 	}
 	hubURL, err := url.Parse(cfg.HubURL)
 	if err != nil || hubURL.Host == "" || (hubURL.Scheme != "https" && hubURL.Scheme != "http") {
@@ -188,16 +209,6 @@ func main() {
 		fmt.Printf("url=http://%s/\ncapability=%s\n", ln.Addr().String(), a.cap)
 		select {}
 	}
-
-	mutex, err := acquireConsoleMutex()
-	if err != nil {
-		if errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
-			log.Print("AgentChat Console is already running")
-			return
-		}
-		log.Fatalf("single-instance guard: %v", err)
-	}
-	defer windows.CloseHandle(mutex)
 
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		Debug: false,
@@ -340,24 +351,72 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/status", a.api(http.HandlerFunc(a.handleStatus)))
 	mux.Handle("POST /api/service", a.api(http.HandlerFunc(a.handleService)))
 	mux.Handle("GET /api/logs", a.api(http.HandlerFunc(a.handleLogs)))
+	mux.Handle("GET /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
+	mux.Handle("POST /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
 	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
 }
 
-func acquireConsoleMutex() (windows.Handle, error) {
-	name, err := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
-	if err != nil {
-		return 0, err
+func (a *app) bridgeResult(action string) map[string]any {
+	result := map[string]any{
+		"action":       action,
+		"name":         a.cfg.BridgeName,
+		"agent_config": a.cfg.AgentConfig,
+		"agentchat":    a.cfg.AgentchatPath,
+		"bridge_exec":  a.cfg.BridgeExec,
 	}
-	handle, err := windows.CreateMutex(nil, false, name)
-	if err != nil {
-		if handle != 0 {
-			_ = windows.CloseHandle(handle)
+	if a.cfg.AgentchatPath == "" {
+		result["ok"] = false
+		result["error"] = "agentchat_path is not configured"
+		return result
+	}
+	args := []string{"bridge", action, "--name", a.cfg.BridgeName}
+	if action == "install" {
+		if a.cfg.AgentConfig == "" {
+			result["ok"] = false
+			result["error"] = "agent_config is not configured"
+			return result
 		}
-		return 0, err
+		args = []string{"bridge", "install", "--config", a.cfg.AgentConfig, "--name", a.cfg.BridgeName, "--mention-only", "--typing", "--start-now"}
+		if a.cfg.BridgeExec != "" {
+			args = append(args, "--exec", a.cfg.BridgeExec)
+		}
 	}
-	return handle, nil
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, a.cfg.AgentchatPath, args...)
+	out, err := cmd.CombinedOutput()
+	if len(out) > 16<<10 {
+		out = out[:16<<10]
+	}
+	result["output"] = strings.TrimSpace(string(out))
+	result["ok"] = err == nil
+	if err != nil {
+		result["error"] = err.Error()
+	}
+	return result
+}
+
+func (a *app) handleBridge(w http.ResponseWriter, r *http.Request) {
+	action := "status"
+	if r.Method == http.MethodPost {
+		var req struct {
+			Action string `json:"action"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+			return
+		}
+		action = strings.TrimSpace(req.Action)
+	}
+	switch action {
+	case "status", "install", "uninstall":
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unsupported bridge action"})
+		return
+	}
+	writeJSON(w, http.StatusOK, a.bridgeResult(action))
 }
 
 func serviceStatus(name string) (map[string]any, error) {
