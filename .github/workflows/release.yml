@@ -27,3 +27,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build self-contained desktop installer
+        run: VERSION="${GITHUB_REF_NAME}" bash scripts/build-desktop-installer.sh
+
+      - name: Upload desktop installer to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" "dist/AgentChatConsole-${GITHUB_REF_NAME}-installer.exe" --clobber
