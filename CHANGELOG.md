@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.24.5] - 2026-10-21
+
+### Fixed
+
+- Host-init failure rolls back only the data directory/token file created by the
+  failed request
+- Installer reports Start Menu shortcut failures; real-junction uninstall test
+  confirms the identity guard refuses the junction and leaves the moved install
+  intact
+
 ## [0.24.4] - 2026-10-21
 
 ### Fixed
