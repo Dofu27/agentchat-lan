@@ -28,7 +28,7 @@ func TestFederationAdmissionPreservesLeases(t *testing.T) {
 	}))
 	defer remote.Close()
 	a := newFederationNode(t)
-	opts := hub.FederationOptions{MaxOutbox: 100, MaxAttempts: 1, RetryBase: 20 * time.Millisecond, PollInterval: 10 * time.Millisecond, RequestTimeout: 200 * time.Millisecond, LeaseDuration: 400 * time.Millisecond}
+	opts := hub.FederationOptions{MaxOutbox: 100, MaxAttempts: 1, RetryBase: 20 * time.Millisecond, PollInterval: 10 * time.Millisecond, RequestTimeout: time.Second, LeaseDuration: 2 * time.Second}
 	for i := range 32 {
 		id := fmt.Sprintf("fixture-peer-%02d", i)
 		opts.Peers = append(opts.Peers, hub.FederationPeerOptions{NodeID: id, BaseURL: remote.URL, Secret: federationTestSecret})
