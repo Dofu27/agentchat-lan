@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.26.6] - 2026-10-21
+
+### Fixed
+
+- Track `cmd/agentchat-desktop/launcher.html` (it was ignored by a broad
+  `agentchat-desktop` ignore pattern, breaking Linux/macOS release builds)
+
 ## [0.26.5] - 2026-10-21
 
 ### Added
