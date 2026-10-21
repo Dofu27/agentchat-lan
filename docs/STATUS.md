@@ -9,6 +9,8 @@ Updated: 2026-10-21
   with a receipts ACL fix; federation forwarding remains disabled.
 - `v0.22.8` adds a self-contained per-user installer EXE with embedded console
   and CLI, role selection, Startup entry, and uninstall flags.
+- Desktop Join E2E passed against a temporary local hub: invite -> agent config
+  -> `/api/chat` identity, with no token in any API response.
 - Live DSH bridge: real headless replies `DSH_2111_OK` (`#349`) and
   `DSH_RESTART_OK` (`#335`); one-time fixed cutoff initialization is durable.
 - Windows bridge install has a Startup-folder fallback when Task Scheduler is
