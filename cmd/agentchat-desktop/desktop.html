@@ -39,6 +39,12 @@
   #toast { min-height:20px; color:var(--muted); margin-top:10px; white-space:pre-wrap; }
   #toast.bad { color:var(--bad); }
   @media (max-width:800px) { main { grid-template-columns:1fr; } }
+  .hidden { display:none !important; }
+  .tabs { display:flex; gap:6px; max-width:1080px; margin:14px auto 0; padding:0 18px; }
+  .tabs button { border-radius:8px 8px 0 0; border-bottom-color:transparent; }
+  .tabs button.active { background:var(--panel); border-color:var(--line); color:var(--accent); }
+  main.logs { grid-template-columns:1fr; }
+  pre.logs { margin:10px 0 0; padding:12px; height:calc(100vh - 250px); min-height:260px; overflow:auto; background:#080c12; border:1px solid var(--line); border-radius:8px; color:#c9d5e3; font:12px/1.5 Consolas,"Cascadia Mono",monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
 </style>
 </head>
 <body>
@@ -51,7 +57,11 @@
     <button id="refresh" type="button">Refresh</button>
   </div>
 </header>
-<main>
+<nav class="tabs" role="tablist">
+  <button id="tab-overview-btn" type="button" class="active" data-i18n="tab.overview">Overview</button>
+  <button id="tab-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
+</nav>
+<main id="overview-view">
   <section>
     <h2 data-i18n="service.title">Windows service</h2>
     <div class="row between">
@@ -100,6 +110,23 @@
     <div id="dead"></div>
   </section>
 </main>
+<main id="logs-view" class="logs hidden">
+  <section class="wide">
+    <div class="row between">
+      <h2 style="margin:0" data-i18n="logs.title">Logs</h2>
+      <div class="row">
+        <select id="log-source">
+          <option value="desktop" data-i18n="logs.desktop">Desktop</option>
+          <option value="hub" data-i18n="logs.hub">Hub</option>
+          <option value="bridge" data-i18n="logs.bridge">Bridge</option>
+        </select>
+        <button id="log-pause" type="button" data-i18n="logs.pause">Pause</button>
+        <button id="log-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
+      </div>
+    </div>
+    <pre id="log-output" class="logs"></pre>
+  </section>
+</main>
 <script>
 (() => {
   "use strict";
@@ -107,6 +134,9 @@
   const dict = {
     en: {
       "open.admin":"Open Web admin",
+      "tab.overview":"Overview", "tab.logs":"Logs",
+      "logs.title":"Logs", "logs.desktop":"Desktop", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "logs.pause":"Pause", "logs.resume":"Resume", "logs.refresh":"Refresh", "logs.empty":"No log file yet.",
       "service.title":"Windows service", "service.start":"Start", "service.stop":"Stop", "service.restart":"Restart",
       "service.start_with_windows":"Start with Windows", "service.hub":"Hub", "service.health":"Health",
       "fed.title":"Federation", "fed.runtime":"Runtime", "fed.node":"Node", "fed.peer":"Peer", "fed.link":"Link", "fed.outbox":"Outbox",
@@ -120,6 +150,9 @@
     },
     zh: {
       "open.admin":"打开管理网页",
+      "tab.overview":"概览", "tab.logs":"日志",
+      "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "logs.pause":"暂停", "logs.resume":"继续", "logs.refresh":"刷新", "logs.empty":"还没有日志文件。",
       "service.title":"Windows 服务", "service.start":"启动", "service.stop":"停止", "service.restart":"重启",
       "service.start_with_windows":"开机自动启动", "service.hub":"Hub", "service.health":"健康",
       "fed.title":"联邦", "fed.runtime":"运行状态", "fed.node":"节点", "fed.peer":"对端", "fed.link":"房间链接", "fed.outbox":"发件箱",
@@ -141,6 +174,7 @@
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
     document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
     $("lang-toggle").textContent = lang === "zh" ? "English" : "中文";
+    if ($("log-pause")) $("log-pause").textContent = logsPaused ? t("logs.resume") : t("logs.pause");
   }
   function toast(message, bad) {
     const el = $("toast"); el.textContent = message || ""; el.classList.toggle("bad", !!bad);
@@ -255,6 +289,42 @@
       await refresh();
     } catch (err) { toast(err.message + (err.message.includes("administrator") ? "" : ""), true); }
   }
+  let activeTab = "overview";
+  let logsPaused = false;
+  let logsBusy = false;
+  async function refreshLogs() {
+    if (logsBusy) return;
+    logsBusy = true;
+    try {
+      const source = $("log-source").value;
+      const body = await api("/api/logs?source=" + encodeURIComponent(source));
+      const out = $("log-output");
+      const atBottom = out.scrollTop + out.clientHeight >= out.scrollHeight - 24;
+      const lines = (body && body.lines) || [];
+      out.textContent = lines.length ? lines.join("\n") : t("logs.empty");
+      if (atBottom) out.scrollTop = out.scrollHeight;
+    } catch (err) {
+      $("log-output").textContent = err.message || String(err);
+    } finally { logsBusy = false; }
+  }
+  function showTab(tab) {
+    activeTab = tab;
+    $("overview-view").classList.toggle("hidden", tab !== "overview");
+    $("logs-view").classList.toggle("hidden", tab !== "logs");
+    $("tab-overview-btn").classList.toggle("active", tab === "overview");
+    $("tab-logs-btn").classList.toggle("active", tab === "logs");
+    if (tab === "logs") refreshLogs();
+  }
+  $("tab-overview-btn").addEventListener("click", () => showTab("overview"));
+  $("tab-logs-btn").addEventListener("click", () => showTab("logs"));
+  $("log-source").addEventListener("change", refreshLogs);
+  $("log-refresh").addEventListener("click", refreshLogs);
+  $("log-pause").addEventListener("click", () => {
+    logsPaused = !logsPaused;
+    $("log-pause").textContent = logsPaused ? t("logs.resume") : t("logs.pause");
+  });
+  setInterval(() => { if (activeTab === "logs" && !logsPaused) refreshLogs(); }, 1000);
+
   $("start").addEventListener("click", () => serviceAction("start"));
   $("stop").addEventListener("click", () => serviceAction("stop"));
   $("restart").addEventListener("click", () => serviceAction("restart"));
