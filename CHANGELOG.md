@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.12] - 2026-10-21
+
+### Fixed
+
+- Installer no longer fails when a locked-down host denies creation of the
+  per-user Startup entry; it warns, installs the binaries/config, and exits 0
+
 ## [0.22.11] - 2026-10-21
 
 ### Added
