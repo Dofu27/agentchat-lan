@@ -8,7 +8,8 @@ Updated: 2026-10-21
 - F4 local explicit read receipts merged for `v0.22.0` from Codex `1602baa`,
   with a receipts ACL fix; `v0.22.15` makes the route opt-in via
   `--read-receipts`. `v0.29.0` (pending review) adds opt-in federation
-  forwarding with bounded best-effort delivery and no re-forwarding loop.
+  forwarding with bounded best-effort delivery and no re-forwarding loop, plus
+  per-peer multi-peer DM fanout.
 - `v0.22.8` adds a self-contained per-user installer EXE with embedded console
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
@@ -295,10 +296,10 @@ go test ./...
 
 ## Remaining feature gaps
 
-- P3: local explicit read receipts are implemented and opt-in; federation
-  read-receipt forwarding is not implemented yet.
-- P4: multi-peer text and attachments are implemented; multi-peer DM/typing
-  remain single-peer. Linux/macOS ship a launcher, not the full WebView console.
+- P3: local explicit read receipts and opt-in federation forwarding are
+  implemented; forwarding is best-effort/advisory.
+- P4: multi-peer text, attachments, and DM are implemented; multi-peer typing
+  remains single-peer. Linux/macOS ship a launcher, not the full WebView console.
 - P5: screenshots are pending Codex desktop capture.
 
 ## Blockers / pending
