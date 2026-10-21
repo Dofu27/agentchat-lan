@@ -96,11 +96,15 @@ user, and TLS/federation flags. Record `docker inspect agentchat` before
 stopping it.
 
 B is a Windows LocalSystem service, not Docker; see
-[B_UPGRADE.md](B_UPGRADE.md). Its v0.29.0 CLI was staged and its fresh backup
-restored with v0.29.0 on loopback health/ready.
-No service was stopped or replaced. B staging was not possible from this host
-because the A→B SSH key is denied; use B's own console/SSH path during the
-maintenance window.
+[B_UPGRADE.md](B_UPGRADE.md). It is reachable from main-pc over key-only SSH as
+`11963`; the v0.29.0 CLI was staged in `C:\Program Files\AgentChat` and its
+fresh 463,394-byte backup restored with v0.29.0 on loopback health/ready.
+No service was stopped or replaced.
+
+A fresh A backup was also made: `preflight-A-20261022-0340.tar.gz`
+(557,415 bytes, SHA-256
+`ba25fe4ff521f9fa2d199cd093037fbea1aa56c99b7477434b332206b48cb769`), restored
+with v0.29.0 on loopback health/ready.
 
 ## Backup
 

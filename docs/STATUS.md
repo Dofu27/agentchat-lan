@@ -75,7 +75,9 @@ Updated: 2026-10-21
   key-only SSH as an elevated session: Windows LocalSystem service
   `AgentChatFedB`, fresh 463 KB backup created, staged v0.29.0 CLI, and that
   backup restored with v0.29.0 on loopback health/ready; the new binary is
-  staged in `C:\Program Files\AgentChat` without changing the service. A 336 KiB backup was created, restored
+  staged in `C:\Program Files\AgentChat` without changing the service. A fresh
+  557 KB A backup also restored with v0.29.0 health/ready; maintenance window
+  confirmed 05:45–06:30 Asia/Hong_Kong. A 336 KiB backup was created, restored
   into a temporary directory, and its federation state verified. Production A
   currently has one enabled federation peer/link with delivered outbox rows, so
   the rollout must not assume federation is disabled.
