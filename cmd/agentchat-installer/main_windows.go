@@ -5,6 +5,7 @@ package main
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -59,6 +60,15 @@ func main() {
 	}
 }
 
+const installMarkerName = ".agentchat-install.json"
+
+type installMarker struct {
+	App           string   `json:"app"`
+	Root          string   `json:"root"`
+	Files         []string `json:"files"`
+	ConfigCreated bool     `json:"config_created"`
+}
+
 func installDesktop(dir, role, hub string, startup bool) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -73,6 +83,7 @@ func installDesktop(dir, role, hub string, startup bool) error {
 		}
 	}
 	cfgPath := filepath.Join(dir, "desktop.json")
+	configCreated := false
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 		cfg := map[string]any{
 			"title": "AgentChat Console", "width": 1180, "height": 820,
@@ -85,20 +96,34 @@ func installDesktop(dir, role, hub string, startup bool) error {
 		if err := os.WriteFile(cfgPath, data, 0o600); err != nil {
 			return err
 		}
+		configCreated = true
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	marker := installMarker{
+		App: "agentchat-desktop", Root: filepath.Clean(absDir),
+		Files: []string{"AgentChatConsole.exe", "agentchat.exe"}, ConfigCreated: configCreated,
+	}
+	markerData, _ := json.MarshalIndent(marker, "", "  ")
+	if err := os.WriteFile(filepath.Join(absDir, installMarkerName), markerData, 0o600); err != nil {
+		return err
 	}
 	if startup {
 		started := false
 		startupDir := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
 		if err := os.MkdirAll(startupDir, 0o700); err == nil {
-			line := "@echo off\r\nstart \"\" \"" + filepath.Join(dir, "AgentChatConsole.exe") + "\" --config \"" + cfgPath + "\"\r\n"
-			if err := os.WriteFile(filepath.Join(startupDir, "AgentChat Console.cmd"), []byte(line), 0o600); err == nil {
+			// A .lnk avoids cmd.exe percent/quote expansion in the target path.
+			if err := createShortcut(filepath.Join(startupDir, "AgentChat Console.lnk"),
+				filepath.Join(absDir, "AgentChatConsole.exe"), "--config \""+cfgPath+"\"", absDir); err == nil {
 				started = true
 			}
 		}
 		if !started {
 			// Some managed hosts deny the Startup folder. HKCU Run is the
 			// per-user fallback and still needs no administrator rights.
-			value := "\"" + filepath.Join(dir, "AgentChatConsole.exe") + "\" --config \"" + cfgPath + "\""
+			value := "\"" + filepath.Join(absDir, "AgentChatConsole.exe") + "\" --config \"" + cfgPath + "\""
 			err := exec.Command("reg.exe", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
 				"/v", "AgentChatConsole", "/t", "REG_SZ", "/d", value, "/f").Run()
 			if err != nil {
@@ -108,9 +133,17 @@ func installDesktop(dir, role, hub string, startup bool) error {
 			}
 		}
 	}
-	createStartMenu(dir, cfgPath)
-	fmt.Printf("Installed AgentChat Console to %s\n", dir)
+	createStartMenu(absDir, cfgPath)
+	fmt.Printf("Installed AgentChat Console to %s\n", absDir)
 	return nil
+}
+
+func createShortcut(link, target, args, workdir string) error {
+	script := "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('" + strings.ReplaceAll(link, "'", "''") +
+		"');$s.TargetPath='" + strings.ReplaceAll(target, "'", "''") +
+		"';$s.Arguments='" + strings.ReplaceAll(args, "'", "''") +
+		"';$s.WorkingDirectory='" + strings.ReplaceAll(workdir, "'", "''") + "';$s.Save()"
+	return exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).Run()
 }
 
 func createStartMenu(dir, cfgPath string) {
@@ -122,30 +155,102 @@ func createStartMenu(dir, cfgPath string) {
 	if err := os.MkdirAll(folder, 0o700); err != nil {
 		return
 	}
-	target := filepath.Join(dir, "AgentChatConsole.exe")
-	link := filepath.Join(folder, "AgentChat Console.lnk")
-	script := "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('" + strings.ReplaceAll(link, "'", "''") +
-		"');$s.TargetPath='" + strings.ReplaceAll(target, "'", "''") +
-		"';$s.Arguments='--config \"" + strings.ReplaceAll(cfgPath, "'", "''") +
-		"\"';$s.WorkingDirectory='" + strings.ReplaceAll(dir, "'", "''") + "';$s.Save()"
-	_ = exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).Run()
+	_ = createShortcut(filepath.Join(folder, "AgentChat Console.lnk"),
+		filepath.Join(dir, "AgentChatConsole.exe"), "--config \""+cfgPath+"\"", dir)
+}
+
+func protectedInstallRoot(path string) bool {
+	path = strings.ToLower(filepath.Clean(path))
+	for _, root := range []string{os.Getenv("USERPROFILE"), os.Getenv("APPDATA"), os.Getenv("LOCALAPPDATA"), os.Getenv("ProgramFiles"), os.Getenv("WINDIR")} {
+		if root == "" {
+			continue
+		}
+		root = strings.ToLower(filepath.Clean(root))
+		if path == root || strings.HasPrefix(root, path+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func safeMarkerPath(root, name string) (string, bool) {
+	if name == "" || filepath.Base(name) != name {
+		return "", false
+	}
+	return filepath.Join(root, name), true
 }
 
 func uninstallDesktop(dir string, removeData bool) error {
-	startup := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "AgentChat Console.cmd")
-	_ = os.Remove(startup)
-	_ = exec.Command("reg.exe", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", "AgentChatConsole", "/f").Run()
-	programs := os.Getenv("APPDATA")
-	if programs != "" {
-		_ = os.Remove(filepath.Join(programs, "Microsoft", "Windows", "Start Menu", "Programs", "AgentChat", "AgentChat Console.lnk"))
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	abs = filepath.Clean(abs)
+	if protectedInstallRoot(abs) || filepath.VolumeName(abs)+string(os.PathSeparator) == abs {
+		return fmt.Errorf("refusing to uninstall from protected directory %s", abs)
+	}
+	data, err := os.ReadFile(filepath.Join(abs, installMarkerName))
+	if err != nil {
+		return fmt.Errorf("refusing uninstall without ownership marker: %w", err)
+	}
+	var marker installMarker
+	if err := json.Unmarshal(data, &marker); err != nil || marker.App != "agentchat-desktop" || !strings.EqualFold(filepath.Clean(marker.Root), abs) {
+		return fmt.Errorf("ownership marker does not match %s", abs)
+	}
+	if err := removeStartupEntries(); err != nil {
+		return err
+	}
+	var removeErr error
+	remove := func(path string) {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			removeErr = errors.Join(removeErr, fmt.Errorf("%s: %w", path, err))
+		}
+	}
+	for _, name := range marker.Files {
+		path, ok := safeMarkerPath(abs, name)
+		if !ok {
+			return fmt.Errorf("invalid owned file in marker: %q", name)
+		}
+		remove(path)
+	}
+	if removeData && marker.ConfigCreated {
+		remove(filepath.Join(abs, "desktop.json"))
 	}
 	if removeData {
-		return os.RemoveAll(dir)
+		remove(filepath.Join(abs, installMarkerName))
+		if removeErr == nil {
+			if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
+				fmt.Printf("Kept %s because it contains unknown files\n", abs)
+			}
+		}
+		if removeErr != nil {
+			return removeErr
+		}
+		return nil
 	}
-	for _, name := range []string{"AgentChatConsole.exe", "agentchat.exe"} {
-		_ = os.Remove(filepath.Join(dir, name))
+	if removeErr != nil {
+		return removeErr
 	}
-	fmt.Printf("Removed AgentChat binaries from %s; configuration kept\n", dir)
+	fmt.Printf("Removed AgentChat binaries from %s; configuration kept\n", abs)
+	return nil
+}
+
+func removeStartupEntries() error {
+	appData := os.Getenv("APPDATA")
+	if appData == "" {
+		return nil
+	}
+	startup := filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+	for _, name := range []string{"AgentChat Console.lnk", "AgentChat Console.cmd"} {
+		if err := os.Remove(filepath.Join(startup, name)); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	menu := filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "AgentChat", "AgentChat Console.lnk")
+	if err := os.Remove(menu); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	_ = exec.Command("reg.exe", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", "AgentChatConsole", "/f").Run()
 	return nil
 }
 

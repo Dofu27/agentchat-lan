@@ -56,7 +56,9 @@ creates Start Menu/Startup entries:
 ```
 
 Useful flags: `-install-dir`, `-no-startup`, `-no-launch`, `-uninstall`, and
-`-remove-data`. No administrator rights are needed. If a host policy blocks the
+`-remove-data`. No administrator rights are needed. Uninstall requires the
+`.agentchat-install.json` ownership marker written by this installer; it removes
+only files listed there and refuses arbitrary directories. If a host policy blocks the
 user Startup folder, the installer tries an HKCU Run entry; if both are blocked
 it warns and still installs the binaries/config with exit code 0.
 

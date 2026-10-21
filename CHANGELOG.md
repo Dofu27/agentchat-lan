@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.16] - 2026-10-21
+
+### Security
+
+- Installer writes an ownership marker and uninstall removes only marked files;
+  missing/mismatched markers are refused and arbitrary `RemoveAll` is gone
+- Startup uses a `.lnk` (or HKCU Run fallback), avoiding cmd.exe percent/quote
+  expansion
+- Uninstall reports real file-removal errors instead of claiming success
+- Desktop chat/admin token injection uses one canonical origin serializer and
+  rejects non-canonical hosts/default-port mismatches
+- Settings updates are persisted to a candidate config before mutating runtime
+  state
+
 ## [0.22.15] - 2026-10-21
 
 ### Changed
