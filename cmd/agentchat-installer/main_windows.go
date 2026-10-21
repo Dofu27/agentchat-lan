@@ -89,11 +89,12 @@ func installDesktop(dir, role, hub string, startup bool) error {
 	if startup {
 		startupDir := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
 		if err := os.MkdirAll(startupDir, 0o700); err != nil {
-			return err
-		}
-		line := "@echo off\r\nstart \"\" \"" + filepath.Join(dir, "AgentChatConsole.exe") + "\" --config \"" + cfgPath + "\"\r\n"
-		if err := os.WriteFile(filepath.Join(startupDir, "AgentChat Console.cmd"), []byte(line), 0o600); err != nil {
-			return err
+			fmt.Fprintf(os.Stderr, "warning: cannot create Startup folder: %v\n", err)
+		} else {
+			line := "@echo off\r\nstart \"\" \"" + filepath.Join(dir, "AgentChatConsole.exe") + "\" --config \"" + cfgPath + "\"\r\n"
+			if err := os.WriteFile(filepath.Join(startupDir, "AgentChat Console.cmd"), []byte(line), 0o600); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: cannot create Startup entry: %v\n", err)
+			}
 		}
 	}
 	createStartMenu(dir, cfgPath)
