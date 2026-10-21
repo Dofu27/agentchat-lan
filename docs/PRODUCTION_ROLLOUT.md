@@ -74,6 +74,11 @@ agentchat:v0.29.0  (FROM agentchat:m141-admin-reset + /usr/local/bin/agentchat)
 docker run --rm ... version → agentchat 0.29.0
 ```
 
+The v0.29.0 image was also run against a **copy** of A's `/home/operator/agentchat-data`
+and `/home/operator/agentchat-tls` on `127.0.0.1:18795` (federation config omitted),
+returning `{"status":"ok","version":"0.29.0"}` and `{"status":"ready"}`. The
+running container was not replaced.
+
 The maintenance upgrade must preserve A's current container mounts, ports,
 user, and TLS/federation flags. Record `docker inspect agentchat` before
 stopping it. B's runtime is not yet verified from this host.
