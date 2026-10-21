@@ -230,6 +230,11 @@ docs/                 Contract, deployment, security, and task handoff
 deploy/               Docker and service examples
 ```
 
+## Release notes
+
+See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) for the latest release,
+install commands, upgrade/rollback guidance, and known limits.
+
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the program plan after the DSH
