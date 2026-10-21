@@ -647,7 +647,11 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 		HubURL: hubURL, Token: joined.Token, AgentID: joined.Agent.ID,
 		AgentName: joined.Agent.Name, AgentKind: joined.Agent.Kind, Rooms: rooms,
 	}
-	if err := agentconfig.Save(path, &agentCfg); err != nil {
+	if err := agentconfig.SaveNew(path, &agentCfg); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			writeJSON(w, http.StatusConflict, map[string]any{"error": "agent_config already exists"})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save agent config"})
 		return
 	}
