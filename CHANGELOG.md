@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.27.1] - 2026-10-21
+
+### Fixed
+
+- GoReleaser publishes a normal release (not a draft), so the workflow's
+  installer upload finds it; retagged from a unique commit to avoid multiple
+  tags on one commit confusing GoReleaser
+
 ## [0.26.6] - 2026-10-21
 
 ### Fixed

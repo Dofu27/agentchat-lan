@@ -1,4 +1,4 @@
-version: 2
+﻿version: 2
 
 project_name: agentchat
 
@@ -104,5 +104,6 @@ changelog:
       - "^chore:"
 
 release:
-  draft: true
+  draft: false
   prerelease: auto
+
