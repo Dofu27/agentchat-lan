@@ -15,8 +15,9 @@ import (
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
-func (a *App) cmdCodexBridge(args []string) int {
+func (a *App) cmdCodexBridge(args []string) (exit int) {
 	fs := a.newFlagSet("codex-bridge")
+	logging := logFlags(fs)
 	cfgPath := fs.String("config", "", "agent config file path")
 	thread := fs.String("thread", "", "Codex session/thread ID (optional; auto-detect current thread)")
 	codexHome := fs.String("codex-home", "", "Codex home containing thread_history_1.sqlite (default CODEX_HOME or ~/.codex)")
@@ -35,6 +36,17 @@ func (a *App) cmdCodexBridge(args []string) int {
 	if err != nil {
 		return a.fail(err)
 	}
+	closeLog, err := a.openProcessLog(logging, "bridge", *cfgPath)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer func() {
+		producer := a.logs
+		closeLog()
+		if producer.Err() != nil {
+			exit = 1
+		}
+	}()
 	if strings.TrimSpace(*thread) == "" {
 		*thread, err = currentCodexThread(*codexHome)
 		if err != nil {
@@ -84,6 +96,7 @@ func (a *App) cmdCodexBridge(args []string) int {
 		key = cfg.HubURL + "|" + cfg.AgentID + "|" + *thread + "|" + msg.ID
 		entry = state[key]
 		if entry.Confirmed {
+			a.logEvent("info", "queue_confirmed", msg.Room, cfg.AgentID, msg.Seq, "")
 			return 0
 		}
 		if !entry.Updated.IsZero() && time.Since(entry.Updated) < *dedupeWindow {
@@ -106,21 +119,32 @@ func (a *App) cmdCodexBridge(args []string) int {
 		if key != "" {
 			state[key] = bridgeEntry{Before: before, Updated: time.Now()}
 			if err := saveBridgeState(statePath, state); err != nil {
+				a.logEvent("error", "state_failed", msg.Room, cfg.AgentID, msg.Seq, "")
 				fmt.Fprintf(a.Stderr, "codex-bridge: save pending state: %v\n", err)
 			}
+		}
+		a.logEvent("info", "queue_started", msg.Room, cfg.AgentID, msg.Seq, "")
+		if a.logs.Err() != nil {
+			return a.fail(fmt.Errorf("structured bridge logging failed"))
 		}
 		cmd := exec.Command(*codex, "queue", "--thread", *thread, "--message", prompt)
 		cmd.Stdout = a.Stdout
 		cmd.Stderr = a.Stderr
 		if err := cmd.Run(); err != nil {
+			a.logEvent("error", "queue_failed", msg.Room, cfg.AgentID, msg.Seq, "")
 			if key != "" {
 				delete(state, key)
 				if saveErr := saveBridgeState(statePath, state); saveErr != nil {
+					a.logEvent("error", "state_failed", msg.Room, cfg.AgentID, msg.Seq, "")
 					fmt.Fprintf(a.Stderr, "codex-bridge: clear failed pending state: %v\n", saveErr)
 				}
 			}
-			return a.fail(fmt.Errorf("codex queue: %w", err))
+			return a.fail(fmt.Errorf("codex queue failed"))
 		}
+	}
+	a.logEvent("info", "queue_pending", msg.Room, cfg.AgentID, msg.Seq, "")
+	if a.logs.Err() != nil {
+		return a.fail(fmt.Errorf("structured bridge logging failed"))
 	}
 	if *waitTurn <= 0 {
 		return 0
@@ -133,9 +157,11 @@ func (a *App) cmdCodexBridge(args []string) int {
 				entry.Updated = time.Now()
 				state[key] = entry
 				if err := saveBridgeState(statePath, state); err != nil {
-					fmt.Fprintf(a.Stderr, "codex-bridge: save confirmed state: %v\n", err)
+					a.logEvent("error", "state_failed", msg.Room, cfg.AgentID, msg.Seq, "")
+					fmt.Fprintln(a.Stderr, "codex-bridge: save confirmed state failed")
 				}
 			}
+			a.logEvent("info", "queue_confirmed", msg.Room, cfg.AgentID, msg.Seq, "")
 			return true
 		}
 		return false
@@ -144,13 +170,19 @@ func (a *App) cmdCodexBridge(args []string) int {
 		return 0
 	}
 	if *startApp {
+		a.logEvent("info", "app_start", msg.Room, cfg.AgentID, msg.Seq, "")
+		if a.logs.Err() != nil {
+			return a.fail(fmt.Errorf("structured bridge logging failed"))
+		}
 		fmt.Fprintln(a.Stderr, "codex-bridge: no new turn yet; starting Codex Desktop")
 		if err := startCodexApp(*codex); err != nil {
+			a.logEvent("error", "app_failed", msg.Room, cfg.AgentID, msg.Seq, "")
 			fmt.Fprintf(a.Stderr, "codex-bridge: start Codex Desktop: %v\n", err)
 		} else if confirmed() {
 			return 0
 		}
 	}
+	a.logEvent("warn", "queue_pending", msg.Room, cfg.AgentID, msg.Seq, "")
 	return a.fail(fmt.Errorf("codex queue accepted but no new turn started within %s; Codex may not be running", *waitTurn))
 }
 
