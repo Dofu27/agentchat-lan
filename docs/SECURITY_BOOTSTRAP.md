@@ -33,6 +33,9 @@ does not become an elevated service installer.
 
 Tests use temporary junctions and synthetic security descriptors; no real
 administrator service installation or production ACL modification is performed.
+The TokenGroups test directly requires any present Administrators SID in the
+restricted token to be deny-only and not enabled; an ordinary non-admin token
+may omit that SID. Actual elevated-console and SYSTEM runs remain unverified.
 An administrator able to change machine ACLs is outside the ordinary-user
 threat model. Printed installation hints are advisory; installation via the
 console revalidates and pins the executable at the time of the operation.
@@ -50,10 +53,26 @@ resuming its primary thread. All failures kill/reap the suspended process.
 Per-call API injection tests cover creation, configuration, opening, assignment,
 and resume failures without mutable global syscall hooks. Cancellation kills the
 Job; natural parent exit closes it too. WaitDelay bounds inherited-pipe waits.
-Capture is limited to 16 KiB before rendering; credential fields and values are
+Every descendant remaining in that Job is terminated when the Job closes,
+including a directly spawned child intended to remain running. This executor
+does not enable breakaway or offer a variant that disables KILL_ON_JOB_CLOSE.
+Persistent processes must be started by an external owner such as SCM or Task
+Scheduler, not directly spawned by the contained command. A future explicit
+detachment API would need its own ownership and cleanup contract.
+On Windows, bridge install registers an ONLOGON task or Startup entry; it does
+not directly start an agent. The --start-now flag controls that future agent's
+initial inbox cutoff, not immediate process startup. SCM starts the hub service
+outside the sc.exe command's descendant tree. These are source-level ownership
+checks; actual SCM/Task Scheduler lifecycle tests were not performed here.
+Capture is limited to 16 KiB at write time, not just in the UI. Excess bytes are
+discarded and String appends [output truncated]; error classification does not
+depend on obtaining complete output. Credential fields and values are
 redacted, including Authorization/Authentication, standalone Bearer, JSON,
 query strings, URL credentials and private key blocks. Arbitrary unlabelled
 secrets cannot be inferred; trusted tools must not print secret material.
+Capture precedes regex redaction. Complete-form tests do not establish safety
+when truncation cuts through a quoted credential or a private-key block; this
+combination remains unverified.
 
 ## Bootstrap credential delivery and recovery
 
@@ -78,6 +97,12 @@ Before reading the credential, Windows also rechecks that same handle's owner
 ACEs, and absence of allow grants to any other account. New files explicitly
 set the initiating user as owner. ACL widening after creation therefore blocks
 resume; fix permissions through an authorized local recovery procedure first.
+Current ACL validation cannot prove historical secrecy. If the credential may
+already have been disclosed, repairing its ACL alone does not revoke leaked
+copies; use an authorized credential-rotation procedure.
+Windows MkdirAll(0700) does not restrict the parent directory's DACL. Credential
+ancestor pinning and protection against replacement through a writable parent
+are not provided by this file-only permission check.
 Unix resume requires initiating-user ownership and no group/other permissions.
 It validates the credential before opening the DB. The same token/hash is
 idempotent; a different existing admin hash is never replaced. Partial or corrupt
@@ -100,8 +125,10 @@ migration or token rotation.
 ## Federation admission
 
 Each peer retains its own worker and FIFO claim ordering. A worker first obtains
-one of eight global delivery slots and only then claims a leased job. Empty
-claims, storage errors and cancellation release admission; lease time is never
+one of eight global delivery slots and only then claims a leased job.
+Each peer has at most one synchronous delivery in flight, so one slow peer
+occupies only one global slot rather than consuming all shared consumers.
+Empty claims, storage errors and cancellation release admission; lease time is never
 spent waiting for capacity. Tests assert 32 valid peer deliveries, zero dead
 jobs from admission waiting, at most eight concurrent requests, healthy-peer
 progress during another peer's backlog, and drain after that peer recovers.
