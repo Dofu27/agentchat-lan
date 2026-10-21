@@ -8,22 +8,33 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"time"
 
 	"golang.org/x/sys/windows/svc"
+
+	"github.com/Dofu27/agentchat-lan/internal/logbroker"
 )
 
 func (a *App) serviceRun(args []string) int {
 	fs := a.newFlagSet("service run")
+	logging := logFlags(fs)
 	name := fs.String("name", defaultServiceName, "Windows service name")
-	logPath := fs.String("log", "", "optional service log file")
+	logPath := fs.String("log", "", "legacy: use its directory for structured logs; raw stdout is not captured")
 	if codeExit, ok := a.parse(fs, args); !ok {
 		return codeExit
 	}
 	if fs.NArg() == 0 {
 		return a.fail(fmt.Errorf("service run requires a child command"))
 	}
-	if err := runWindowsService(*name, *logPath, fs.Args()); err != nil {
+	if *logging.dir == "" && *logPath != "" {
+		*logging.dir = filepath.Dir(*logPath)
+	}
+	if !filepath.IsAbs(*logging.dir) {
+		return a.fail(fmt.Errorf("service run requires an absolute --log-dir (or legacy --log path) prepared at install time"))
+	}
+	if info, err := os.Stat(*logging.dir); err != nil || !info.IsDir() {
+		return a.fail(fmt.Errorf("prepare service log directory before service run"))
+	}
+	if err := runWindowsService(*name, logging.options("service", *logging.dir), fs.Args()); err != nil {
 		return a.fail(err)
 	}
 	return 0
@@ -32,39 +43,31 @@ func (a *App) serviceRun(args []string) int {
 type childService struct {
 	exe     string
 	args    []string
-	logPath string
+	logging logbroker.Options
 }
 
-func runWindowsService(name, logPath string, args []string) error {
+func runWindowsService(name string, logging logbroker.Options, args []string) error {
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	if logPath != "" {
-		logPath = filepath.Clean(logPath)
-	}
-	return svc.Run(name, &childService{exe: exe, args: args, logPath: logPath})
+	return svc.Run(name, &childService{exe: exe, args: args, logging: logging})
 }
 
 func (s *childService) Execute(_ []string, requests <-chan svc.ChangeRequest, changes chan<- svc.Status) (bool, uint32) {
 	changes <- svc.Status{State: svc.StartPending}
-	var logFile *os.File
-	if s.logPath != "" {
-		if f, err := os.OpenFile(s.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600); err == nil {
-			logFile = f
-			defer logFile.Close()
-			fmt.Fprintf(logFile, "service start: %s\n", time.Now().UTC().Format(time.RFC3339))
-		}
+	logs, err := logbroker.New(s.logging)
+	if err != nil {
+		return false, 1
 	}
+	defer logs.Write(logbroker.Record{Level: "info", Event: "service_stopped"})
+	_ = logs.Write(logbroker.Record{Level: "info", Event: "service_started"})
 	cmd := exec.Command(s.exe, s.args...)
-	if logFile != nil {
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
-	} else {
-		cmd.Stdout = io.Discard
-		cmd.Stderr = io.Discard
-	}
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	cmd.Env = append(os.Environ(), "AGENTCHAT_LOG_DIR="+s.logging.Dir, "AGENTCHAT_LOG_MAX_BYTES="+fmt.Sprint(s.logging.MaxBytes), "AGENTCHAT_LOG_FILES="+fmt.Sprint(s.logging.Files), "AGENTCHAT_LOG_BODY_SUMMARY="+fmt.Sprint(s.logging.BodySummary))
 	if err := cmd.Start(); err != nil {
+		_ = logs.Write(logbroker.Record{Level: "error", Event: "child_failed"})
 		return false, 1
 	}
 	done := make(chan error, 1)
@@ -82,7 +85,11 @@ func (s *childService) Execute(_ []string, requests <-chan svc.ChangeRequest, ch
 				<-done
 				return false, 0
 			}
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				_ = logs.Write(logbroker.Record{Level: "error", Event: "child_failed"})
+				return false, 1
+			}
 			return false, 0
 		}
 	}
