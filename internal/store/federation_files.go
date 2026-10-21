@@ -115,10 +115,11 @@ func (s *Store) ConfigureFederationFiles(ctx context.Context, links []Federation
 	defer tx.Rollback()
 	desired := map[string]bool{}
 	for _, l := range links {
-		if protocol.ValidateAgentName(l.LinkID) != nil || l.Epoch < 1 || desired[l.LocalRoom] {
+		key := l.PeerID + "\x00" + l.LocalRoom
+		if protocol.ValidateAgentName(l.LinkID) != nil || l.Epoch < 1 || desired[key] {
 			return ErrInvalidTarget
 		}
-		desired[l.LocalRoom] = true
+		desired[key] = true
 		var n int
 		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM federation_room_links l JOIN rooms r ON r.id=l.local_room JOIN federation_peers p ON p.node_id=l.peer_id WHERE l.peer_id=? AND l.local_room=? AND l.remote_room=? AND l.enabled=1 AND p.enabled=1 AND r.kind='room' AND r.archived_at IS NULL`, l.PeerID, l.LocalRoom, l.RemoteRoom).Scan(&n); err != nil {
 			return err
@@ -215,21 +216,27 @@ func (s *Store) enqueueFederationFiles(ctx context.Context, tx *sql.Tx, m protoc
 	if !s.federationFiles {
 		return nil
 	}
-	var l FederationFileLink
-	var node string
-	err := tx.QueryRowContext(ctx, `SELECT f.peer_id,f.local_room,f.remote_room,f.link_id,f.epoch,n.node_id FROM federation_file_links f JOIN federation_room_links l ON l.peer_id=f.peer_id AND l.local_room=f.local_room AND l.remote_room=f.remote_room JOIN federation_peers p ON p.node_id=l.peer_id CROSS JOIN federation_node n WHERE f.active=1 AND l.enabled=1 AND p.enabled=1 AND f.local_room=?`, m.Room).Scan(&l.PeerID, &l.LocalRoom, &l.RemoteRoom, &l.LinkID, &l.Epoch, &node)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
+	rows, err := tx.QueryContext(ctx, `SELECT f.peer_id,f.local_room,f.remote_room,f.link_id,f.epoch,n.node_id FROM federation_file_links f JOIN federation_room_links l ON l.peer_id=f.peer_id AND l.local_room=f.local_room AND l.remote_room=f.remote_room JOIN federation_peers p ON p.node_id=l.peer_id CROSS JOIN federation_node n WHERE f.active=1 AND l.enabled=1 AND p.enabled=1 AND f.local_room=?`, m.Room)
 	if err != nil {
 		return err
 	}
-	e := FederationFileEnvelope{Version: 2, OriginNodeID: node, OriginMessageID: m.ID, SourceRoom: m.Room, DestinationRoom: l.RemoteRoom, LinkID: l.LinkID, Epoch: l.Epoch, Sender: m.From, Text: m.Text, SentAt: m.TS}
-	for _, f := range m.Files {
-		e.Files = append(e.Files, FederationBlob{f.SHA256, f.Size, f.Name, f.Mime})
+	var targets []FederationFileLink
+	var node string
+	for rows.Next() {
+		var l FederationFileLink
+		if err := rows.Scan(&l.PeerID, &l.LocalRoom, &l.RemoteRoom, &l.LinkID, &l.Epoch, &node); err != nil {
+			rows.Close()
+			return err
+		}
+		targets = append(targets, l)
 	}
-	if err = e.Validate(node); err != nil {
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
 		return err
+	}
+	if len(targets) == 0 {
+		return nil
 	}
 	var n int
 	// Reclaim only expired terminal history. Active grants and retryable dead
@@ -240,18 +247,30 @@ func (s *Store) enqueueFederationFiles(ctx context.Context, tx *sql.Tx, m protoc
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM federation_file_outbox`).Scan(&n); err != nil {
 		return err
 	}
-	if n >= s.federation.MaxOutbox {
+	if n+len(targets) > s.federation.MaxOutbox {
 		return ErrFederationFull
 	}
-	raw, _ := json.Marshal(e)
 	now := time.Now()
-	id := protocol.NewID()
-	if _, err = tx.ExecContext(ctx, `INSERT INTO federation_file_outbox(id,peer_id,origin_node_id,origin_message_id,payload,state,next_attempt,deadline,created_at) VALUES(?,?,?,?,?,'pending',?,?,?)`, id, l.PeerID, node, m.ID, string(raw), now.UnixMilli(), now.Add(24*time.Hour).UnixMilli(), now.UnixMilli()); err != nil {
-		return err
-	}
-	for _, f := range m.Files {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO federation_blob_grants VALUES(?,?,?,?)`, id, f.SHA256, f.ID, f.Size); err != nil {
+	for _, l := range targets {
+		e := FederationFileEnvelope{Version: 2, OriginNodeID: node, OriginMessageID: m.ID, SourceRoom: m.Room, DestinationRoom: l.RemoteRoom, LinkID: l.LinkID, Epoch: l.Epoch, Sender: m.From, Text: m.Text, SentAt: m.TS}
+		for _, f := range m.Files {
+			e.Files = append(e.Files, FederationBlob{f.SHA256, f.Size, f.Name, f.Mime})
+		}
+		if err = e.Validate(node); err != nil {
 			return err
+		}
+		raw, _ := json.Marshal(e)
+		id := protocol.NewID()
+		// The outbox's internal origin id must be unique per target because the
+		// payload (and receiver-side dedupe) keeps the real message id.
+		outboxOriginID := m.ID + ":" + l.PeerID
+		if _, err = tx.ExecContext(ctx, `INSERT INTO federation_file_outbox(id,peer_id,origin_node_id,origin_message_id,payload,state,next_attempt,deadline,created_at) VALUES(?,?,?,?,?,'pending',?,?,?)`, id, l.PeerID, node, outboxOriginID, string(raw), now.UnixMilli(), now.Add(24*time.Hour).UnixMilli(), now.UnixMilli()); err != nil {
+			return err
+		}
+		for _, f := range m.Files {
+			if _, err = tx.ExecContext(ctx, `INSERT INTO federation_blob_grants VALUES(?,?,?,?)`, id, f.SHA256, f.ID, f.Size); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -446,7 +465,7 @@ func (s *Store) FederationBlobGrant(ctx context.Context, peer, origin, message, 
 		return f, ErrForbidden
 	}
 	var payload string
-	err := s.db.QueryRowContext(ctx, `SELECT o.payload,f.id,f.name,f.sha256,f.size,f.mime,f.storage_path FROM federation_file_outbox o JOIN federation_blob_grants g ON g.job_id=o.id JOIN files f ON f.id=g.file_id WHERE o.peer_id=? AND o.origin_node_id=? AND o.origin_message_id=? AND g.sha256=? AND o.state IN ('pending','inflight','waiting_receipt') AND o.deadline>? AND o.generation=?`, peer, origin, message, sha, time.Now().UnixMilli(), generation).Scan(&payload, &f.Ref.ID, &f.Ref.Name, &f.Ref.SHA256, &f.Ref.Size, &f.Ref.Mime, &f.RelativePath)
+	err := s.db.QueryRowContext(ctx, `SELECT o.payload,f.id,f.name,f.sha256,f.size,f.mime,f.storage_path FROM federation_file_outbox o JOIN federation_blob_grants g ON g.job_id=o.id JOIN files f ON f.id=g.file_id WHERE o.peer_id=? AND o.origin_node_id=? AND (o.origin_message_id=? OR o.origin_message_id=?) AND g.sha256=? AND o.state IN ('pending','inflight','waiting_receipt') AND o.deadline>? AND o.generation=?`, peer, origin, message, message+":"+peer, sha, time.Now().UnixMilli(), generation).Scan(&payload, &f.Ref.ID, &f.Ref.Name, &f.Ref.SHA256, &f.Ref.Size, &f.Ref.Mime, &f.RelativePath)
 	if err != nil {
 		return f, ErrForbidden
 	}

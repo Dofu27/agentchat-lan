@@ -1,7 +1,9 @@
 package hub_test
 
 import (
+	"bytes"
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -10,6 +12,18 @@ import (
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 	"github.com/Dofu27/agentchat-lan/internal/store"
 )
+
+func (n *federationNode) startMultiFiles(t *testing.T, peers ...*federationNode) {
+	t.Helper()
+	opts := hub.FederationOptions{FileDir: filepath.Join(filepath.Dir(n.dbPath), "files"), MaxOutbox: 100, MaxAttempts: 10, RetryBase: 50 * time.Millisecond, PollInterval: 20 * time.Millisecond, RequestTimeout: 500 * time.Millisecond, LeaseDuration: 2 * time.Second}
+	for _, peer := range peers {
+		opts.Peers = append(opts.Peers, hub.FederationPeerOptions{NodeID: peer.id, BaseURL: peer.url, Secret: federationTestSecret})
+		opts.Links = append(opts.Links, store.FederationLink{PeerID: peer.id, LocalRoom: "general", RemoteRoom: "general"})
+		opts.FileLinks = append(opts.FileLinks, store.FederationFileLink{PeerID: peer.id, LocalRoom: "general", RemoteRoom: "general", LinkID: "test-link", Epoch: 1})
+	}
+	n.opts = opts
+	n.startWithOptions(t)
+}
 
 func (n *federationNode) startMulti(t *testing.T, peers ...*federationNode) {
 	t.Helper()
@@ -50,6 +64,31 @@ func TestFederationMultiPeerFanout(t *testing.T) {
 			t.Fatalf("multi-peer delivery missing: %v %v", history, err)
 		}
 	}
+}
+
+func TestFederationMultiPeerFileFanout(t *testing.T) {
+	a, b, c := newFederationNode(t), newFederationNode(t), newFederationNode(t)
+	a.startMultiFiles(t, b, c)
+	startFileNode(t, b, a)
+	startFileNode(t, c, a)
+	a.run()
+	b.run()
+	c.run()
+
+	bReader := nodeReader(t, b, "bob-file")
+	cReader := nodeReader(t, c, "carol-file")
+	data := bytes.Repeat([]byte("multi-peer attachment "), 1000)
+	fileEnvelope(t, a, data)
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		bh, _, _ := b.st.History(context.Background(), senderBIdentity(t, bReader), "general", 0, 0, 20)
+		ch, _, _ := c.st.History(context.Background(), senderBIdentity(t, cReader), "general", 0, 0, 20)
+		if len(bh) == 1 && len(ch) == 1 {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("multi-peer file fanout timed out")
 }
 
 func TestFederationMultiPeerOfflinePeerDoesNotBlock(t *testing.T) {

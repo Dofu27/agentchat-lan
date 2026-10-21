@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.23.3] - 2026-10-21
+
+### Added
+
+- Multi-peer federation attachment links use per-peer capability negotiation,
+  blob clients, and authenticated peer selection; DM/typing remain single-peer
+
 ## [0.23.2] - 2026-10-21
 
 ### Tests

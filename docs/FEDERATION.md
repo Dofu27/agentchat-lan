@@ -9,8 +9,8 @@ message replication does not carry it.
 ## Multi-peer text fanout
 
 The experimental config accepts `peers` plus per-peer `links` instead of the
-legacy single `peer`. This first multi-peer slice supports text room links only;
-attachments, DMs, and typing still require the single-peer form.
+legacy single `peer`. Multi-peer supports text and attachment room links; DMs
+and typing still require the single-peer form.
 
 ```json
 {
@@ -19,7 +19,7 @@ attachments, DMs, and typing still require the single-peer form.
     {"node_id": "node_c", "base_url": "https://c.lan:8789", "secret_file": "c.secret", "tls_ca_file": "ca.pem"}
   ],
   "links": [
-    {"peer_id": "node_b", "local_room": "general", "remote_room": "general"},
+    {"peer_id": "node_b", "local_room": "general", "remote_room": "general", "attachments": true, "link_id": "link-b", "epoch": 1},
     {"peer_id": "node_c", "local_room": "general", "remote_room": "lobby"}
   ]
 }

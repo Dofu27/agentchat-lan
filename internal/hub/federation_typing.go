@@ -412,7 +412,7 @@ func (f *Federation) typingRequest(ctx context.Context, path string, in, out any
 	}
 	ctx, cancel := context.WithTimeout(ctx, min(f.opts.RequestTimeout, time.Second))
 	defer cancel()
-	req, done, err := f.peerRequest(ctx, "POST", "/federation/v2/ephemeral/"+path, bytes.NewReader(data))
+	req, done, err := f.peerRequest(ctx, f.opts.Peer.NodeID, "POST", "/federation/v2/ephemeral/"+path, bytes.NewReader(data))
 	if err != nil {
 		return false
 	}

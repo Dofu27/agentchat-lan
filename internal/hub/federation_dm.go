@@ -118,11 +118,16 @@ func (f *Federation) deliverDM(ctx context.Context, j store.FederationJob) (bool
 	if j.PeerID != f.opts.Peer.NodeID || e.OriginNodeID != f.nodeID || !f.store.FederationDMJobAuthorized(ctx, j, e) {
 		return false, true, "peer or room link disabled"
 	}
-	req, cancel, err := f.peerRequest(ctx, "GET", "/federation/v2/capabilities", nil)
+	req, cancel, err := f.peerRequest(ctx, j.PeerID, "GET", "/federation/v2/capabilities", nil)
 	if err != nil {
 		return false, true, "invalid configured endpoint"
 	}
-	resp, err := f.http.Do(req)
+	client := f.clients[j.PeerID]
+	if client == nil {
+		cancel()
+		return false, true, "unknown peer client"
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		cancel()
 		return false, false, "peer transport failure"
@@ -137,13 +142,13 @@ func (f *Federation) deliverDM(ctx context.Context, j store.FederationJob) (bool
 	if !ok {
 		return false, false, "peer capability unavailable"
 	}
-	req, cancel, err = f.peerRequest(ctx, "POST", "/federation/v2/dm/messages", bytes.NewBufferString(j.Payload))
+	req, cancel, err = f.peerRequest(ctx, j.PeerID, "POST", "/federation/v2/dm/messages", bytes.NewBufferString(j.Payload))
 	if err != nil {
 		return false, true, "invalid configured endpoint"
 	}
 	defer cancel()
 	req.Header.Set("Content-Type", "application/json")
-	resp, err = f.http.Do(req)
+	resp, err = client.Do(req)
 	if err != nil {
 		return false, false, "peer transport failure"
 	}
