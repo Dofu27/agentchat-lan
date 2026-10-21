@@ -194,7 +194,14 @@ func TestServicePinnedIdentity(t *testing.T) {
 		windows.CloseHandle(h)
 		t.Fatal(err)
 	}
-	g := &serviceBinaryGuard{objects: []servicePathObject{{h, path, id}}}
+	// CI can expose TEMP through an 8.3 alias. The guard compares canonical final
+	// paths; construct its fixture with that form rather than an unrelated alias.
+	canonical, err := finalHandlePath(h)
+	if err != nil {
+		windows.CloseHandle(h)
+		t.Fatal(err)
+	}
+	g := &serviceBinaryGuard{objects: []servicePathObject{{h, canonical, id}}}
 	defer g.Close()
 	if err := g.Verify(); err != nil {
 		t.Fatal(err)
