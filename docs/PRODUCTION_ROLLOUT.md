@@ -74,6 +74,13 @@ agentchat:v0.29.0  (FROM agentchat:m141-admin-reset + /usr/local/bin/agentchat)
 docker run --rm ... version → agentchat 0.29.0
 ```
 
+For B, the same image is exported as a gzipped Docker archive:
+
+```text
+/home/operator/agentchat-staging/agentchat-v0.29.0-image.tar.gz  18M
+sha256 09825c26afc3fa17c8aa8bd1433a347ef22c98cf365102b0f255cdd440c0d000
+```
+
 The v0.29.0 image was also run against a **copy** of A's `/home/operator/agentchat-data`
 and `/home/operator/agentchat-tls` on `127.0.0.1:18795` (federation config omitted),
 returning `{"status":"ok","version":"0.29.0"}` and `{"status":"ready"}`. The
