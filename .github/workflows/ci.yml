@@ -39,6 +39,35 @@ jobs:
       - name: go test
         run: go test ./...
 
+  installer-windows:
+    name: installer (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: build self-contained installer
+        shell: bash
+        run: VERSION=ci bash scripts/build-desktop-installer.sh
+      - name: install, assert startup, uninstall
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe="dist/AgentChatConsole-ci-installer.exe"
+          target="$RUNNER_TEMP/AgentChatCI"
+          rm -rf "$target"
+          "$exe" -no-launch -install-dir "$target" -role hub
+          test -f "$target/AgentChatConsole.exe"
+          test -f "$target/agentchat.exe"
+          test -f "$target/.agentchat-install.json"
+          startup="$APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/AgentChat Console.lnk"
+          test -f "$startup" || { echo "startup shortcut missing"; exit 1; }
+          "$exe" -uninstall -remove-data -install-dir "$target"
+          test ! -e "$target"
+          test ! -e "$startup"
+
   build:
     name: build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
