@@ -54,6 +54,14 @@ On 2026-10-21 the following non-disruptive checks passed:
 The backup was copied to an operator-only directory with mode `0600`; it
 contains tokens and federation secrets and must never be committed.
 
+## Staged release
+
+On 2026-10-21 `v0.26.4` was staged read-only on A at
+`/home/tofu/agentchat-staging/v0.26.4/agentchat` (mode 0700, version checked).
+No service was stopped or replaced. B staging was not possible from this host
+because the A→B SSH key is denied; use B's own console/SSH path during the
+maintenance window.
+
 ## Backup
 
 Stop writes first (maintenance window), then back up the SQLite database, WAL,
