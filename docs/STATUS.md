@@ -15,6 +15,9 @@ Updated: 2026-10-21
   elevated temporary service (`AgentChatHubTest`) started successfully,
   `/healthz` returned 200, and the service was stopped/deleted cleanly; reboot
   and installer Startup acceptance remain.
+- P1 rollout/rollback runbook prepared in
+  [PRODUCTION_ROLLOUT.md](PRODUCTION_ROLLOUT.md); production A/B remain v0.14.1
+  until an explicit maintenance window.
 - Live DSH bridge: real headless replies `DSH_2111_OK` (`#349`) and
   `DSH_RESTART_OK` (`#335`); one-time fixed cutoff initialization is durable.
 - Windows bridge install has a Startup-folder fallback when Task Scheduler is

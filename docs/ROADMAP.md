@@ -30,7 +30,9 @@ Status: `v0.21.11`, Codex `REVIEW_OK`.
 
 ## P1 — Production hardening and rollout
 
-1. Verify the `v0.21.11` GitHub tag, CI matrix, checksums, and release assets.
+Runbook: [PRODUCTION_ROLLOUT.md](PRODUCTION_ROLLOUT.md).
+
+1. Verify the current release tag, CI matrix, checksums, and release assets.
 2. Record a full logon/reboot acceptance for the DSH bridge and one other
    bridge; verify no duplicate bridge process.
 3. Back up A and B, then stage the smallest production upgrade that contains
