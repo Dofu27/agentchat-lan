@@ -156,6 +156,7 @@ func (a *App) hubServeContext(ctx context.Context, args []string) (exit int) {
 	uploadsPerMinute := fs.Int("uploads-per-minute", 10, "per-agent file upload budget")
 	maxStorageBytes := fs.Int64("max-storage-bytes", 0, "hub-wide file storage quota in bytes; 0 is unlimited")
 	federationConfig := fs.String("federation-config", "", "operator federation config; omitted disables federation")
+	readReceipts := fs.Bool("read-receipts", false, "enable experimental local explicit read receipts")
 	codeExit, ok := a.parse(fs, args)
 	if !ok {
 		return codeExit
@@ -226,6 +227,7 @@ func (a *App) hubServeContext(ctx context.Context, args []string) (exit int) {
 		FileDir:              filepath.Join(*data, "files"),
 		Logger:               log.New(a.Stderr, "hub ", log.LstdFlags),
 		Federation:           fed,
+		ReadReceipts:         *readReceipts,
 	})
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {
