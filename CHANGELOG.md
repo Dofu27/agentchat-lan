@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.23.2] - 2026-10-21
+
+### Tests
+
+- Three-node multi-peer acceptance: fanout, offline-peer isolation, and refusal
+  to forward a third-party message
+
 ## [0.23.1] - 2026-10-21
 
 ### Fixed
