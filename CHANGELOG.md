@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.7] - 2026-10-21
+
+### Added
+
+- Per-user desktop installer package: `install-desktop.ps1` and
+  `uninstall-desktop.ps1` with Start Menu/Startup shortcuts and role selection
+- `AgentChatConsole-v0.22.6-win64.zip` contains the console, CLI, and installer
+
 ## [0.22.6] - 2026-10-21
 
 ### Added

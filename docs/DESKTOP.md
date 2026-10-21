@@ -44,6 +44,20 @@ Start it:
 AgentChatConsole.exe --config C:\AgentChat\desktop.json
 ```
 
+## Per-user installer
+
+`AgentChatConsole-v0.22.6-win64.zip` contains `install-desktop.ps1`, which
+copies the console and CLI into `%LOCALAPPDATA%\AgentChat`, writes a first-run
+`desktop.json`, and creates Start Menu/Startup shortcuts:
+
+```powershell
+.\install-desktop.ps1 -Role hub -NoStartup
+```
+
+Use `uninstall-desktop.ps1` to remove shortcuts and binaries while keeping data,
+or `-RemoveData` to remove the install directory. No administrator rights are
+needed for this per-user path.
+
 The console binds an ephemeral loopback-only HTTP port for its own WebView2
 page and closes it when the window closes. All `/api` requests require a
 per-launch random capability injected by the native WebView; the HTML alone
