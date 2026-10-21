@@ -64,6 +64,8 @@ func TestResumeCredentialSecurityDescriptor(t *testing.T) {
 		{"unprotected", "O:" + u + "D:(A;;FA;;;" + u + ")", false},
 		{"everyone-read", "O:" + u + "D:P(A;;FA;;;" + u + ")(A;;FR;;;WD)", false},
 		{"inherited", "O:" + u + "D:P(A;ID;FA;;;" + u + ")", false},
+		{"inherit-only-user", "O:" + u + "D:P(A;IO;FA;;;" + u + ")", false},
+		{"inherit-only-system", "O:" + u + "D:P(A;;FA;;;" + u + ")(A;IO;FA;;;SY)", false},
 		{"null-dacl", "O:" + u + "D:PNO_ACCESS_CONTROL", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -93,7 +93,7 @@ agentchat hub init --data <same-directory> --admin-token-file <retained-file> --
 
 Resume rejects a final symlink/non-regular file and checks the opened identity.
 Before reading the credential, Windows also rechecks that same handle's owner
-(initiating user or SYSTEM), protected DACL, absence of inherited/unsupported
+(initiating user or SYSTEM), protected DACL, absence of inherited/inherit-only/unsupported
 ACEs, and absence of allow grants to any other account. New files explicitly
 set the initiating user as owner. ACL widening after creation therefore blocks
 resume; fix permissions through an authorized local recovery procedure first.
