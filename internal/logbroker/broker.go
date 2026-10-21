@@ -136,6 +136,16 @@ func rootOK(dir string) error {
 		return err
 	}
 	if filepath.Clean(abs) != filepath.Clean(real) && (runtime.GOOS != "windows" || !strings.EqualFold(filepath.Clean(abs), filepath.Clean(real))) {
+		if runtime.GOOS == "windows" {
+			// Windows temp paths are commonly 8.3 aliases (RUNNER~1) that
+			// EvalSymlinks expands to a long name. Permit that only when both
+			// names resolve to the same directory object.
+			a, aerr := os.Stat(abs)
+			b, berr := os.Stat(real)
+			if aerr == nil && berr == nil && os.SameFile(a, b) {
+				return nil
+			}
+		}
 		return ErrPath
 	}
 	return nil
