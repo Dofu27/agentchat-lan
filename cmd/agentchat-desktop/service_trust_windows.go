@@ -26,6 +26,18 @@ type servicePathObject struct {
 }
 type serviceBinaryGuard struct{ objects []servicePathObject }
 
+// SCM still takes a path, but its executable is derived exclusively from the
+// verified, pinned final handle, never from a second configuration read.
+func (g *serviceBinaryGuard) ExecutablePath() (string, error) {
+	if g == nil || len(g.objects) == 0 {
+		return "", errors.New("service executable guard is unavailable")
+	}
+	if err := g.Verify(); err != nil {
+		return "", err
+	}
+	return finalHandlePath(g.objects[len(g.objects)-1].handle)
+}
+
 func (g *serviceBinaryGuard) Close() {
 	for i := len(g.objects) - 1; i >= 0; i-- {
 		windows.CloseHandle(g.objects[i].handle)

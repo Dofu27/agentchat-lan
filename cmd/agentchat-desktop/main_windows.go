@@ -904,25 +904,25 @@ func quoteWindowsArg(s string) string {
 	return b.String()
 }
 
-func (a *app) hubServiceBinPath() (string, error) {
-	if a.cfg.AgentchatPath == "" || a.cfg.HubData == "" || a.cfg.HubListen == "" {
+func hubServiceBinPath(cfg config, guard *serviceBinaryGuard) (string, error) {
+	if cfg.HubData == "" || cfg.HubListen == "" {
 		return "", errors.New("host setup is incomplete")
 	}
-	if err := trustedServiceBinary(a.cfg.AgentchatPath); err != nil {
+	executable, err := guard.ExecutablePath()
+	if err != nil {
 		return "", err
 	}
-	bin := quoteWindowsArg(a.cfg.AgentchatPath) + " service run --name AgentChatHub --log " +
-		quoteWindowsArg(filepath.Join(a.cfg.HubData, "hub.log")) + " -- hub serve --data " +
-		quoteWindowsArg(a.cfg.HubData) + " --listen " + quoteWindowsArg(a.cfg.HubListen)
-	if a.cfg.HubCert != "" {
-		bin += " --tls-cert " + quoteWindowsArg(a.cfg.HubCert) + " --tls-key " + quoteWindowsArg(a.cfg.HubKey)
+	args := []string{executable, "service", "run", "--name", "AgentChatHub", "--log", filepath.Join(cfg.HubData, "hub.log"), "--", "hub", "serve", "--data", cfg.HubData, "--listen", cfg.HubListen}
+	if cfg.HubCert != "" {
+		args = append(args, "--tls-cert", cfg.HubCert, "--tls-key", cfg.HubKey)
 	}
-	return bin, nil
+	return windows.ComposeCommandLine(args), nil
 }
 
 func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 	a.mu.RLock()
-	defer a.mu.RUnlock()
+	cfg := a.cfg
+	a.mu.RUnlock()
 	var req struct {
 		Action string `json:"action"`
 	}
@@ -943,13 +943,13 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{"action": req.Action}
 	switch req.Action {
 	case "install":
-		guard, err := openTrustedServiceBinary(a.cfg.AgentchatPath)
+		guard, err := openTrustedServiceBinary(cfg.AgentchatPath)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
 		}
 		defer guard.Close()
-		bin, err := a.hubServiceBinPath()
+		bin, err := hubServiceBinPath(cfg, guard)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return

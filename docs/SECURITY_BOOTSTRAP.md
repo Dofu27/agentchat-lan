@@ -11,6 +11,13 @@ junctions/symlinks and non-file executable targets are rejected. Generic read
 access with no write/delete sharing pins the objects. The volume serial and
 file index, plus final handle path, are rechecked before SCM creation. These
 handles remain open through installation/start.
+The install action takes one configuration snapshot; its SCM command uses
+the verified final executable handle path and Windows ComposeCommandLine for
+every argument. The guard covers creation and the install action's immediate
+start, and closes when the handler returns. It is not a runtime guard for the
+running service. The separate start action controls an existing SCM entry and
+does not revalidate that entry's stored binPath; administrator-maintained SCM
+configuration remains a deployment precondition for that action.
 
 Every component's security descriptor is evaluated with Windows AccessCheck
 and a restricted ordinary-user impersonation token (admin groups disabled,
