@@ -51,9 +51,10 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
 - **Open Web admin**: opens the hub admin UI in a second embedded WebView2
   window and auto-fills the configured admin token on the configured origin
 - **Logs tab**: tails local Desktop/Hub/Bridge JSONL or plain log files with a
-  1-second refresh, pause/resume and source switch. Files are configured with
-  `log_files` in `desktop.json`; relative paths resolve against the config dir.
-  Logs stay file-backed while the window is closed.
+  1-second refresh, pause/resume and source switch. `log_files` in `desktop.json`
+  accepts either a plain file or a directory of `component-*.jsonl` segments;
+  relative paths resolve against the config dir. Logs stay file-backed while the
+  window is closed.
 - Service state and PID
 - Start, stop, restart
 - **Start with Windows** switch: flips the service between Automatic and

@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.19.0] - 2026-10-21
+
+### Added
+
+- Producer-owned structured JSONL logs for Hub, agent loop and Codex bridge
+- Bounded rotation, cross-process append lock, stable segment/offset cursors
+- Admin-only `GET /v1/admin/logs` and `/events` with filters, cursors, gaps,
+  SSE limits, token revalidation and write deadlines
+- Local read-only `agentchat logs tail` and `agentchat logs prepare`
+- Desktop Logs tab now reads either a plain file or a `component-*.jsonl`
+  segment directory
+
+### Migration note
+
+- Existing `service run --log <file>` now selects the **directory** for new
+  JSONL logs. Update installed service commands to use an explicit
+  `--log-dir <absolute-dir>` before upgrading. Legacy plaintext is not read,
+  migrated or deleted.
+
 ## [0.18.0] - 2026-10-21
 
 ### Added
