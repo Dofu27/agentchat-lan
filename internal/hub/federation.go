@@ -293,7 +293,8 @@ func (f *Federation) runV1Worker(ctx context.Context, peerID string) error {
 			if ctx.Err() != nil {
 				return nil
 			}
-			delay := f.opts.RetryBase * time.Duration(1<<min(j.Attempts-1, 10))
+			attempt := max(j.Attempts, 1)
+			delay := f.opts.RetryBase * time.Duration(1<<min(attempt-1, 10))
 			if delay > 30*time.Second {
 				delay = 30 * time.Second
 			}
