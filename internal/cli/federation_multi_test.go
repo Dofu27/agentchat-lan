@@ -31,7 +31,7 @@ func TestLoadMultiPeerFederationConfig(t *testing.T) {
     {"node_id":"node-b","base_url":"http://127.0.0.1:19002","secret_file":"b.secret"}
   ],
   "links": [
-    {"peer_id":"node-a","local_room":"general","remote_room":"general"},
+    {"peer_id":"node-a","local_room":"general","remote_room":"general","attachments":true,"link_id":"link-a","epoch":1},
     {"peer_id":"node-b","local_room":"general","remote_room":"lobby"}
   ],
   "max_outbox": 10,

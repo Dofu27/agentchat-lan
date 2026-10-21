@@ -23,11 +23,23 @@ import (
 	"github.com/Dofu27/agentchat-lan/internal/store"
 )
 
+func (f *Federation) authenticatedPeer(r *http.Request) (string, bool) {
+	if f == nil {
+		return "", false
+	}
+	nodeID := strings.TrimSpace(r.Header.Get("X-AgentChat-Node"))
+	peer, ok := f.peers[nodeID]
+	if !ok {
+		return "", false
+	}
+	sum := sha256.Sum256([]byte(bearer(r)))
+	expected := f.secretHashes[nodeID]
+	return nodeID, peer.NodeID == nodeID && subtle.ConstantTimeCompare(sum[:], expected[:]) == 1
+}
+
 func (s *Server) federationPeer(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Set("Cache-Control", "no-store")
-	f := s.opts.Federation
-	sum := sha256.Sum256([]byte(bearer(r)))
-	if f == nil || r.Header.Get("X-AgentChat-Node") != f.opts.Peer.NodeID || subtle.ConstantTimeCompare(sum[:], f.secretHash[:]) != 1 {
+	if _, ok := s.opts.Federation.authenticatedPeer(r); !ok {
 		http.Error(w, "unauthorized", 401)
 		return false
 	}
@@ -43,10 +55,11 @@ func (s *Server) handleFederationFiles(w http.ResponseWriter, r *http.Request) {
 	if !s.federationPeer(w, r) {
 		return
 	}
+	nodeID := strings.TrimSpace(r.Header.Get("X-AgentChat-Node"))
 	controller := http.NewResponseController(w)
 	_ = controller.SetReadDeadline(time.Now().Add(s.opts.Federation.opts.RequestTimeout))
 	defer controller.SetReadDeadline(time.Time{})
-	if !s.allow("federation-files:"+s.opts.Federation.opts.Peer.NodeID, 240, 40) {
+	if !s.allow("federation-files:"+nodeID, 240, 40) {
 		http.Error(w, "rate limited", 429)
 		return
 	}
@@ -67,7 +80,7 @@ func (s *Server) handleFederationFiles(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	receipt, err := s.store.StageFederationFiles(r.Context(), s.opts.Federation.opts.Peer.NodeID, e, generation)
+	receipt, err := s.store.StageFederationFiles(r.Context(), nodeID, e, generation)
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrFederationConflict):
@@ -166,6 +179,7 @@ func (s *Server) handleFederationBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f := s.opts.Federation
+	nodeID := strings.TrimSpace(r.Header.Get("X-AgentChat-Node"))
 	controller := http.NewResponseController(w)
 	_ = controller.SetWriteDeadline(time.Now().Add(f.opts.RequestTimeout))
 	defer controller.SetWriteDeadline(time.Time{})
@@ -181,7 +195,7 @@ func (s *Server) handleFederationBlob(w http.ResponseWriter, r *http.Request) {
 	if raw := r.URL.Query().Get("generation"); raw != "" {
 		generation, _ = strconv.ParseInt(raw, 10, 64)
 	}
-	b, err := s.store.FederationBlobGrant(r.Context(), f.opts.Peer.NodeID, r.URL.Query().Get("origin_node_id"), r.URL.Query().Get("origin_message_id"), r.URL.Query().Get("link_id"), epoch, r.PathValue("sha"), generation)
+	b, err := s.store.FederationBlobGrant(r.Context(), nodeID, r.URL.Query().Get("origin_node_id"), r.URL.Query().Get("origin_message_id"), r.URL.Query().Get("link_id"), epoch, r.PathValue("sha"), generation)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -219,7 +233,7 @@ func (s *Server) handleFederationBlob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Bound each authenticated request, independently of HTTP client's behavior.
-	if !s.allow("federation-blob:"+f.opts.Peer.NodeID, 240, 20) {
+	if !s.allow("federation-blob:"+nodeID, 240, 20) {
 		http.Error(w, "rate limited", 429)
 		return
 	}
@@ -332,14 +346,21 @@ func (f *Federation) fileLoop(ctx context.Context, inbound bool) error {
 	}
 	return nil
 }
-func (f *Federation) peerRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, context.CancelFunc, error) {
+func (f *Federation) peerRequest(ctx context.Context, peerID, method, path string, body io.Reader) (*http.Request, context.CancelFunc, error) {
+	if peerID == "" {
+		peerID = f.opts.Peer.NodeID
+	}
+	peer, ok := f.peer(peerID)
+	if !ok {
+		return nil, func() {}, errors.New("unknown federation peer")
+	}
 	ctx, cancel := context.WithTimeout(ctx, f.opts.RequestTimeout)
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(f.opts.Peer.BaseURL, "/")+path, body)
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(peer.BaseURL, "/")+path, body)
 	if err != nil {
 		cancel()
 		return nil, func() {}, err
 	}
-	req.Header.Set("Authorization", "Bearer "+f.opts.Peer.Secret)
+	req.Header.Set("Authorization", "Bearer "+peer.Secret)
 	req.Header.Set("X-AgentChat-Node", f.nodeID)
 	req.Header.Set("Accept-Encoding", "identity")
 	return req, cancel, nil
@@ -353,11 +374,16 @@ func (f *Federation) deliverFiles(ctx context.Context, j store.FederationFileJob
 		return "dead", "link disabled"
 	}
 	// Explicit negotiation precedes v2 delivery. There is never a v1 fallback.
-	req, cancel, err := f.peerRequest(ctx, "GET", "/federation/v2/capabilities", nil)
+	req, cancel, err := f.peerRequest(ctx, j.PeerID, "GET", "/federation/v2/capabilities", nil)
 	if err != nil {
 		return "dead", "invalid endpoint"
 	}
-	resp, err := f.http.Do(req)
+	client := f.clients[j.PeerID]
+	if client == nil {
+		cancel()
+		return "dead", "unknown peer client"
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		cancel()
 		return "pending", "peer transport failure"
@@ -372,14 +398,14 @@ func (f *Federation) deliverFiles(ctx context.Context, j store.FederationFileJob
 	if !ok {
 		return "pending", "peer capability unavailable"
 	}
-	req, cancel, err = f.peerRequest(ctx, "POST", "/federation/v2/messages", bytes.NewBufferString(j.Payload))
+	req, cancel, err = f.peerRequest(ctx, j.PeerID, "POST", "/federation/v2/messages", bytes.NewBufferString(j.Payload))
 	if err != nil {
 		return "dead", "invalid endpoint"
 	}
 	defer cancel()
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-AgentChat-Retry-Generation", strconv.FormatInt(j.Generation, 10))
-	resp, err = f.http.Do(req)
+	resp, err = client.Do(req)
 	if err != nil {
 		return "pending", "peer transport failure"
 	}
@@ -557,13 +583,18 @@ func (f *Federation) fetchBlob(ctx context.Context, j store.FederationFileJob, e
 	for p.Offset < b.Size {
 		end := min(p.Offset+store.FederationChunkSize, b.Size) - 1
 		q := url.Values{"origin_node_id": {e.OriginNodeID}, "origin_message_id": {e.OriginMessageID}, "link_id": {e.LinkID}, "epoch": {strconv.FormatInt(e.Epoch, 10)}, "generation": {strconv.FormatInt(j.Generation, 10)}}
-		req, cancel, er := f.peerRequest(ctx, "GET", "/federation/v2/blobs/"+b.SHA256+"?"+q.Encode(), nil)
+		req, cancel, er := f.peerRequest(ctx, j.PeerID, "GET", "/federation/v2/blobs/"+b.SHA256+"?"+q.Encode(), nil)
 		if er != nil {
 			return er
 		}
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", p.Offset, end))
 		req.Header.Set("If-Range", "\""+b.SHA256+"\"")
-		resp, er := f.http.Do(req)
+		client := f.clients[j.PeerID]
+		if client == nil {
+			cancel()
+			return errors.New("unknown federation peer client")
+		}
+		resp, er := client.Do(req)
 		if er != nil {
 			cancel()
 			return er

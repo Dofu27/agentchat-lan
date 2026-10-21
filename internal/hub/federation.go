@@ -93,8 +93,8 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 	if len(peers) == 0 {
 		return nil, errors.New("federation requires at least one peer")
 	}
-	if len(peers) > 1 && (len(opts.FileLinks) > 0 || len(opts.DMConversations) > 0 || len(opts.TypingLinks) > 0) {
-		return nil, errors.New("multi-peer federation currently supports text room links only")
+	if len(peers) > 1 && (len(opts.DMConversations) > 0 || len(opts.TypingLinks) > 0) {
+		return nil, errors.New("multi-peer federation supports text and attachments only")
 	}
 	peerRows := make([]store.FederationPeer, 0, len(peers))
 	clients := make(map[string]*http.Client, len(peers))
