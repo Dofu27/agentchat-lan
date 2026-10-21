@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.14] - 2026-10-21
+
+### Fixed
+
+- Installer falls back to an HKCU Run startup entry when the user Startup folder
+  is blocked, and removes that entry on uninstall
+
 ## [0.22.13] - 2026-10-21
 
 ### Fixed

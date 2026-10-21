@@ -11,10 +11,11 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.22.13` adds automatic HTTP-client rebuild after Host TLS setup. An
-  elevated temporary service (`AgentChatHubTest`) started successfully,
-  `/healthz` returned 200, and the service was stopped/deleted cleanly; reboot
-  and installer Startup acceptance remain.
+- `v0.22.14` adds an HKCU Run fallback when the user Startup folder is blocked.
+  This host blocks both Startup and HKCU Run, so automatic login startup cannot
+  be accepted here; the installer warns, keeps the binaries/config, and exits 0.
+  An elevated temporary hub service (`AgentChatHubTest`) started successfully,
+  `/healthz` returned 200, and the service was stopped/deleted cleanly.
 - P1 rollout/rollback runbook prepared in
   [PRODUCTION_ROLLOUT.md](PRODUCTION_ROLLOUT.md); production A/B remain v0.14.1
   until an explicit maintenance window.

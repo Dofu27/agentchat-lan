@@ -87,13 +87,24 @@ func installDesktop(dir, role, hub string, startup bool) error {
 		}
 	}
 	if startup {
+		started := false
 		startupDir := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
-		if err := os.MkdirAll(startupDir, 0o700); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: cannot create Startup folder: %v\n", err)
-		} else {
+		if err := os.MkdirAll(startupDir, 0o700); err == nil {
 			line := "@echo off\r\nstart \"\" \"" + filepath.Join(dir, "AgentChatConsole.exe") + "\" --config \"" + cfgPath + "\"\r\n"
-			if err := os.WriteFile(filepath.Join(startupDir, "AgentChat Console.cmd"), []byte(line), 0o600); err != nil {
+			if err := os.WriteFile(filepath.Join(startupDir, "AgentChat Console.cmd"), []byte(line), 0o600); err == nil {
+				started = true
+			}
+		}
+		if !started {
+			// Some managed hosts deny the Startup folder. HKCU Run is the
+			// per-user fallback and still needs no administrator rights.
+			value := "\"" + filepath.Join(dir, "AgentChatConsole.exe") + "\" --config \"" + cfgPath + "\""
+			err := exec.Command("reg.exe", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
+				"/v", "AgentChatConsole", "/t", "REG_SZ", "/d", value, "/f").Run()
+			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: cannot create Startup entry: %v\n", err)
+			} else {
+				fmt.Println("Installed HKCU Run startup entry")
 			}
 		}
 	}
@@ -123,6 +134,7 @@ func createStartMenu(dir, cfgPath string) {
 func uninstallDesktop(dir string, removeData bool) error {
 	startup := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "AgentChat Console.cmd")
 	_ = os.Remove(startup)
+	_ = exec.Command("reg.exe", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", "AgentChatConsole", "/f").Run()
 	programs := os.Getenv("APPDATA")
 	if programs != "" {
 		_ = os.Remove(filepath.Join(programs, "Microsoft", "Windows", "Start Menu", "Programs", "AgentChat", "AgentChat Console.lnk"))
