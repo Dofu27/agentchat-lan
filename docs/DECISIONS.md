@@ -72,6 +72,21 @@ LAN command.
 No telemetry, no hosted service, no CDN assets in the web UI. The hub must work
 on an isolated LAN. This is a product requirement, not just a deployment detail.
 
+## D-008 — Pause federation for future production upgrades
+
+**Status:** accepted (2026-10-21)
+
+Production A currently has an active federation peer/link. For the planned P1
+upgrade:
+
+- upgrade later, in an explicit maintenance window;
+- pause the federation link before upgrading B/A;
+- back up both hubs, including federation tables and outbox;
+- resume the link only after both upgraded hubs pass acceptance.
+
+This keeps the federation queue and ordering out of the binary-upgrade failure
+domain. It does not disable federation permanently.
+
 ## Open decisions
 
 - DM rooms: lazy creation vs explicit creation.

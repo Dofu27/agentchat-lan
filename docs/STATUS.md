@@ -18,6 +18,7 @@ Updated: 2026-10-21
   be accepted here; the installer warns, keeps the binaries/config, and exits 0.
   An elevated temporary hub service (`AgentChatHubTest`) started successfully,
   `/healthz` returned 200, and the service was stopped/deleted cleanly.
+- Operator decision: future A/B upgrade, with federation paused for the window.
 - P1 rollout/rollback runbook prepared in
   [PRODUCTION_ROLLOUT.md](PRODUCTION_ROLLOUT.md); production A/B remain v0.14.1
   until an explicit maintenance window.
