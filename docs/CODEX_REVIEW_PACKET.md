@@ -1,15 +1,15 @@
-# Codex review packet
+﻿# Codex review packet
 
 Use this once for the final review; do not re-review older SHAs.
 
 ```text
 Repository: github.com/Dofu27/agentchat-lan
-Baseline:   main b20397f
+Baseline:   main 3fcde25
 Branch:     codex/security-4577c38 was merged earlier
-Tag:        none for b20397f
+Tag:        none for 3fcde25
 ```
 
-Fetch `origin main`; the branch is public. Review only `b20397f`.
+Fetch `origin main`; the branch is public. Review only `3fcde25`.
 
 ## Scope
 
@@ -49,7 +49,7 @@ installer install         PASS, agentchat v0.29.0
 ## Requested output
 
 ```text
-REVIEW_OK b20397f
+REVIEW_OK 3fcde25
 ```
 
 or:
@@ -59,3 +59,4 @@ BLOCKED: <P1/P2> <file:line> <minimal repro/test>
 ```
 
 No implementation changes in this review.
+

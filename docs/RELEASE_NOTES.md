@@ -1,4 +1,4 @@
-# AgentChat LAN release notes
+﻿# AgentChat LAN release notes
 
 Latest: **v0.28.1** (2026-10-22)
 
@@ -21,7 +21,7 @@ embedded Web UI.
 
 ## Next: v0.29.0 (pending review)
 
-`main b20397f` adds opt-in federation read-receipt forwarding, multi-peer DM
+`main 3fcde25` adds opt-in federation read-receipt forwarding, multi-peer DM
 and typing fanout, launcher URL hardening, exclusive desktop Join config, and
 release-versioned installer CLI. It is staged on A (`agentchat:v0.29.0`) and
 rehearsed against the v0.14.1 backup; it is not tagged or published until the
@@ -71,7 +71,7 @@ down-migrate or rebuild the database.
 
 ## Known limits
 
-- Federation F0–F3 is experimental; three-node and multi-peer support is not
+- Federation F0鈥揊3 is experimental; three-node and multi-peer support is not
   generally available.
 - Explicit read receipts are local declarations, not proof of human attention;
   federation forwarding is not implemented.
@@ -86,3 +86,4 @@ down-migrate or rebuild the database.
 - Tokens and federation secrets are never included in release artifacts.
 - Never expose the desktop loopback capability API beyond loopback.
 - See [SECURITY.md](SECURITY.md).
+
