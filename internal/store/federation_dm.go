@@ -201,8 +201,12 @@ func (s *Store) ConfigureFederationDM(ctx context.Context, peer string, conversa
 			return err
 		}
 	}
+	var activeTotal int
+	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM federation_dm_conversations WHERE active=1`).Scan(&activeTotal); err != nil {
+		return err
+	}
 	if err = tx.Commit(); err == nil {
-		s.federationDM.Store(len(conversations) > 0)
+		s.federationDM.Store(activeTotal > 0)
 	}
 	return err
 }

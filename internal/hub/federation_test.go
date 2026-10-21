@@ -34,6 +34,7 @@ type federationNode struct {
 	dropAck         atomic.Bool
 	requests        atomic.Int32
 	opts            hub.FederationOptions
+	readReceipts    bool
 	handler         atomic.Pointer[http.Handler]
 }
 
@@ -66,7 +67,7 @@ func (n *federationNode) startWithOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := hub.New(n.st, hub.Options{Federation: n.fed, RequestsPerMinute: 1000, Burst: 100, Logger: log.New(io.Discard, "", 0), FileDir: filepath.Join(filepath.Dir(n.dbPath), "files")}).Handler()
+	handler := hub.New(n.st, hub.Options{Federation: n.fed, ReadReceipts: n.readReceipts, RequestsPerMinute: 1000, Burst: 100, Logger: log.New(io.Discard, "", 0), FileDir: filepath.Join(filepath.Dir(n.dbPath), "files")}).Handler()
 	n.handler.Store(&handler)
 	n.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/federation/v1/messages" {

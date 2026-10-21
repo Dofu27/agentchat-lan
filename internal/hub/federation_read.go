@@ -23,7 +23,7 @@ type federationReadPayload struct {
 
 func (s *Server) handleFederationRead(w http.ResponseWriter, r *http.Request) {
 	f := s.opts.Federation
-	if f == nil || !f.opts.ReadReceipts {
+	if f == nil || !s.opts.ReadReceipts || !f.opts.ReadReceipts {
 		writeError(w, 404, "not_found", "federation read receipts are disabled", nil)
 		return
 	}

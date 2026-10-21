@@ -18,6 +18,7 @@ func startReadNode(t *testing.T, n, peer *federationNode) {
 		RetryBase: 50 * time.Millisecond, PollInterval: 20 * time.Millisecond,
 		RequestTimeout: 100 * time.Millisecond, LeaseDuration: 300 * time.Millisecond,
 	}
+	n.readReceipts = true
 	n.startWithOptions(t)
 }
 
