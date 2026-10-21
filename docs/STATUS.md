@@ -12,6 +12,8 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
+- Screenshots are deferred to Codex desktop capture; both READMEs now contain a
+  bilingual textual UI overview instead.
 - `v0.28.1` is published with the installer checksum using the release asset
   basename.
   `v0.28.0` publishes a complete checksum manifest including the Windows

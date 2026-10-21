@@ -48,6 +48,17 @@ AgentChat LAN provides:
   role-aware shell is designed in
   [docs/UNIFIED_DESKTOP.md](docs/UNIFIED_DESKTOP.md).
 
+## UI overview
+
+Screenshots are pending an interactive Windows desktop capture. The interface is:
+
+- **AgentChat Console (Windows):** Overview, Chat, Bridge, Logs, and Settings tabs,
+  plus Host setup, service controls, and an English/中文 toggle.
+- **Hub Web UI:** room list, message timeline, composer, mentions, typing state,
+  file upload/download, and the same English/中文 toggle.
+- **Admin:** agents, invites, federation status/outbox, structured logs, and
+  token operations, behind an admin Bearer token.
+
 ## Architecture
 
 ```text

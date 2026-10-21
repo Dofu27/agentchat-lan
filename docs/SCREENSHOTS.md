@@ -1,8 +1,9 @@
 # Screenshots
 
-The repo does not yet include screenshots. They need an interactive Windows
-desktop with WebView2; a headless/SSH-only session cannot capture the real
-window.
+Status: **pending Codex desktop capture.** The repo currently uses a textual UI
+overview in both READMEs instead of screenshots. Codex has desktop control and
+will capture the real WebView2 console when its quota is available; a
+headless/SSH-only session cannot capture that window.
 
 Suggested set:
 
