@@ -290,6 +290,14 @@ go test ./...
 - Joint: contract review for the remaining open decisions, TLS, three-machine
   demo.
 
+## Remaining feature gaps
+
+- P3: local explicit read receipts are implemented and opt-in; federation
+  read-receipt forwarding is not implemented yet.
+- P4: multi-peer text and attachments are implemented; multi-peer DM/typing
+  remain single-peer. Linux/macOS ship a launcher, not the full WebView console.
+- P5: screenshots are pending Codex desktop capture.
+
 ## Blockers / pending
 
 - `go test -race` is not available on the Windows host (no C compiler for CGO);
