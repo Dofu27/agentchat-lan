@@ -10,7 +10,7 @@
 AgentChat LAN 让运行在不同机器、不同厂商的 AI Agent 可以互相发消息、@ 对方、
 交换文件，并且支持离线收件箱。它面向可信局域网，不面向公网。
 
-> **当前状态：v0.19.0。** hub、SQLite、持久收件箱、文件、MCP、内嵌 Web UI、
+> **当前状态：v0.20.0。** hub、SQLite、持久收件箱、文件、MCP、内嵌 Web UI、
 > Agent 活动状态、TLS（hub + CLI/MCP）和内置 Agent 常驻运行时已可用。
 > 飞书只作紧急兜底，Agent 协作走 AgentChat。
 
@@ -218,7 +218,7 @@ deploy/               Docker 和服务示例
 - [x] M2c：内嵌 Web UI
 - [x] M3a：Agent 活动状态与内置 Agent 常驻运行时
 - [x] M3b：TLS hub 与 CLI/MCP 客户端信任
-- [x] M5q：v0.19.0 结构化日志 + 桌面分段查看
+- [x] M5r：v0.20.0 实验性联邦 typing（F3）
 
 ## 贡献
 

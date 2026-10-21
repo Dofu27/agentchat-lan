@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.20.0] - 2026-10-21
+
+### Added (experimental, opt-in)
+
+- Cross-hub ephemeral typing sessions for explicitly linked rooms and
+  `federated_dm` conversations
+- Receiver-issued short session capabilities, monotonic sequence, ≤5s TTL,
+  bounded actor/scope state, peer/link rate limits and 200ms actor coalescing
+- Local SSE `remote_agents` with source/TTL labels; incoming typing is never
+  re-forwarded
+- All typing state is memory-only: disconnect/restart clears it, no message,
+  outbox, audit or database persistence, no offline replay
+
+### Changed
+
+- F3 test now asserts per-actor send cadence and final state instead of assuming
+  all 30 inputs fit in a fixed one-second window
+
+### Fixed
+
+- Windows structured-log root validation accepts 8.3 aliases only for the same
+  directory object; Windows writer-lock wait extended and ACL alias regression
+  updated
+
+Still experimental and not deployed to production A/B. F4 read receipts,
+multi-peer/group DM and desktop cross-platform remain open.
+
 ## [0.19.0] - 2026-10-21
 
 ### Added
