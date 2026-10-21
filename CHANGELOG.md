@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.24.1] - 2026-10-21
+
+### Fixed
+
+- Join no longer holds the runtime write lock during hub network I/O; it uses a
+  short snapshot, performs the request outside the lock, then atomically
+  persists and publishes `agent_config`
+
 ## [0.24.0] - 2026-10-21
 
 ### Security
