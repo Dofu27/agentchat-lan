@@ -265,3 +265,40 @@ func TestFederationFilesTransferPathsUseOnlyGeneratedIDs(t *testing.T) {
 		}
 	}
 }
+
+func TestFederationRemoteDisplayNamesAreBasenamesWithoutChangingReplay(t *testing.T) {
+	for _, tc := range []struct{ input, want string }{{"../../private/report.txt", "report.txt"}, {`C:\private\report.txt`, "report.txt"}, {`../private\report.txt`, "report.txt"}, {"../", "attachment.bin"}, {"..", "attachment.bin"}, {"  ", "attachment.bin"}, {"dir/a\tb.txt", "ab.txt"}} {
+		t.Run(tc.input, func(t *testing.T) {
+			s, _ := fileStore(t)
+			ctx := context.Background()
+			e := manifest(1)
+			e.Files[0].Name = tc.input
+			r, err := s.StageFederationFiles(ctx, "remote-node", e)
+			if err != nil {
+				t.Fatal(err)
+			}
+			j, err := s.ClaimFederationFileJob(ctx, true, time.Minute)
+			if err != nil || j == nil {
+				t.Fatal(j, err)
+			}
+			if err = s.FederationFileReady(ctx, *j, e.Files[0], "test/blob", 0, time.Minute); err != nil {
+				t.Fatal(err)
+			}
+			if err = s.CommitFederationFiles(ctx, *j, e); err != nil {
+				t.Fatal(err)
+			}
+			messages, _, err := s.History(ctx, "local", "general", 0, 0, 10)
+			if err != nil || len(messages) != 1 || messages[0].Files[0].Name != tc.want {
+				t.Fatal(messages, err)
+			}
+			var stored string
+			if err = s.db.QueryRow(`SELECT name FROM files`).Scan(&stored); err != nil || stored != tc.want {
+				t.Fatal(stored, err)
+			}
+			replay, err := s.StageFederationFiles(ctx, "remote-node", e)
+			if err != nil || replay.TransferID != r.TransferID || replay.State != "committed" {
+				t.Fatal(replay, err)
+			}
+		})
+	}
+}

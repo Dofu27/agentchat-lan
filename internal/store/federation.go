@@ -210,6 +210,9 @@ func (s *Store) ConfigureFederation(ctx context.Context, peers []FederationPeer,
 }
 
 func (s *Store) enqueueFederation(ctx context.Context, tx *sql.Tx, m protocol.Message, kind string) error {
+	if kind == "federated_dm" {
+		return s.enqueueFederationDM(ctx, tx, m)
+	}
 	if s.federation == nil || kind != "room" || m.Meta.Activity != nil || m.Meta.Federation != nil || m.From.Kind == "federation" || m.From.Kind == "bridge" || m.From.Kind == "system" {
 		return nil
 	}
@@ -344,6 +347,9 @@ func (s *Store) ImportFederation(ctx context.Context, peer string, e FederationE
 // ClaimFederationJob atomically recovers expired leases and claims at most one
 // job. A lease token prevents a late worker from completing a newer attempt.
 func (s *Store) ClaimFederationJob(ctx context.Context, now time.Time, lease time.Duration) (*FederationJob, error) {
+	return s.claimFederationJob(ctx, now, lease, "federation_outbox")
+}
+func (s *Store) claimFederationJob(ctx context.Context, now time.Time, lease time.Duration, table string) (*FederationJob, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.federation == nil {
@@ -354,12 +360,12 @@ func (s *Store) ClaimFederationJob(ctx context.Context, now time.Time, lease tim
 		return nil, err
 	}
 	defer tx.Rollback()
-	_, err = tx.ExecContext(ctx, `UPDATE federation_outbox SET state=CASE WHEN attempts>=max_attempts THEN 'dead' ELSE 'pending' END,lease_token='',lease_until=0 WHERE state='inflight' AND lease_until<=?`, now.UnixMilli())
+	_, err = tx.ExecContext(ctx, `UPDATE `+table+` SET state=CASE WHEN attempts>=max_attempts THEN 'dead' ELSE 'pending' END,lease_token='',lease_until=0 WHERE state='inflight' AND lease_until<=?`, now.UnixMilli())
 	if err != nil {
 		return nil, err
 	}
 	var job FederationJob
-	err = tx.QueryRowContext(ctx, `SELECT id,peer_id,payload,attempts,max_attempts FROM federation_outbox WHERE state='pending' AND next_attempt<=? ORDER BY created_at,id LIMIT 1`, now.UnixMilli()).Scan(&job.ID, &job.PeerID, &job.Payload, &job.Attempts, &job.MaxAttempts)
+	err = tx.QueryRowContext(ctx, `SELECT id,peer_id,payload,attempts,max_attempts FROM `+table+` WHERE state='pending' AND next_attempt<=? ORDER BY created_at,id LIMIT 1`, now.UnixMilli()).Scan(&job.ID, &job.PeerID, &job.Payload, &job.Attempts, &job.MaxAttempts)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, tx.Commit()
 	}
@@ -368,7 +374,7 @@ func (s *Store) ClaimFederationJob(ctx context.Context, now time.Time, lease tim
 	}
 	job.Lease = protocol.NewID()
 	job.Attempts++
-	_, err = tx.ExecContext(ctx, "UPDATE federation_outbox SET state='inflight',attempts=?,lease_token=?,lease_until=? WHERE id=?", job.Attempts, job.Lease, now.Add(lease).UnixMilli(), job.ID)
+	_, err = tx.ExecContext(ctx, "UPDATE "+table+" SET state='inflight',attempts=?,lease_token=?,lease_until=? WHERE id=?", job.Attempts, job.Lease, now.Add(lease).UnixMilli(), job.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -379,6 +385,9 @@ func (s *Store) ClaimFederationJob(ctx context.Context, now time.Time, lease tim
 }
 
 func (s *Store) FinishFederationJob(ctx context.Context, j FederationJob, delivered, permanent bool, next time.Time, reason string) error {
+	return s.finishFederationJob(ctx, j, delivered, permanent, next, reason, "federation_outbox")
+}
+func (s *Store) finishFederationJob(ctx context.Context, j FederationJob, delivered, permanent bool, next time.Time, reason, table string) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	state := "pending"
@@ -391,7 +400,7 @@ func (s *Store) FinishFederationJob(ctx context.Context, j FederationJob, delive
 	if len(reason) > 128 {
 		reason = reason[:128]
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE federation_outbox SET state=?,next_attempt=?,lease_until=0,lease_token='',last_error=? WHERE id=? AND state='inflight' AND lease_token=?`, state, next.UnixMilli(), reason, j.ID, j.Lease)
+	_, err := s.db.ExecContext(ctx, `UPDATE `+table+` SET state=?,next_attempt=?,lease_until=0,lease_token='',last_error=? WHERE id=? AND state='inflight' AND lease_token=?`, state, next.UnixMilli(), reason, j.ID, j.Lease)
 	return err
 }
 

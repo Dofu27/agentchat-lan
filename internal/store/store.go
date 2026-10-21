@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -38,6 +39,7 @@ type Store struct {
 	db              *sql.DB
 	writeMu         sync.Mutex
 	federationFiles bool
+	federationDM    atomic.Bool
 	federation      *FederationLimits // runtime opt-in; nil on every ordinary Open
 }
 
@@ -88,6 +90,10 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	}
 	if err := s.migrateFederation(ctx); err != nil {
 		db.Close()
+		return nil, err
+	}
+	if err := s.migrateFederationDM(ctx); err != nil {
+		s.Close()
 		return nil, err
 	}
 	return s, nil
@@ -366,7 +372,7 @@ func (s *Store) FileSHAExists(ctx context.Context, sha string) (bool, error) {
 // access, preserving the hub's room-scoped authorization model.
 func (s *Store) CanAccessFile(ctx context.Context, agentID, fileID string) (bool, error) {
 	var allowed int
-	err := s.db.QueryRowContext(ctx, `SELECT 1 FROM attachments x JOIN messages m ON m.id=x.message_id JOIN memberships mb ON mb.room_id=m.room_id WHERE x.file_id=? AND mb.agent_id=? LIMIT 1`, fileID, agentID).Scan(&allowed)
+	err := s.db.QueryRowContext(ctx, `SELECT 1 FROM attachments x JOIN messages m ON m.id=x.message_id JOIN memberships mb ON mb.room_id=m.room_id WHERE x.file_id=? AND mb.agent_id=?`+dmReadPredicate("m.room_id")+` LIMIT 1`, fileID, agentID, s.federationDM.Load(), agentID).Scan(&allowed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -387,10 +393,14 @@ func (s *Store) CreateInvite(ctx context.Context, code string, in Invite, actor 
 	}
 	defer tx.Rollback()
 	var archived sql.NullString
-	if err = tx.QueryRowContext(ctx, `SELECT archived_at FROM rooms WHERE id=?`, in.Room).Scan(&archived); errors.Is(err, sql.ErrNoRows) {
+	var inviteKind string
+	if err = tx.QueryRowContext(ctx, `SELECT kind,archived_at FROM rooms WHERE id=?`, in.Room).Scan(&inviteKind, &archived); errors.Is(err, sql.ErrNoRows) {
 		return time.Time{}, ErrNotFound
 	} else if err != nil {
 		return time.Time{}, err
+	}
+	if inviteKind == "federated_dm" {
+		return time.Time{}, ErrForbidden
 	}
 	if archived.Valid {
 		return time.Time{}, ErrNotFound
@@ -459,6 +469,13 @@ func (s *Store) Join(ctx context.Context, code string, agent protocol.Agent, tok
 	if _, err = tx.ExecContext(ctx, `UPDATE invites SET uses_left=uses_left-1 WHERE code_hash=? AND uses_left>0`, hashToken(code)); err != nil {
 		return nil, err
 	}
+	var joinKind string
+	if err = tx.QueryRowContext(ctx, `SELECT kind FROM rooms WHERE id=?`, room).Scan(&joinKind); err != nil {
+		return nil, err
+	}
+	if joinKind == "federated_dm" {
+		return nil, ErrForbidden
+	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO agents(id,name,kind,token_hash,status,created_at,last_seen) VALUES(?,?,?,?,?,?,?)`, agent.ID, agent.Name, agent.Kind, hashToken(token), protocol.StatusOnline, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
@@ -480,12 +497,13 @@ func (s *Store) Join(ctx context.Context, code string, agent protocol.Agent, tok
 }
 
 func (s *Store) Rooms(ctx context.Context, agentID string) ([]protocol.Room, error) {
-	return roomsForAgent(ctx, s.db, agentID)
+	return roomsForAgent(ctx, s.db, agentID, s.federationDM.Load())
 }
 func roomsForAgent(ctx context.Context, q interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}, agentID string) ([]protocol.Room, error) {
-	rows, err := q.QueryContext(ctx, `SELECT r.id,r.name,r.topic,r.kind,r.created_at FROM rooms r JOIN memberships m ON m.room_id=r.id WHERE m.agent_id=? AND r.archived_at IS NULL ORDER BY r.id`, agentID)
+}, agentID string, dmEnabled ...bool) ([]protocol.Room, error) {
+	enabled := len(dmEnabled) > 0 && dmEnabled[0]
+	rows, err := q.QueryContext(ctx, `SELECT r.id,r.name,r.topic,r.kind,r.created_at FROM rooms r JOIN memberships m ON m.room_id=r.id WHERE m.agent_id=? AND r.archived_at IS NULL`+dmReadPredicate("m.room_id")+` ORDER BY r.id`, agentID, enabled, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -555,6 +573,13 @@ func (s *Store) RoomByID(ctx context.Context, id string) (protocol.Room, error) 
 
 // RoomReceipts returns each member's monotonic read cursor for a room.
 func (s *Store) RoomReceipts(ctx context.Context, roomID string) ([]map[string]any, error) {
+	var private int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM rooms WHERE id=? AND kind='federated_dm'`, roomID).Scan(&private); err != nil {
+		return nil, err
+	}
+	if private != 0 {
+		return nil, ErrForbidden
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT m.agent_id,a.name,m.last_ack_seq FROM memberships m JOIN agents a ON a.id=m.agent_id WHERE m.room_id=? ORDER BY a.name`, roomID)
 	if err != nil {
 		return nil, err
@@ -573,7 +598,7 @@ func (s *Store) RoomReceipts(ctx context.Context, roomID string) ([]map[string]a
 }
 
 func (s *Store) ListAgents(ctx context.Context) ([]protocol.Agent, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,name,kind,status,last_seen FROM agents WHERE revoked_at IS NULL ORDER BY name`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name,kind,status,last_seen FROM agents WHERE revoked_at IS NULL AND id NOT IN (SELECT bridge_agent_id FROM federation_dm_conversations) ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -712,6 +737,9 @@ func (s *Store) RevokeAgent(ctx context.Context, id, actor string) error {
 
 // CreateRoom creates a named room and optionally adds initial members.
 func (s *Store) CreateRoom(ctx context.Context, r protocol.Room, members []string, actor string) error {
+	if r.Kind == "federated_dm" {
+		return ErrForbidden
+	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -719,6 +747,15 @@ func (s *Store) CreateRoom(ctx context.Context, r protocol.Room, members []strin
 		return err
 	}
 	defer tx.Rollback()
+	for _, id := range members {
+		var scoped int
+		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM federation_dm_conversations WHERE bridge_agent_id=?`, id).Scan(&scoped); err != nil {
+			return err
+		}
+		if scoped != 0 {
+			return ErrForbidden
+		}
+	}
 	if r.ID == "" {
 		return errors.New("room id required")
 	}
@@ -799,6 +836,15 @@ func (s *Store) SendMessage(ctx context.Context, agentID, roomID string, req pro
 	}
 	if archived.Valid {
 		return SendResult{}, ErrNotFound
+	}
+	if roomKind == "federated_dm" {
+		if err = authorizeDMRoom(ctx, tx, s.federationDM.Load(), agentID, roomID); err != nil {
+			return SendResult{}, err
+		}
+		if len(req.Files) > 0 || req.Meta.Activity != nil || req.Meta.Federation != nil || req.ReplyTo != "" || len(req.To) > 0 || strings.TrimSpace(req.Text) == "" || len(req.Text) > protocol.MaxTextBytes {
+			return SendResult{}, ErrInvalidTarget
+		}
+		mentions = nil
 	}
 	var joined int
 	if err = tx.QueryRowContext(ctx, `SELECT 1 FROM memberships WHERE room_id=? AND agent_id=?`, roomID, agentID).Scan(&joined); errors.Is(err, sql.ErrNoRows) {
@@ -921,6 +967,9 @@ func messageByClientID(ctx context.Context, q interface {
 }
 
 func (s *Store) History(ctx context.Context, agentID, roomID string, after, before int64, limit int) ([]protocol.Message, bool, error) {
+	if err := authorizeDMRoom(ctx, s.db, s.federationDM.Load(), agentID, roomID); err != nil {
+		return nil, false, err
+	}
 	var joined int
 	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM memberships WHERE room_id=? AND agent_id=?`, roomID, agentID).Scan(&joined); errors.Is(err, sql.ErrNoRows) {
 		return nil, false, ErrForbidden
@@ -939,6 +988,8 @@ func (s *Store) History(ctx context.Context, agentID, roomID string, after, befo
 		query += ` AND m.seq<?`
 		args = append(args, before)
 	}
+	query += dmReadPredicate("m.room_id")
+	args = append(args, s.federationDM.Load(), agentID)
 	query += ` ORDER BY m.seq LIMIT ?`
 	args = append(args, limit+1)
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -978,6 +1029,9 @@ func (s *Store) History(ctx context.Context, agentID, roomID string, after, befo
 }
 
 func (s *Store) SearchMessages(ctx context.Context, agentID, roomID, query string, limit int) ([]protocol.Message, error) {
+	if err := authorizeDMRoom(ctx, s.db, s.federationDM.Load(), agentID, roomID); err != nil {
+		return nil, err
+	}
 	var joined int
 	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM memberships WHERE room_id=? AND agent_id=?`, roomID, agentID).Scan(&joined); errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrForbidden
@@ -991,7 +1045,7 @@ func (s *Store) SearchMessages(ctx context.Context, agentID, roomID, query strin
 		limit = 100
 	}
 	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(query)
-	rows, err := s.db.QueryContext(ctx, `SELECT m.id,m.room_id,m.seq,a.id,a.name,a.kind,m.kind,m.text,m.reply_to,m.meta_json,m.created_at FROM messages m JOIN agents a ON a.id=m.sender_id WHERE m.room_id=? AND m.text LIKE ? ESCAPE '\' COLLATE NOCASE ORDER BY m.seq DESC LIMIT ?`, roomID, "%"+escaped+"%", limit)
+	rows, err := s.db.QueryContext(ctx, `SELECT m.id,m.room_id,m.seq,a.id,a.name,a.kind,m.kind,m.text,m.reply_to,m.meta_json,m.created_at FROM messages m JOIN agents a ON a.id=m.sender_id WHERE m.room_id=? AND m.text LIKE ? ESCAPE '\' COLLATE NOCASE`+dmReadPredicate("m.room_id")+` ORDER BY m.seq DESC LIMIT ?`, roomID, "%"+escaped+"%", s.federationDM.Load(), agentID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1030,7 +1084,7 @@ func (s *Store) Inbox(ctx context.Context, agentID string, limit int, roomFilter
 	if limit > 200 {
 		limit = 200
 	}
-	members, err := s.db.QueryContext(ctx, `SELECT room_id,last_ack_seq FROM memberships WHERE agent_id=? ORDER BY room_id`, agentID)
+	members, err := s.db.QueryContext(ctx, `SELECT room_id,last_ack_seq FROM memberships mb WHERE agent_id=?`+dmReadPredicate("mb.room_id")+` ORDER BY room_id`, agentID, s.federationDM.Load(), agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -1072,7 +1126,8 @@ func (s *Store) Inbox(ctx context.Context, agentID string, limit int, roomFilter
 	if len(clauses) == 0 {
 		return []protocol.Message{}, nil
 	}
-	query := `SELECT m.id,m.room_id,m.seq,a.id,a.name,a.kind,m.kind,m.text,m.reply_to,m.meta_json,m.created_at FROM memberships mb JOIN messages m ON m.room_id=mb.room_id JOIN agents a ON a.id=m.sender_id WHERE mb.agent_id=? AND (` + strings.Join(clauses, ` OR `) + `) ORDER BY m.created_at,m.room_id,m.seq LIMIT ?`
+	query := `SELECT m.id,m.room_id,m.seq,a.id,a.name,a.kind,m.kind,m.text,m.reply_to,m.meta_json,m.created_at FROM memberships mb JOIN messages m ON m.room_id=mb.room_id JOIN agents a ON a.id=m.sender_id WHERE mb.agent_id=? AND (` + strings.Join(clauses, ` OR `) + `)` + dmReadPredicate("m.room_id") + ` ORDER BY m.created_at,m.room_id,m.seq LIMIT ?`
+	args = append(args, s.federationDM.Load(), agentID)
 	args = append(args, limit)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -1153,6 +1208,9 @@ func (s *Store) Ack(ctx context.Context, agentID string, acks map[string]int64) 
 	}
 	defer tx.Rollback()
 	for room, seq := range acks {
+		if err = authorizeDMRoom(ctx, tx, s.federationDM.Load(), agentID, room); err != nil {
+			return err
+		}
 		var max int64
 		if err = tx.QueryRowContext(ctx, `SELECT next_seq FROM rooms WHERE id=? AND archived_at IS NULL`, room).Scan(&max); errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound

@@ -73,6 +73,13 @@ func (a *App) hubGC(args []string) int {
 		pinnedFiles = ` AND f.id NOT IN (SELECT g.file_id FROM federation_blob_grants g JOIN federation_file_outbox o ON o.id=g.job_id WHERE o.state<>'delivered' AND o.deadline>` + now + ` UNION SELECT b.file_id FROM federation_transfer_blobs b JOIN federation_file_transfers t ON t.id=b.transfer_id WHERE t.state<>'committed' AND t.deadline>` + now + `)`
 	}
 	cutoff := time.Now().UTC().Add(-time.Duration(*days) * 24 * time.Hour).Format(time.RFC3339Nano)
+	var dmSchema int
+	if err = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name='federation_dm_outbox' AND type='table'`).Scan(&dmSchema); err != nil {
+		return a.fail(err)
+	}
+	if dmSchema > 0 {
+		pinnedMessages += ` AND id NOT IN (SELECT origin_message_id FROM federation_dm_outbox WHERE state IN ('pending','inflight'))`
+	}
 	tx, err := db.Begin()
 	if err != nil {
 		return a.fail(err)

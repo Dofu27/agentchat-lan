@@ -79,8 +79,9 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 			LocalRoom   string `json:"local_room"`
 			RemoteRoom  string `json:"remote_room"`
 		} `json:"links"`
-		MaxOutbox   int `json:"max_outbox"`
-		MaxAttempts int `json:"max_attempts"`
+		MaxOutbox       int                              `json:"max_outbox"`
+		DMConversations []store.FederationDMConversation `json:"dm_conversations"`
+		MaxAttempts     int                              `json:"max_attempts"`
 	}
 	file, err := os.Open(path)
 	if err != nil {
@@ -122,6 +123,7 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 		return nil, errors.New("cannot read federation secret")
 	}
 	opts := hub.FederationOptions{Peer: hub.FederationPeerOptions{NodeID: cfg.Peer.NodeID, BaseURL: cfg.Peer.BaseURL, Secret: strings.TrimSpace(string(raw)), TLS: client.TLSOptions{CAFile: resolve(cfg.Peer.CAFile)}}, MaxOutbox: cfg.MaxOutbox, MaxAttempts: cfg.MaxAttempts}
+	opts.DMConversations = cfg.DMConversations
 	if len(fileDirs) > 0 {
 		opts.FileDir = fileDirs[0]
 	}
