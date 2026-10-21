@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
-## [0.27.4] - 2026-10-21 (pending review)
+## [0.27.4] - 2026-10-22
 
 ### Security
 
