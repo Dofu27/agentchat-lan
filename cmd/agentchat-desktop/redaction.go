@@ -4,6 +4,7 @@ import "regexp"
 
 var outputRedactions = []*regexp.Regexp{
 	regexp.MustCompile(`(?is)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----`),
+	regexp.MustCompile(`(?is)-----BEGIN [A-Z ]*PRIVATE KEY-----.*`),
 	regexp.MustCompile(`(?i)["']?(?:authorization|proxy-authorization|authentication)["']?\s*[:=]\s*(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\r\n,}]+)`),
 	regexp.MustCompile(`(?i)["']?(?:agentchat_token|access_token|refresh_token|token|secret|password|api[_-]?key|key)["']?\s*[:=]\s*(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^&\s,;"'}]+)`),
 	regexp.MustCompile(`(?i)\bBearer\s+[^\s"',;}&]+`),

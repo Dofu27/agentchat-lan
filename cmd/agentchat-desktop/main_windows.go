@@ -509,10 +509,18 @@ type cappedBuffer struct {
 	truncated bool
 }
 
+func (b *cappedBuffer) captureLimit() int {
+	limit := b.limit * 16
+	if limit < 64<<10 {
+		limit = 64 << 10
+	}
+	return limit
+}
+
 func (b *cappedBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	remaining := b.limit - b.buf.Len()
+	remaining := b.captureLimit() - b.buf.Len()
 	if remaining <= 0 {
 		b.truncated = true
 		return len(p), nil
@@ -529,10 +537,19 @@ func (b *cappedBuffer) Write(p []byte) (int, error) {
 func (b *cappedBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.truncated {
-		return b.buf.String() + "\n[output truncated]"
+	raw := b.buf.String()
+	// Redact before applying the display cap: truncating raw JSON/private-key
+	// text first can leave a credential fragment that no pattern can match.
+	redacted := redactOutput(raw)
+	truncated := b.truncated || len(raw) > b.limit
+	if len(redacted) > b.limit {
+		redacted = redacted[:b.limit]
+		truncated = true
 	}
-	return b.buf.String()
+	if truncated {
+		return redacted + "\n[output truncated]"
+	}
+	return redacted
 }
 
 func bridgeResult(cfg config, action string) map[string]any {
