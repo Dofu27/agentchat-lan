@@ -29,6 +29,7 @@ type FederationPeerOptions struct {
 }
 type FederationOptions struct {
 	Peer            FederationPeerOptions
+	Peers           []FederationPeerOptions
 	FileLinks       []store.FederationFileLink
 	DMConversations []store.FederationDMConversation
 	TypingLinks     []store.FederationTypingLink
@@ -43,14 +44,17 @@ type FederationOptions struct {
 	LeaseDuration   time.Duration
 }
 type Federation struct {
-	ephemeral  *ephemeralTyping
-	store      *store.Store
-	nodeID     string
-	opts       FederationOptions
-	http       *http.Client
-	secretHash [32]byte
-	blobSlots  chan struct{}
-	fileLocks  [64]sync.Mutex
+	ephemeral    *ephemeralTyping
+	store        *store.Store
+	nodeID       string
+	opts         FederationOptions
+	peers        map[string]FederationPeerOptions
+	clients      map[string]*http.Client
+	secretHashes map[string][32]byte
+	http         *http.Client
+	secretHash   [32]byte
+	blobSlots    chan struct{}
+	fileLocks    [64]sync.Mutex
 }
 
 // NewFederation is explicit opt-in; the ordinary hub does not call it.
@@ -82,54 +86,98 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 	if opts.LeaseDuration < 2*opts.RequestTimeout || opts.LeaseDuration > time.Minute {
 		return nil, errors.New("federation lease must cover two request timeouts and be at most one minute")
 	}
-	p := opts.Peer
-	if len(p.Secret) < 32 || len(p.Secret) > 4096 || strings.ContainsAny(p.Secret, " \r\n\t") || strings.HasPrefix(p.Secret, "agt_") || strings.HasPrefix(p.Secret, "adm_") {
-		return nil, errors.New("federation requires a dedicated peer secret of 32-4096 non-whitespace bytes")
+	peers := opts.Peers
+	if len(peers) == 0 && opts.Peer.NodeID != "" {
+		peers = []FederationPeerOptions{opts.Peer}
 	}
-	u, err := url.Parse(p.BaseURL)
-	if err != nil || u.Hostname() == "" || (u.Path != "" && u.Path != "/") {
-		return nil, errors.New("invalid federation peer base URL")
+	if len(peers) == 0 {
+		return nil, errors.New("federation requires at least one peer")
 	}
-	if u.Scheme == "http" && !net.ParseIP(u.Hostname()).IsLoopback() {
-		return nil, errors.New("federation HTTP is limited to literal loopback addresses; use HTTPS")
+	if len(peers) > 1 && (len(opts.FileLinks) > 0 || len(opts.DMConversations) > 0 || len(opts.TypingLinks) > 0) {
+		return nil, errors.New("multi-peer federation currently supports text room links only")
 	}
-	c, err := client.NewWithTLS(p.BaseURL, "", p.TLS)
+	peerRows := make([]store.FederationPeer, 0, len(peers))
+	clients := make(map[string]*http.Client, len(peers))
+	hashes := make(map[string][32]byte, len(peers))
+	peerMap := make(map[string]FederationPeerOptions, len(peers))
+	for _, p := range peers {
+		if p.NodeID == "" || p.BaseURL == "" {
+			return nil, errors.New("each federation peer needs node_id and base_url")
+		}
+		if _, exists := peerMap[p.NodeID]; exists {
+			return nil, errors.New("duplicate federation peer node_id")
+		}
+		if len(p.Secret) < 32 || len(p.Secret) > 4096 || strings.ContainsAny(p.Secret, " \r\n\t") || strings.HasPrefix(p.Secret, "agt_") || strings.HasPrefix(p.Secret, "adm_") {
+			return nil, errors.New("federation requires a dedicated peer secret of 32-4096 non-whitespace bytes")
+		}
+		u, err := url.Parse(p.BaseURL)
+		if err != nil || u.Hostname() == "" || (u.Path != "" && u.Path != "/") {
+			return nil, errors.New("invalid federation peer base URL")
+		}
+		if u.Scheme == "http" && !net.ParseIP(u.Hostname()).IsLoopback() {
+			return nil, errors.New("federation HTTP is limited to literal loopback addresses; use HTTPS")
+		}
+		c, err := client.NewWithTLS(p.BaseURL, "", p.TLS)
+		if err != nil {
+			return nil, err
+		}
+		c.HTTP.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		sum := sha256.Sum256([]byte(p.Secret))
+		clients[p.NodeID] = c.HTTP
+		hashes[p.NodeID] = sum
+		peerMap[p.NodeID] = p
+		peerRows = append(peerRows, store.FederationPeer{NodeID: p.NodeID, BaseURL: p.BaseURL, SecretHash: hex.EncodeToString(sum[:])})
+	}
+	cleanup := func() {
+		for _, c := range clients {
+			c.CloseIdleConnections()
+		}
+	}
+	id, err := st.ConfigureFederation(ctx, peerRows, opts.Links, store.FederationLimits{MaxOutbox: opts.MaxOutbox, MaxAttempts: opts.MaxAttempts})
 	if err != nil {
-		return nil, err
-	}
-	c.HTTP.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	sum := sha256.Sum256([]byte(p.Secret))
-	id, err := st.ConfigureFederation(ctx, []store.FederationPeer{{NodeID: p.NodeID, BaseURL: p.BaseURL, SecretHash: hex.EncodeToString(sum[:])}}, opts.Links, store.FederationLimits{MaxOutbox: opts.MaxOutbox, MaxAttempts: opts.MaxAttempts})
-	if err != nil {
-		c.HTTP.CloseIdleConnections()
+		cleanup()
 		return nil, err
 	}
 	if err = st.ConfigureFederationFiles(ctx, opts.FileLinks); err != nil {
-		c.HTTP.CloseIdleConnections()
+		cleanup()
 		return nil, err
 	}
-	if err = st.ConfigureFederationDM(ctx, p.NodeID, opts.DMConversations); err != nil {
-		c.HTTP.CloseIdleConnections()
+	if err = st.ConfigureFederationDM(ctx, peers[0].NodeID, opts.DMConversations); err != nil {
+		cleanup()
 		return nil, err
 	}
-	f := &Federation{store: st, nodeID: id, opts: opts, http: c.HTTP, secretHash: sum, blobSlots: make(chan struct{}, 2)}
+	opts.Peer = peers[0]
+	opts.Peers = peers
+	f := &Federation{store: st, nodeID: id, opts: opts, peers: peerMap, clients: clients, secretHashes: hashes, http: clients[peers[0].NodeID], secretHash: hashes[peers[0].NodeID], blobSlots: make(chan struct{}, 2)}
 	if err = f.initTyping(ctx); err != nil {
-		c.HTTP.CloseIdleConnections()
+		cleanup()
 		return nil, err
 	}
 	return f, nil
+}
+
+func (f *Federation) peer(nodeID string) (FederationPeerOptions, bool) {
+	p, ok := f.peers[nodeID]
+	return p, ok
 }
 func (f *Federation) NodeID() string { return f.nodeID }
 
 func (s *Server) handleFederation(w http.ResponseWriter, r *http.Request) {
 	f := s.opts.Federation
-	// A node declaration is bound to its independently provisioned secret.
-	sum := sha256.Sum256([]byte(bearer(r)))
-	if r.Header.Get("X-AgentChat-Node") != f.opts.Peer.NodeID || subtle.ConstantTimeCompare(sum[:], f.secretHash[:]) != 1 {
+	nodeID := strings.TrimSpace(r.Header.Get("X-AgentChat-Node"))
+	peerCfg, ok := f.peer(nodeID)
+	if !ok {
 		writeError(w, 401, "unauthorized", "unknown federation peer or credential", nil)
 		return
 	}
-	if !s.allow("federation:"+f.opts.Peer.NodeID, 120, 20) {
+	// A node declaration is bound to its independently provisioned secret.
+	sum := sha256.Sum256([]byte(bearer(r)))
+	expected := f.secretHashes[nodeID]
+	if subtle.ConstantTimeCompare(sum[:], expected[:]) != 1 || peerCfg.NodeID != nodeID {
+		writeError(w, 401, "unauthorized", "unknown federation peer or credential", nil)
+		return
+	}
+	if !s.allow("federation:"+nodeID, 120, 20) {
 		writeError(w, 429, "rate_limited", "federation peer rate limit", nil)
 		return
 	}
@@ -145,7 +193,7 @@ func (s *Server) handleFederation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_request", "expected one federation envelope", nil)
 		return
 	}
-	receipt, err := f.store.ImportFederation(r.Context(), f.opts.Peer.NodeID, e)
+	receipt, err := f.store.ImportFederation(r.Context(), nodeID, e)
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrFederationConflict):
@@ -166,7 +214,11 @@ func (s *Server) handleFederation(w http.ResponseWriter, r *http.Request) {
 // Run owns a single bounded worker. It can be restarted: inflight work is
 // recovered only after its persisted lease expires. Multiple claimers are safe.
 func (f *Federation) runV1(ctx context.Context) error {
-	defer f.http.CloseIdleConnections()
+	defer func() {
+		for _, c := range f.clients {
+			c.CloseIdleConnections()
+		}
+	}()
 	timer := time.NewTicker(f.opts.PollInterval)
 	defer timer.Stop()
 	for {
@@ -212,19 +264,24 @@ func (f *Federation) deliver(ctx context.Context, j store.FederationJob) (bool, 
 	if err != nil {
 		return false, false, "storage unavailable"
 	}
-	if !allowed || j.PeerID != f.opts.Peer.NodeID || e.OriginNodeID != f.nodeID {
+	peer, ok := f.peer(j.PeerID)
+	if !allowed || !ok || e.OriginNodeID != f.nodeID {
 		return false, true, "peer or room link disabled"
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, f.opts.RequestTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(requestCtx, "POST", strings.TrimRight(f.opts.Peer.BaseURL, "/")+"/federation/v1/messages", bytes.NewBufferString(j.Payload))
+	req, err := http.NewRequestWithContext(requestCtx, "POST", strings.TrimRight(peer.BaseURL, "/")+"/federation/v1/messages", bytes.NewBufferString(j.Payload))
 	if err != nil {
 		return false, true, "invalid configured endpoint"
 	}
-	req.Header.Set("Authorization", "Bearer "+f.opts.Peer.Secret)
+	req.Header.Set("Authorization", "Bearer "+peer.Secret)
 	req.Header.Set("X-AgentChat-Node", f.nodeID)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := f.http.Do(req)
+	client := f.clients[j.PeerID]
+	if client == nil {
+		return false, true, "peer client missing"
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return false, false, "peer transport failure"
 	}
