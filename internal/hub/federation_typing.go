@@ -412,7 +412,9 @@ func (f *Federation) runTyping(ctx context.Context) error {
 			ok := f.deliverTyping(ctx, p)
 			e.mu.Lock()
 			if !ok {
-				e.clearLocked()
+				// A failure on one peer must not erase another peer's sessions.
+				delete(e.pending, key)
+				delete(e.outbound, typingLinkKey(p.link))
 			} else {
 				if e.pending[key].revision == p.revision {
 					delete(e.pending, key)
