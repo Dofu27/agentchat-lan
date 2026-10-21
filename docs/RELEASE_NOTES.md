@@ -21,10 +21,11 @@ embedded Web UI.
 
 ## Release verification
 
-Run `scripts/verify-release.sh v0.22.15 dist` before publishing. It checks every
-required asset, `SHA256SUMS`, the Linux version string, Windows PE headers, the
-installer size floor, and that no private LAN address is embedded. The v0.22.15
-local bundle passes this check.
+Run `scripts/verify-release.sh <version> dist` before publishing. It checks
+every required asset, `SHA256SUMS`, the Linux version string, Windows PE
+headers, the installer size floor, and that no private LAN address is embedded.
+Run `scripts/verify-reproducible.sh <version>` to build the Linux CLI twice and
+require identical bytes; v0.26.4 passes both checks.
 
 ## Install
 
