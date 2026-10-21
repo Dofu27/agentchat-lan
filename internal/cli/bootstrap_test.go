@@ -41,7 +41,7 @@ func (f *failingBootstrapFile) Close() error {
 }
 
 func TestBootstrapIOFailureNeverCommitsDatabase(t *testing.T) {
-	for _, stage := range []string{"write", "short", "sync", "close"} {
+	for _, stage := range []string{"write", "short", "sync", "close", "parent"} {
 		t.Run(stage, func(t *testing.T) {
 			dir := t.TempDir()
 			path, db := filepath.Join(dir, "token"), filepath.Join(dir, "data", "agentchat.db")
@@ -52,7 +52,12 @@ func TestBootstrapIOFailureNeverCommitsDatabase(t *testing.T) {
 					return nil, e
 				}
 				return &failingBootstrapFile{f, stage}, nil
-			}, initialize: func(context.Context, string, string) error { called = true; return nil }}
+			}, initialize: func(context.Context, string, string) error { called = true; return nil }, syncParent: func(path string) error {
+				if stage == "parent" {
+					return errors.New("injected parent directory sync")
+				}
+				return syncBootstrapParent(path)
+			}}
 			err := bootstrapHub(context.Background(), db, path, false, ops)
 			if err == nil || called {
 				t.Fatalf("failure committed DB: %v called=%v", err, called)
