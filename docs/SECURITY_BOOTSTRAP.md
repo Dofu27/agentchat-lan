@@ -15,9 +15,19 @@ The install action takes one configuration snapshot; its SCM command uses
 the verified final executable handle path and Windows ComposeCommandLine for
 every argument. The guard covers creation and the install action's immediate
 start, and closes when the handler returns. It is not a runtime guard for the
-running service. The separate start action controls an existing SCM entry and
-does not revalidate that entry's stored binPath; administrator-maintained SCM
-configuration remains a deployment precondition for that action.
+running service. Both desktop service APIs revalidate an existing SCM entry
+before start/restart: read its BinaryPathName through mgr.Service.Config
+(QueryServiceConfig), decompose the command, pin the actual executable's full
+ancestor chain and compare the parsed executable's FileId/final path to the
+guard. Restart holds the guard before stopping and through the subsequent Start.
+Before Start, the code requeries BinaryPathName and refuses configuration drift,
+then rechecks file identity. Missing/unparseable/untrusted services fail closed.
+This also applies to the immediate start after installation. The desktop CLI
+path is not substituted for the binary registered in SCM.
+SCM configuration is administrator-owned; the code does not isolate a malicious
+administrator changing the entry during the final StartService call. Injectable
+SCM tests use temporary unsafe executables and fake services; actual administrator
+service installation/start remains unverified.
 
 Every component's security descriptor is evaluated with Windows AccessCheck
 and a restricted ordinary-user impersonation token (admin groups disabled,

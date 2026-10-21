@@ -966,13 +966,18 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, result)
 			return
 		}
-		out, err = run("start", "AgentChatHub")
-		result["output"] = strings.TrimSpace(fmt.Sprintf("%v\n%v", result["output"], out))
+		err = serviceAction("AgentChatHub", "start", "")
 		result["ok"] = err == nil
 		if err != nil {
-			result["error"] = "service installed but start failed"
+			result["error"] = "service installed but verified start failed: " + redactOutput(err.Error())
 		}
-	case "start", "stop":
+	case "start", "restart":
+		err := serviceAction("AgentChatHub", req.Action, "")
+		result["ok"] = err == nil
+		if err != nil {
+			result["error"] = redactOutput(err.Error())
+		}
+	case "stop":
 		out, err := run(req.Action, "AgentChatHub")
 		result["output"] = out
 		result["ok"] = err == nil
@@ -1150,31 +1155,14 @@ func serviceAction(name, action, startup string) error {
 	}
 	defer s.Close()
 	switch action {
-	case "start":
-		if st, e := s.Query(); e == nil && (st.State == svc.Running || st.State == svc.StartPending) {
-			return nil
-		}
-		return s.Start()
+	case "start", "restart":
+		return startRegisteredService(s, action, nativeExecutableVerifier)
 	case "stop":
 		if st, e := s.Query(); e == nil && (st.State == svc.Stopped || st.State == svc.StopPending) {
 			return nil
 		}
 		_, err = s.Control(svc.Stop)
 		return err
-	case "restart":
-		if st, e := s.Query(); e == nil && st.State == svc.Stopped {
-			return s.Start()
-		}
-		_, _ = s.Control(svc.Stop)
-		deadline := time.Now().Add(15 * time.Second)
-		for time.Now().Before(deadline) {
-			st, _ := s.Query()
-			if st.State == svc.Stopped {
-				break
-			}
-			time.Sleep(300 * time.Millisecond)
-		}
-		return s.Start()
 	case "startup":
 		cfg, err := s.Config()
 		if err != nil {

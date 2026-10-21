@@ -51,6 +51,16 @@ func TestServiceCommandUsesPinnedExecutableAndRoundTripsArguments(t *testing.T) 
 			t.Fatalf("SCM arguments changed: got %q want %q", got, want)
 		}
 	}
+	if err := g.VerifyExecutable(canonical); err != nil {
+		t.Fatal("SCM executable did not match pinned file", err)
+	}
+	other := filepath.Join(filepath.Dir(path), "other.exe")
+	if err := os.WriteFile(other, []byte("other synthetic"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.VerifyExecutable(other); err == nil {
+		t.Fatal("different SCM executable passed FileId binding")
+	}
 	g.objects[0].id.low++
 	if _, err := hubServiceBinPath(config{HubData: "data", HubListen: "listen"}, g); err == nil {
 		t.Fatal("changed executable identity accepted")

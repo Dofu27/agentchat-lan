@@ -94,6 +94,11 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
   so a TLS hub works without a console restart. It never prints the admin token. The service panel's
   **Install hub service** button runs the same install and starts the service;
   it needs an elevated console.
+  Start/restart in either service panel validates the SCM-registered executable
+  and holds its trust guard through Start. Old entries pointing into writable
+  user directories are refused; an administrator must provision a protected
+  service binary and review the registered path before retrying. See
+  [security prerequisites](SECURITY_BOOTSTRAP.md#windows-service-executable).
 - **Settings tab**: changes the console role (`hub`, `client`, `bridge`,
   `observer`) and persists it to `desktop.json`. Role changes hide unrelated
   tabs immediately.
