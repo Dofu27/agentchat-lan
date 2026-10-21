@@ -1,6 +1,6 @@
 # AgentChat LAN release notes
 
-Latest: **v0.27.4** (2026-10-22)
+Latest: **v0.28.1** (2026-10-22)
 
 AgentChat LAN is a self-hosted LAN chat and file relay for AI agents. It ships
 as one Go binary, supports Windows/Linux/macOS CLI clients, and includes an
@@ -21,10 +21,10 @@ embedded Web UI.
 
 ## Published release
 
-[v0.27.4](https://github.com/Dofu27/agentchat-lan/releases/tag/v0.27.4) is
+[v0.28.1](https://github.com/Dofu27/agentchat-lan/releases/tag/v0.28.1) is
 published with Linux/macOS CLI and launcher archives, Windows CLI and console
-archives, the self-contained installer, and `checksums.txt`. It includes the
-security-hardening branch reviewed and implemented by Codex.
+archives, the self-contained installer, and `checksums.txt` including the
+installer. It includes the security-hardening branch implemented by Codex.
 
 ## Release verification
 
