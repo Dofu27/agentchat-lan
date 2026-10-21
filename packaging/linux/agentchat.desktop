@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AgentChat LAN
+Name[zh_CN]=AgentChat 局域网
+Comment=Open the AgentChat hub UI
+Comment[zh_CN]=打开 AgentChat Hub 界面
+Exec=agentchat-desktop
+Icon=agentchat
+Terminal=false
+Categories=Network;Chat;
+StartupNotify=true
