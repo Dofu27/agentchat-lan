@@ -12,7 +12,7 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.27.4` (pending review) adds pre-init token reservation, Job Object process
+- `v0.27.4` adds pre-init token reservation, Job Object process
   containment/bounded redacted output, protected service-binary checks, and
   slot-before-claim ordering.
   `v0.27.3` adds a global eight-slot federation delivery budget and moves
