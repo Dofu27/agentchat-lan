@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.21.0] - 2026-10-21
+
+### Added
+
+- `agentchat dsh-bridge` runtime adapter for DSH headless turns
+- Persistent DSH session ID, JSON event parsing, timeout and dry-run mode
+- Final DSH text is sent back to the originating AgentChat room; the normal
+  bridge only ACKs after delivery
+- `docs/DSH.md` with headless credentials, wrapper, bridge install and limits
+
 ## [0.20.0] - 2026-10-21
 
 ### Added (experimental, opt-in)
