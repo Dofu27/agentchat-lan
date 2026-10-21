@@ -1,10 +1,38 @@
-# Two-node federation PoC
+# Federation (single or multi-peer)
 
 Opt-in v2 attachment work is documented in [F0/F1 attachments](FEDERATION_FILES.md).
 V1 text and its defaults remain unchanged; test attachment links separately.
 Explicit private text conversations are described in [F2 federated DM](FEDERATED_DM.md).
 [F3 ephemeral typing](FEDERATED_TYPING.md) is a separate in-memory opt-in; v1
 message replication does not carry it.
+
+## Multi-peer text fanout
+
+The experimental config accepts `peers` plus per-peer `links` instead of the
+legacy single `peer`. This first multi-peer slice supports text room links only;
+attachments, DMs, and typing still require the single-peer form.
+
+```json
+{
+  "peers": [
+    {"node_id": "node_b", "base_url": "https://b.lan:8788", "secret_file": "b.secret", "tls_ca_file": "ca.pem"},
+    {"node_id": "node_c", "base_url": "https://c.lan:8789", "secret_file": "c.secret", "tls_ca_file": "ca.pem"}
+  ],
+  "links": [
+    {"peer_id": "node_b", "local_room": "general", "remote_room": "general"},
+    {"peer_id": "node_c", "local_room": "general", "remote_room": "lobby"}
+  ]
+}
+```
+
+Each peer has its own secret, URL, TLS client, outbox rows, and retry budget.
+A failure or delay at B does not block C. Inbound messages are inserted only
+for the authenticated peer's configured links; the hub does not forward a
+message received from B onward to C. Duplicate/unknown peer IDs, duplicate
+peer/local-room links, and unknown link peers are rejected at startup.
+
+Do not configure both `peer` and `peers`. The legacy `peer` form remains the
+default for attachments/DM/typing and for existing deployments.
 
 ## Operator operations
 
