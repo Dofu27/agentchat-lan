@@ -189,6 +189,16 @@ func main() {
 		select {}
 	}
 
+	mutex, err := acquireConsoleMutex()
+	if err != nil {
+		if errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
+			log.Print("AgentChat Console is already running")
+			return
+		}
+		log.Fatalf("single-instance guard: %v", err)
+	}
+	defer windows.CloseHandle(mutex)
+
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		Debug: false,
 		WindowOptions: webview2.WindowOptions{
@@ -333,6 +343,21 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
 	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
+}
+
+func acquireConsoleMutex() (windows.Handle, error) {
+	name, err := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
+	if err != nil {
+		return 0, err
+	}
+	handle, err := windows.CreateMutex(nil, false, name)
+	if err != nil {
+		if handle != 0 {
+			_ = windows.CloseHandle(handle)
+		}
+		return 0, err
+	}
+	return handle, nil
 }
 
 func serviceStatus(name string) (map[string]any, error) {
