@@ -72,7 +72,14 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 			SecretFile string `json:"secret_file"`
 			CAFile     string `json:"tls_ca_file"`
 		} `json:"peer"`
+		Peers []struct {
+			NodeID     string `json:"node_id"`
+			BaseURL    string `json:"base_url"`
+			SecretFile string `json:"secret_file"`
+			CAFile     string `json:"tls_ca_file"`
+		} `json:"peers"`
 		Links []struct {
+			PeerID      string `json:"peer_id"`
 			Typing      bool   `json:"typing"`
 			Attachments bool   `json:"attachments"`
 			LinkID      string `json:"link_id"`
@@ -100,14 +107,54 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 	if err = dec.Decode(new(any)); err != io.EOF {
 		return nil, errors.New("invalid federation configuration suffix")
 	}
-	if cfg.Peer.SecretFile == "" {
-		return nil, errors.New("federation peer secret_file is required")
-	}
 	resolve := func(p string) string {
 		if p == "" || filepath.IsAbs(p) {
 			return p
 		}
 		return filepath.Join(filepath.Dir(path), p)
+	}
+	if len(cfg.Peers) > 0 {
+		if cfg.Peer.NodeID != "" || cfg.Peer.BaseURL != "" || cfg.Peer.SecretFile != "" {
+			return nil, errors.New("use either peer or peers, not both")
+		}
+		if len(cfg.DMConversations) > 0 || len(fileDirs) > 0 {
+			return nil, errors.New("multi-peer federation supports text room links only")
+		}
+		opts := hub.FederationOptions{MaxOutbox: cfg.MaxOutbox, MaxAttempts: cfg.MaxAttempts}
+		known := make(map[string]bool)
+		for _, p := range cfg.Peers {
+			if p.NodeID == "" || p.BaseURL == "" || p.SecretFile == "" {
+				return nil, errors.New("each peer needs node_id, base_url, and secret_file")
+			}
+			if known[p.NodeID] {
+				return nil, errors.New("duplicate federation peer node_id")
+			}
+			known[p.NodeID] = true
+			raw, err := readFederationSecret(resolve(p.SecretFile))
+			if err != nil {
+				return nil, err
+			}
+			opts.Peers = append(opts.Peers, hub.FederationPeerOptions{NodeID: p.NodeID, BaseURL: p.BaseURL, Secret: strings.TrimSpace(raw), TLS: client.TLSOptions{CAFile: resolve(p.CAFile)}})
+		}
+		links := make(map[string]bool)
+		for _, l := range cfg.Links {
+			if l.Attachments || l.Typing || l.LinkID != "" || l.Epoch != 0 {
+				return nil, errors.New("multi-peer federation supports text links only")
+			}
+			if l.PeerID == "" || !known[l.PeerID] {
+				return nil, errors.New("link references an unknown peer")
+			}
+			key := l.PeerID + "\x00" + l.LocalRoom
+			if links[key] {
+				return nil, errors.New("duplicate peer/local_room link")
+			}
+			links[key] = true
+			opts.Links = append(opts.Links, store.FederationLink{PeerID: l.PeerID, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom})
+		}
+		return hub.NewFederation(ctx, st, opts)
+	}
+	if cfg.Peer.SecretFile == "" {
+		return nil, errors.New("federation peer secret_file is required")
 	}
 	secret, err := os.Open(resolve(cfg.Peer.SecretFile))
 	if err != nil {
@@ -140,4 +187,21 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 		opts.Links = append(opts.Links, store.FederationLink{PeerID: cfg.Peer.NodeID, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom})
 	}
 	return hub.NewFederation(ctx, st, opts)
+}
+
+func readFederationSecret(path string) (string, error) {
+	secret, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer secret.Close()
+	info, err := secret.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 4098 {
+		return "", errors.New("federation secret file is not a bounded regular file")
+	}
+	raw, err := io.ReadAll(io.LimitReader(secret, 4099))
+	if err != nil || len(raw) > 4098 {
+		return "", errors.New("cannot read federation secret")
+	}
+	return string(raw), nil
 }
