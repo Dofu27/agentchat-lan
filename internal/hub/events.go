@@ -63,6 +63,11 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return
 			}
+			// Re-check after the history read: a revocation racing with the
+			// first check must not allow one more message to be emitted.
+			if _, err := s.store.AgentByToken(r.Context(), token); err != nil {
+				return
+			}
 			for _, message := range messages {
 				data, err := json.Marshal(message)
 				if err != nil {
