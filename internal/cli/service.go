@@ -158,14 +158,14 @@ func (a *App) serviceUninstall(args []string) int {
 	}
 	if runtime.GOOS == "windows" {
 		out, err := exec.Command("schtasks", "/Delete", "/TN", *name, "/F").CombinedOutput()
-		if err != nil {
-			return a.fail(fmt.Errorf("delete scheduled task: %w: %s", err, strings.TrimSpace(string(out))))
-		}
 		if launcher, pathErr := windowsLauncherPath(*name); pathErr == nil {
 			_ = os.Remove(launcher)
 		}
 		if startup, startupErr := windowsStartupPath(*name); startupErr == nil {
 			_ = os.Remove(startup)
+		}
+		if err != nil && !scheduledTaskMissing(string(out)) {
+			return a.fail(fmt.Errorf("delete scheduled task: %w: %s", err, strings.TrimSpace(string(out))))
 		}
 		fmt.Fprintf(a.Stdout, "removed scheduled task/startup entry %s\n", *name)
 		return 0
@@ -233,6 +233,16 @@ func writeWindowsLauncher(name, exe string, args []string) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+func scheduledTaskMissing(output string) bool {
+	lower := strings.ToLower(output)
+	for _, marker := range []string{"cannot find", "does not exist", "not found", "找不到", "不存在"} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func windowsStartupPath(name string) (string, error) {

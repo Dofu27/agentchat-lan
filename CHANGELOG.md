@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.21.9] - 2026-10-21
+
+### Fixed
+
+- start-now persists fixed per-room high-water cutoffs before acknowledging any
+  message, so a lost ACK response cannot re-snapshot and swallow newer requests
+- start-now paginates the full cutoff backlog across all authorized rooms and
+  leaves messages above the cutoff for normal hook processing
+- Windows bridge uninstall removes the Startup fallback even when Task Scheduler
+  reports that the task is absent
+
 ## [0.21.8] - 2026-10-21
 
 ### Fixed

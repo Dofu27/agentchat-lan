@@ -512,7 +512,7 @@ func roomsForAgent(ctx context.Context, q interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, agentID string, dmEnabled ...bool) ([]protocol.Room, error) {
 	enabled := len(dmEnabled) > 0 && dmEnabled[0]
-	rows, err := q.QueryContext(ctx, `SELECT r.id,r.name,r.topic,r.kind,r.created_at FROM rooms r JOIN memberships m ON m.room_id=r.id WHERE m.agent_id=? AND r.archived_at IS NULL`+dmReadPredicate("m.room_id")+` ORDER BY r.id`, agentID, enabled, agentID)
+	rows, err := q.QueryContext(ctx, `SELECT r.id,r.name,r.topic,r.kind,r.created_at,COALESCE((SELECT MAX(seq) FROM messages WHERE room_id=r.id),0) FROM rooms r JOIN memberships m ON m.room_id=r.id WHERE m.agent_id=? AND r.archived_at IS NULL`+dmReadPredicate("m.room_id")+` ORDER BY r.id`, agentID, enabled, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +521,7 @@ func roomsForAgent(ctx context.Context, q interface {
 	for rows.Next() {
 		var r protocol.Room
 		var created string
-		if err = rows.Scan(&r.ID, &r.Name, &r.Topic, &r.Kind, &created); err != nil {
+		if err = rows.Scan(&r.ID, &r.Name, &r.Topic, &r.Kind, &created, &r.LatestSeq); err != nil {
 			return nil, err
 		}
 		r.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)

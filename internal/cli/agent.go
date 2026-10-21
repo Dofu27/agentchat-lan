@@ -72,12 +72,26 @@ func (a *App) cmdAgent(args []string) (exit int) {
 			return a.fail(fmt.Errorf("--start-now requires --ack"))
 		}
 		marker := startNowMarker(*cfgPath, cfg)
-		if _, err := os.Stat(marker); os.IsNotExist(err) {
-			if err := drainInbox(ctx, c, *limit); err != nil {
+		state, exists, err := loadStartNowState(marker)
+		if err != nil {
+			return a.fail(fmt.Errorf("read start-now state: %w", err))
+		}
+		if !exists {
+			state.Cutoffs, err = captureRoomCutoffs(ctx, c)
+			if err != nil {
+				return a.fail(fmt.Errorf("capture start-now cutoffs: %w", err))
+			}
+			if err := saveStartNowState(marker, state); err != nil {
+				return a.fail(fmt.Errorf("record start-now cutoffs: %w", err))
+			}
+		}
+		if !state.Done {
+			if err := drainCutoffs(ctx, c, *limit, state.Cutoffs); err != nil {
 				return a.fail(fmt.Errorf("start-now: %w", err))
 			}
-			if err := writeStartNowMarker(marker); err != nil {
-				return a.fail(fmt.Errorf("record start-now: %w", err))
+			state.Done = true
+			if err := saveStartNowState(marker, state); err != nil {
+				return a.fail(fmt.Errorf("complete start-now: %w", err))
 			}
 		}
 	}
@@ -171,34 +185,109 @@ func (a *App) cmdAgent(args []string) (exit int) {
 	}
 }
 
+type startNowState struct {
+	Cutoffs map[string]int64 `json:"cutoffs"`
+	Done    bool             `json:"done"`
+}
+
 func startNowMarker(cfgPath string, cfg *config.Config) string {
 	sum := sha256.Sum256([]byte(cfg.HubURL + "\x00" + cfg.AgentID))
 	base := filepath.Dir(configPathOrEmpty(cfgPath))
 	return filepath.Join(base, ".agentchat-start-now-"+hex.EncodeToString(sum[:8]))
 }
 
-func writeStartNowMarker(path string) error {
+func loadStartNowState(path string) (startNowState, bool, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return startNowState{}, false, nil
+	}
+	if err != nil {
+		return startNowState{}, false, err
+	}
+	var state startNowState
+	if !strings.HasPrefix(strings.TrimSpace(string(data)), "{") {
+		// v0.21.8 wrote a plain completion timestamp.
+		return startNowState{Done: true}, true, nil
+	}
+	if err := json.Unmarshal(data, &state); err != nil {
+		return startNowState{}, false, err
+	}
+	if state.Cutoffs == nil {
+		state.Cutoffs = map[string]int64{}
+	}
+	return state, true, nil
+}
+
+func saveStartNowState(path string, state startNowState) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(time.Now().UTC().Format(time.RFC3339Nano)+"\n"), 0o600)
-}
-
-// drainInbox acknowledges exactly one inbox snapshot. It deliberately does not
-// loop: a message arriving after the snapshot must remain for normal handling.
-func drainInbox(ctx context.Context, c *client.Client, limit int) error {
-	resp, err := c.Inbox(ctx, 0, limit)
+	data, err := json.Marshal(state)
 	if err != nil {
 		return err
 	}
-	if len(resp.Messages) == 0 {
-		return nil
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".start-now-*.tmp")
+	if err != nil {
+		return err
 	}
-	acks := make(map[string]int64)
-	for _, msg := range resp.Messages {
-		advanceAck(acks, msg)
+	tmpName := tmp.Name()
+	if _, err = tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return err
 	}
-	return c.Ack(ctx, acks)
+	if err = tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if err = os.Chmod(tmpName, 0o600); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if err = os.Rename(tmpName, path); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	return nil
+}
+
+func captureRoomCutoffs(ctx context.Context, c *client.Client) (map[string]int64, error) {
+	rooms, err := c.Rooms(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cutoffs := make(map[string]int64, len(rooms))
+	for _, room := range rooms {
+		cutoffs[room.ID] = room.LatestSeq
+	}
+	return cutoffs, nil
+}
+
+// drainCutoffs acknowledges only messages at or below the durable per-room
+// cutoff. Anything newer stays in the inbox for normal hook processing.
+func drainCutoffs(ctx context.Context, c *client.Client, limit int, cutoffs map[string]int64) error {
+	for {
+		resp, err := c.Inbox(ctx, 0, limit)
+		if err != nil {
+			return err
+		}
+		if len(resp.Messages) == 0 {
+			return nil
+		}
+		acks := make(map[string]int64)
+		for _, msg := range resp.Messages {
+			cutoff, ok := cutoffs[msg.Room]
+			if ok && msg.Seq <= cutoff {
+				advanceAck(acks, msg)
+			}
+		}
+		if len(acks) == 0 {
+			return nil
+		}
+		if err := c.Ack(ctx, acks); err != nil {
+			return err
+		}
+	}
 }
 
 func advanceAck(acks map[string]int64, msg protocol.Message) {
