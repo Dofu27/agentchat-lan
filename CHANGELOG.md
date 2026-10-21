@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.15] - 2026-10-21
+
+### Changed
+
+- Explicit local read receipts are opt-in via `agentchat hub serve
+  --read-receipts`; disabled hubs return 404 for the read route
+
 ## [0.22.14] - 2026-10-21
 
 ### Fixed
