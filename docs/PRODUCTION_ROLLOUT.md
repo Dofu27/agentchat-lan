@@ -8,11 +8,11 @@ explicit maintenance window; do not run it while agents are actively working.
 ## Target
 
 - Release: `v0.22.13` or the latest tagged release whose CI is green.
-- Federation: inspect the live state before changing binaries. Production A
-  currently reports one enabled peer and one enabled `general`→`general` room
-  link, with delivered outbox rows. Do **not** assume federation is disabled and
-  do not silently drop the link; record whether the rollout keeps it, pauses it,
-  or disables it with operator approval. The backup includes federation tables.
+- Federation: **pause the link for the maintenance window** (operator decision
+  2026-10-21). Production A currently reports one enabled peer and one enabled
+  `general`→`general` room link, with delivered outbox rows. Do not silently
+  drop the link or its queue; back up the federation tables, pause the link
+  before upgrading B/A, and resume only after both nodes pass acceptance.
 - Read receipts: available but not auto-marked; no client depends on them.
 - DSH bridge: paused for the upgraded hub, then restarted and re-tested.
 
