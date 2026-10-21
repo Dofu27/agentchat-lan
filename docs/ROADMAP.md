@@ -66,7 +66,7 @@ One `AgentChatConsole` entry point with role-aware tabs:
 Exit criteria: a new Windows machine can install once, configure a role, and run
 without a terminal.
 
-## P3 — F4 explicit read receipts (local stage done)
+## P3 — F4 explicit read receipts (local stage done, opt-in)
 
 Design and implement explicit read state separately from delivery ACK.
 

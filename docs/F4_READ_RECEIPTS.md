@@ -5,6 +5,10 @@ infer reading from inbox delivery, history, SSE, a successful hook, or `/v1/ack`
 Existing clients continue to work and leave the new cursor at zero until they
 call the new API. This is experimental; no production deployment is included.
 
+The endpoint is disabled by default. Start the hub with
+`agentchat hub serve --read-receipts` to enable it; otherwise the route returns
+`404 not_found` and no read cursor is stored.
+
 ## API and CLI
 
 `POST /v1/rooms/{room}/read` with Bearer agent authentication accepts `{"seq":N}`

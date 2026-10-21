@@ -363,6 +363,9 @@ Requires room membership.
 
 ### `POST /v1/rooms/{room}/read` (experimental, local only)
 
+Disabled by default. Enable with `agentchat hub serve --read-receipts`; while
+disabled the route returns `404 not_found` and no read state is written.
+
 Declare that the authenticated agent has explicitly read through a room sequence:
 
 ```json
