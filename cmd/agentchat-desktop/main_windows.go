@@ -345,7 +345,11 @@ func (a *app) openAdminWindow() error {
 	if adminWindow == nil {
 		return errors.New("could not create the admin WebView2 window")
 	}
-	adminWindow.Init(adminLoginScript(a.token, a.cfg.HubURL))
+	origin, err := canonicalOrigin(a.cfg.HubURL)
+	if err != nil {
+		return err
+	}
+	adminWindow.Init(adminLoginScript(a.token, origin))
 	adminWindow.Navigate(a.cfg.HubURL + "/admin")
 	return nil
 }
@@ -393,27 +397,48 @@ func (a *app) openChatWindow() error {
 	if chatWindow == nil {
 		return errors.New("could not create the chat WebView2 window")
 	}
-	chatWindow.Init(chatLoginScript(agent.Token, a.cfg.HubURL))
+	origin, err := canonicalOrigin(a.cfg.HubURL)
+	if err != nil {
+		return err
+	}
+	chatWindow.Init(chatLoginScript(agent.Token, origin))
 	chatWindow.Navigate(a.cfg.HubURL + "/")
 	return nil
 }
 
-func chatLoginScript(token, hubURL string) string {
-	u, _ := url.Parse(hubURL)
-	origin := ""
-	if u != nil {
-		origin = u.Scheme + "://" + u.Host
+func canonicalOrigin(raw string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return "", errors.New("invalid hub origin")
 	}
+	host := strings.ToLower(u.Hostname())
+	if host == "" || strings.HasSuffix(host, ".") || strings.ContainsAny(host, "%") {
+		return "", errors.New("non-canonical hub host")
+	}
+	for _, r := range host {
+		if r > 127 {
+			return "", errors.New("non-ASCII hub host must be configured as punycode")
+		}
+	}
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	port := u.Port()
+	if (u.Scheme == "http" && port == "80") || (u.Scheme == "https" && port == "443") {
+		port = ""
+	}
+	if port != "" {
+		host += ":" + port
+	}
+	return u.Scheme + "://" + host, nil
+}
+
+func chatLoginScript(token, origin string) string {
 	return `(function(){var t=` + strconv.Quote(token) + `,o=` + strconv.Quote(origin) +
 		`;if(location.origin!==o)return;try{sessionStorage.setItem("agentchat_token",t);}catch(e){}})();`
 }
 
-func adminLoginScript(token, hubURL string) string {
-	u, _ := url.Parse(hubURL)
-	origin := ""
-	if u != nil {
-		origin = u.Scheme + "://" + u.Host
-	}
+func adminLoginScript(token, origin string) string {
 	return `(function(){var t=` + strconv.Quote(token) + `,o=` + strconv.Quote(origin) + `;if(location.origin!==o)return;var n=0;function go(){var login=document.getElementById("admin-login");var i=document.getElementById("admin-token");var f=document.getElementById("admin-login-form");if(login&&login.classList.contains("hidden"))return;if(i&&f&&!i.value){i.value=t;f.requestSubmit();return;}if(n++<20)setTimeout(go,250);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();})();`
 }
 
@@ -578,15 +603,19 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "agent_id": joined.Agent.ID, "agent_name": joined.Agent.Name, "rooms": rooms, "agent_config": path})
 }
 
-func (a *app) saveDesktopConfig() error {
+func (a *app) saveConfig(cfg config) error {
 	if a.configPath == "" {
 		return nil
 	}
-	data, err := json.MarshalIndent(a.cfg, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(a.configPath, data, 0o600)
+}
+
+func (a *app) saveDesktopConfig() error {
+	return a.saveConfig(a.cfg)
 }
 
 func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
@@ -651,22 +680,24 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "non-loopback hub_url must use https"})
 		return
 	}
-	if data, err := os.ReadFile(req.TokenFile); err == nil {
-		a.token = strings.TrimSpace(string(data))
-	}
-	a.cfg.Service = "AgentChatHub"
-	a.cfg.HubData = req.Data
-	a.cfg.TokenFile = req.TokenFile
-	a.cfg.HubListen = req.Listen
-	a.cfg.HubCert = req.TLSCert
-	a.cfg.HubKey = req.TLSKey
-	a.cfg.CAFile = req.TLSCA
-	a.cfg.HubURL = hubURL
-	a.cfg.Role = "hub"
-	a.cfg.SetupDone = true
-	if err := a.saveDesktopConfig(); err != nil {
+	candidate := a.cfg
+	candidate.Service = "AgentChatHub"
+	candidate.HubData = req.Data
+	candidate.TokenFile = req.TokenFile
+	candidate.HubListen = req.Listen
+	candidate.HubCert = req.TLSCert
+	candidate.HubKey = req.TLSKey
+	candidate.CAFile = req.TLSCA
+	candidate.HubURL = hubURL
+	candidate.Role = "hub"
+	candidate.SetupDone = true
+	if err := a.saveConfig(candidate); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but desktop config could not be saved"})
 		return
+	}
+	a.cfg = candidate
+	if data, err := os.ReadFile(req.TokenFile); err == nil {
+		a.token = strings.TrimSpace(string(data))
 	}
 	clientError := ""
 	if client, err := newHubClient(a.cfg, a.configPath); err != nil {
@@ -771,6 +802,7 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
 			return
 		}
+		candidate := a.cfg
 		if req.Role != "" {
 			switch req.Role {
 			case "hub", "client", "bridge", "observer":
@@ -778,15 +810,16 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid role"})
 				return
 			}
-			a.cfg.Role = req.Role
+			candidate.Role = req.Role
 		}
 		if req.SetupDone != nil {
-			a.cfg.SetupDone = *req.SetupDone
+			candidate.SetupDone = *req.SetupDone
 		}
-		if err := a.saveDesktopConfig(); err != nil {
+		if err := a.saveConfig(candidate); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save desktop config"})
 			return
 		}
+		a.cfg = candidate
 	}
 	defaultData := ""
 	if base := os.Getenv("LOCALAPPDATA"); base != "" {
