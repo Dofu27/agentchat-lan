@@ -263,9 +263,6 @@ func uninstallDesktop(dir string, removeData bool) error {
 			return fmt.Errorf("ownership identity does not match %s", abs)
 		}
 	}
-	if err := removeStartupEntries(); err != nil {
-		return err
-	}
 	var removeErr error
 	remove := func(path string) {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
@@ -286,6 +283,9 @@ func uninstallDesktop(dir string, removeData bool) error {
 			return err
 		}
 		owned = append(owned, path)
+	}
+	if err := removeStartupEntries(); err != nil {
+		return err
 	}
 	for _, path := range owned {
 		remove(path)

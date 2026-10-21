@@ -44,17 +44,18 @@ type FederationOptions struct {
 	LeaseDuration   time.Duration
 }
 type Federation struct {
-	ephemeral    *ephemeralTyping
-	store        *store.Store
-	nodeID       string
-	opts         FederationOptions
-	peers        map[string]FederationPeerOptions
-	clients      map[string]*http.Client
-	secretHashes map[string][32]byte
-	http         *http.Client
-	secretHash   [32]byte
-	blobSlots    chan struct{}
-	fileLocks    [64]sync.Mutex
+	ephemeral     *ephemeralTyping
+	store         *store.Store
+	nodeID        string
+	opts          FederationOptions
+	peers         map[string]FederationPeerOptions
+	clients       map[string]*http.Client
+	secretHashes  map[string][32]byte
+	http          *http.Client
+	secretHash    [32]byte
+	blobSlots     chan struct{}
+	deliverySlots chan struct{}
+	fileLocks     [64]sync.Mutex
 }
 
 // NewFederation is explicit opt-in; the ordinary hub does not call it.
@@ -153,7 +154,7 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 	}
 	opts.Peer = peers[0]
 	opts.Peers = peers
-	f := &Federation{store: st, nodeID: id, opts: opts, peers: peerMap, clients: clients, secretHashes: hashes, http: clients[peers[0].NodeID], secretHash: hashes[peers[0].NodeID], blobSlots: make(chan struct{}, 2)}
+	f := &Federation{store: st, nodeID: id, opts: opts, peers: peerMap, clients: clients, secretHashes: hashes, http: clients[peers[0].NodeID], secretHash: hashes[peers[0].NodeID], blobSlots: make(chan struct{}, 2), deliverySlots: make(chan struct{}, 8)}
 	if err = f.initTyping(ctx); err != nil {
 		cleanup()
 		return nil, err
@@ -279,7 +280,13 @@ func (f *Federation) runV1Worker(ctx context.Context, peerID string) error {
 			return err
 		}
 		if j != nil {
+			select {
+			case f.deliverySlots <- struct{}{}:
+			case <-ctx.Done():
+				return nil
+			}
 			delivered, permanent, reason := f.deliver(ctx, *j)
+			<-f.deliverySlots
 			// Preserve a lease on abrupt cancellation; a restart safely retries it.
 			if ctx.Err() != nil {
 				return nil

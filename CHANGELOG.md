@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.27.3] - 2026-10-21
+
+### Changed
+
+- Per-peer workers share an eight-slot global federation delivery budget
+- Uninstall pre-validates the complete owned-file manifest before touching
+  Startup/task/registry side effects
+
 ## [0.27.2] - 2026-10-21
 
 ### Added
