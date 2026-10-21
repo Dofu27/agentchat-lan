@@ -63,8 +63,9 @@ the directory's volume/file identity; a moved directory replaced by a junction
 is rejected (verified with a real junction) and its files are left intact.
 The verified root handle is held through file removal, without
 `FILE_SHARE_DELETE`, so the root cannot be swapped mid-uninstall. If a host policy blocks the
-user Startup folder, the installer tries an HKCU Run entry; if both are blocked
-it warns and still installs the binaries/config with exit code 0.
+user Startup folder, the installer tries an HKCU Run entry and then an ONLOGON
+scheduled task; if all are blocked it warns and still installs the
+binaries/config with exit code 0.
 
 On first launch with no role chosen, the Overview tab shows a Hub / Join /
 Bridge chooser. The selection is persisted as `setup_done` so later role changes

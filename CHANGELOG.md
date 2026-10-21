@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.27.2] - 2026-10-21
+
+### Added
+
+- Installer tries an ONLOGON scheduled task when Startup/Run are blocked;
+  uninstall removes the task. This host still denies all three, so the warning
+  path is verified but real login startup remains untested here.
+
 ## [0.27.1] - 2026-10-21
 
 ### Fixed
