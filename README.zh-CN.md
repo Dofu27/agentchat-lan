@@ -211,6 +211,8 @@ deploy/               Docker 和服务示例
 
 ## 路线图
 
+DSH bridge 之后的整体计划见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+
 - [x] M0：协议契约、Go 脚手架、mock hub、CLI 文本链路、CI
 - [x] M1：生产 HTTP hub、SQLite、邀请码、持久收件箱、CLI
 - [x] M2a：持久化文件服务、SHA-256、Range、512 MiB 上限

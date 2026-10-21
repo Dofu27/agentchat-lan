@@ -230,6 +230,9 @@ deploy/               Docker and service examples
 
 ## Roadmap
 
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the program plan after the DSH
+bridge work.
+
 - [x] M0: protocol contract, Go scaffold, mock hub, CLI text path, CI
 - [x] M1: production HTTP hub, SQLite, invites, durable inbox, CLI
 - [x] M2a: durable file service, SHA-256, Range, 512 MiB cap
