@@ -71,7 +71,10 @@ Updated: 2026-10-21
   The v0.29.0 image also served health/ready against copied A data/TLS mounts;
   a gzipped image archive is staged for B.
 - P1 preflight on 2026-10-21: A health/ready passed at `v0.14.1`; B
-  health/ready passed with `version=dev`. A 336 KiB backup was created, restored
+  health/ready passed with `version=dev`. On 2026-10-22 B was reached over
+  key-only SSH as an elevated session: Windows LocalSystem service
+  `AgentChatFedB`, fresh 463 KB backup created, staged v0.29.0 CLI, and that
+  backup restored with v0.29.0 on loopback health/ready. A 336 KiB backup was created, restored
   into a temporary directory, and its federation state verified. Production A
   currently has one enabled federation peer/link with delivered outbox rows, so
   the rollout must not assume federation is disabled.
