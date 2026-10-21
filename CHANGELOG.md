@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.26.0] - 2026-10-21
+
+### Changed
+
+- Federation now runs one bounded claim worker per peer; a slow peer's backlog
+  cannot consume all workers or starve another peer
+- Host-init checks the desktop config generation before publishing and returns
+  409 rather than overwriting a concurrent config update
+- Status uses one client/origin/token snapshot for health and federation calls
+
 ## [0.25.0] - 2026-10-21
 
 ### Added

@@ -59,14 +59,15 @@ type config struct {
 }
 
 type app struct {
-	cfg        config
-	configPath string
-	token      string
-	cap        string
-	http       *http.Client
-	logs       map[string]string
-	mu         sync.RWMutex
-	setupMu    sync.Mutex
+	cfg           config
+	configPath    string
+	token         string
+	cap           string
+	http          *http.Client
+	logs          map[string]string
+	mu            sync.RWMutex
+	setupMu       sync.Mutex
+	configVersion uint64
 }
 
 var (
@@ -631,6 +632,7 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.cfg = candidate
+	a.configVersion++
 	a.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "agent_id": joined.Agent.ID, "agent_name": joined.Agent.Name, "rooms": rooms, "agent_config": path})
 }
@@ -718,6 +720,7 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	a.mu.RLock()
 	base := a.cfg
 	configPath := a.configPath
+	expectedVersion := a.configVersion
 	a.mu.RUnlock()
 	if base.AgentchatPath == "" {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "agentchat_path is not configured"})
@@ -784,6 +787,12 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.mu.Lock()
+	if a.configVersion != expectedVersion {
+		a.mu.Unlock()
+		cleanupInit()
+		writeJSON(w, http.StatusConflict, map[string]any{"error": "desktop config changed during hub init; retry"})
+		return
+	}
 	if err := a.saveConfig(candidate); err != nil {
 		a.mu.Unlock()
 		cleanupInit()
@@ -792,6 +801,7 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	}
 	oldClient := a.http
 	a.cfg = candidate
+	a.configVersion++
 	a.token = strings.TrimSpace(string(tokenData))
 	a.http = client
 	if oldClient != nil {
@@ -914,6 +924,7 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.cfg = candidate
+		a.configVersion++
 	}
 	defaultData := ""
 	if base := os.Getenv("LOCALAPPDATA"); base != "" {
@@ -1085,7 +1096,8 @@ func serviceAction(name, action, startup string) error {
 
 func (a *app) handleStatus(w http.ResponseWriter, r *http.Request) {
 	a.mu.RLock()
-	service, hubURL, hasToken := a.cfg.Service, a.cfg.HubURL, a.token != ""
+	service, hubURL, token, client := a.cfg.Service, a.cfg.HubURL, a.token, a.http
+	hasToken := token != ""
 	a.mu.RUnlock()
 	out := map[string]any{
 		"service_name": service, "hub_url": hubURL,
@@ -1095,14 +1107,14 @@ func (a *app) handleStatus(w http.ResponseWriter, r *http.Request) {
 	} else {
 		out["service_error"] = err.Error()
 	}
-	if err := a.hubGet("/healthz", nil); err != nil {
+	if err := hubGetWith(client, hubURL, token, "/healthz", nil); err != nil {
 		out["hub_error"] = err.Error()
 	} else {
 		out["hub_ok"] = true
 	}
 	if hasToken {
 		var status map[string]any
-		if err := a.hubGet("/v1/admin/federation", &status); err == nil {
+		if err := hubGetWith(client, hubURL, token, "/v1/admin/federation", &status); err == nil {
 			out["federation"] = status
 		} else {
 			out["federation_error"] = err.Error()
@@ -1282,10 +1294,7 @@ func (a *app) handleRetry(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(data)
 }
 
-func (a *app) hubGet(path string, dst any) error {
-	a.mu.RLock()
-	hubURL, token, client := a.cfg.HubURL, a.token, a.http
-	a.mu.RUnlock()
+func hubGetWith(client *http.Client, hubURL, token, path string, dst any) error {
 	if client == nil {
 		return errors.New("hub client is not configured")
 	}
@@ -1309,6 +1318,13 @@ func (a *app) hubGet(path string, dst any) error {
 		return nil
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(dst)
+}
+
+func (a *app) hubGet(path string, dst any) error {
+	a.mu.RLock()
+	hubURL, token, client := a.cfg.HubURL, a.token, a.http
+	a.mu.RUnlock()
+	return hubGetWith(client, hubURL, token, path, dst)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

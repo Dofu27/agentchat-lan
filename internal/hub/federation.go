@@ -224,22 +224,23 @@ func (f *Federation) runV1(ctx context.Context) error {
 			c.CloseIdleConnections()
 		}
 	}()
-	workers := len(f.peers)
-	if workers < 1 {
-		workers = 1
+	peerIDs := make([]string, 0, len(f.peers))
+	for peerID := range f.peers {
+		peerIDs = append(peerIDs, peerID)
 	}
-	if workers > 4 {
-		workers = 4
+	if len(peerIDs) == 0 {
+		peerIDs = append(peerIDs, "")
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	var wg sync.WaitGroup
-	errs := make(chan error, workers)
-	for i := 0; i < workers; i++ {
+	errs := make(chan error, len(peerIDs))
+	for _, peerID := range peerIDs {
+		peerID := peerID
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := f.runV1Worker(ctx); err != nil && ctx.Err() == nil {
+			if err := f.runV1Worker(ctx, peerID); err != nil && ctx.Err() == nil {
 				select {
 				case errs <- err:
 				default:
@@ -257,14 +258,20 @@ func (f *Federation) runV1(ctx context.Context) error {
 	}
 }
 
-func (f *Federation) runV1Worker(ctx context.Context) error {
+func (f *Federation) runV1Worker(ctx context.Context, peerID string) error {
 	timer := time.NewTicker(f.opts.PollInterval)
 	defer timer.Stop()
 	for {
 		if ctx.Err() != nil {
 			return nil
 		}
-		j, err := f.store.ClaimFederationJob(ctx, time.Now(), f.opts.LeaseDuration)
+		var j *store.FederationJob
+		var err error
+		if peerID == "" {
+			j, err = f.store.ClaimFederationJob(ctx, time.Now(), f.opts.LeaseDuration)
+		} else {
+			j, err = f.store.ClaimFederationJobForPeer(ctx, peerID, time.Now(), f.opts.LeaseDuration)
+		}
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
