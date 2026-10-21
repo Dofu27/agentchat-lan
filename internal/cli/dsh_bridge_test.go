@@ -8,11 +8,11 @@ import (
 )
 
 func TestParseDSHJSON(t *testing.T) {
-	final, session := parseDSHJSON([]byte(`{"type":"session","sessionId":"session-abc"}
+	final, session, err := parseDSHJSON([]byte(`{"type":"session","sessionId":"session-abc"}
 {"type":"text","text":"thinking"}
 {"type":"final","text":"reply from dsh"}`))
-	if final != "reply from dsh" || session != "session-abc" {
-		t.Fatalf("final=%q session=%q", final, session)
+	if err != nil || final != "reply from dsh" || session != "session-abc" {
+		t.Fatalf("final=%q session=%q err=%v", final, session, err)
 	}
 }
 
