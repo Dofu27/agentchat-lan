@@ -12,6 +12,38 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+func TestBootstrapCreatesExplicitProcessOwner(t *testing.T) {
+	f, err := createBootstrapFile(filepath.Join(t.TempDir(), "private-file"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	token, err := windows.OpenCurrentProcessToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer token.Close()
+	user, err := token.GetTokenUser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sd, err := windows.GetSecurityInfo(windows.Handle(f.Fd()), windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, _, err := sd.Owner()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if owner == nil || !owner.Equals(user.User.Sid) {
+		t.Fatal("new credential owner differs from initiating process TokenUser")
+	}
+	if err := validateResumeCredentialSecurity(sd); err != nil {
+		t.Fatal("new credential is not eligible for private resume", err)
+	}
+	t.Logf("native explicit-owner creation passed; process elevated=%v", token.IsElevated())
+}
+
 func TestResumeCredentialSecurityDescriptor(t *testing.T) {
 	token, err := windows.OpenCurrentProcessToken()
 	if err != nil {
