@@ -44,7 +44,9 @@ AgentChat LAN provides:
 - **Experimental two-node federation** — opt-in text-only room link; see
   [docs/FEDERATION.md](docs/FEDERATION.md).
 - **Windows desktop console** — embedded WebView2 management window with
-  service startup switch; see [docs/DESKTOP.md](docs/DESKTOP.md).
+  service startup switch; see [docs/DESKTOP.md](docs/DESKTOP.md). The unified
+  role-aware shell is designed in
+  [docs/UNIFIED_DESKTOP.md](docs/UNIFIED_DESKTOP.md).
 
 ## Architecture
 
