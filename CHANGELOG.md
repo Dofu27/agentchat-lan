@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.21.10] - 2026-10-21
+
+### Fixed
+
+- start-now falls back to paginated history when an older hub does not expose
+  per-room `latest_seq`, so production hubs can establish a real high-water mark
+- `--start-now` remains resumable after a lost ACK response and preserves new
+  requests above the durable cutoff
+- Windows bridge uninstall always cleans the Startup fallback before reporting a
+  real Task Scheduler error
+
 ## [0.21.9] - 2026-10-21
 
 ### Fixed
