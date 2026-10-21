@@ -1,4 +1,4 @@
-# F3: opt-in ephemeral typing (two nodes, one peer)
+# F3: opt-in ephemeral typing (per-peer sessions)
 
 This experimental feature sends typing presence only. It does not implement
 F4 read receipts, delivery acknowledgements, message history, multi-hop or HA.
@@ -31,8 +31,8 @@ existing CA verification are required; redirects remain refused.
 ## Independent wire protocol
 
 Both POST routes require the separately provisioned peer Bearer secret and
-`X-AgentChat-Node` matching the single configured peer. Agent/admin tokens do
-not authorize them. JSON is strict, single-object and limited to 8 KiB.
+`X-AgentChat-Node` matching that peer; each configured peer has its own session
+and rate bucket. Agent/admin tokens do not authorize them. JSON is strict, single-object and limited to 8 KiB.
 
 * `/federation/v2/ephemeral/session`: `{boot_id, scope}`. Boot IDs are random
   per runtime. A room scope contains `kind:"room"`, `link_id`, `epoch`,

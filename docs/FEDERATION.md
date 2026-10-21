@@ -9,9 +9,9 @@ message replication does not carry it.
 ## Multi-peer text fanout
 
 The experimental config accepts `peers` plus per-peer `links` instead of the
-legacy single `peer`. Multi-peer supports text, attachment room links, and
-per-peer text DMs (`dm_conversations[].peer_id`); multi-peer DM typing still
-requires the legacy single-peer form.
+legacy single `peer`. Multi-peer supports text, attachment room links, per-peer
+text DMs, and per-peer ephemeral typing (`typing_links[].peer_id` or DM
+`typing: true`).
 
 ```json
 {
@@ -34,7 +34,7 @@ peer/local-room links, and unknown link peers are rejected at startup.
 
 Do not configure both `peer` and `peers`. The legacy `peer` form remains the
 default for attachments/DM/typing and for existing deployments. In multi-peer
-form each DM conversation must name its `peer_id`.
+form each DM conversation and typing link must name its `peer_id`.
 
 ## Operator operations
 

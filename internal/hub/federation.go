@@ -101,9 +101,6 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 	if len(peers) == 0 {
 		return nil, errors.New("federation requires at least one peer")
 	}
-	if len(peers) > 1 && len(opts.TypingLinks) > 0 {
-		return nil, errors.New("multi-peer federation supports text, attachments, and DM; typing remains single-peer")
-	}
 	peerRows := make([]store.FederationPeer, 0, len(peers))
 	clients := make(map[string]*http.Client, len(peers))
 	hashes := make(map[string][32]byte, len(peers))
