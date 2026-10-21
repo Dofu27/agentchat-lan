@@ -25,12 +25,15 @@ func TestCancelledClaimExpiresWithoutCounterDrift(t *testing.T) {
 	if err != nil || second == nil || first.Lease == second.Lease {
 		t.Fatalf("recovery claim: %v %v", second, err)
 	}
-	if err := s.FinishFederationJob(ctx, *second, true, false, now, ""); err != nil {
+	// The argument is next_attempt scheduling time, not a completion timestamp.
+	// Use a value after recovery for both the valid and stale completions.
+	nextAttempt := now.Add(3 * time.Second)
+	if err := s.FinishFederationJob(ctx, *second, true, false, nextAttempt, ""); err != nil {
 		t.Fatal(err)
 	}
 	// Late success and failure from the cancelled worker must both be inert.
 	for _, delivered := range []bool{true, false} {
-		if err := s.FinishFederationJob(ctx, *first, delivered, true, now, "stale fixture"); err != nil {
+		if err := s.FinishFederationJob(ctx, *first, delivered, true, nextAttempt, "stale fixture"); err != nil {
 			t.Fatal(err)
 		}
 	}
