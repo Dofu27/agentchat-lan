@@ -52,26 +52,26 @@ On 2026-10-21 the following non-disruptive checks passed:
   `delivered=100` outbox rows present
 - upgrade rehearsal: restored the same v0.14.1 backup into temporary
   directories and started the staged binaries read-only. `v0.26.4` passed, and
-  the final `v0.28.1` rehearsal on `127.0.0.1:18792` returned
-  `{"status":"ok","version":"0.28.1"}` and `{"status":"ready"}` with the
+  the final `v0.29.0` rehearsal on `127.0.0.1:18793` returned
+  `{"status":"ok","version":"0.29.0"}` and `{"status":"ready"}` with the
   federation peer/link/outbox state readable. No production service was
-  touched.
+  touched. v0.28.1 had passed the same rehearsal on port 18792.
 
 The backup was copied to an operator-only directory with mode `0600`; it
 contains tokens and federation secrets and must never be committed.
 
 ## Staged release
 
-On 2026-10-22 `v0.28.1` was staged read-only on A at
-`/home/tofu/agentchat-staging/v0.28.1/agentchat` (mode 0700, version checked).
+On 2026-10-22 `v0.29.0` was staged read-only on A at
+`/home/tofu/agentchat-staging/v0.29.0/agentchat` (mode 0700, version checked).
 
 A runs the hub in Docker (`docker ps` shows `agentchat:m141-admin-reset`), not
 from a host binary. A staged image was built without replacing the running
 container:
 
 ```text
-agentchat:v0.28.1  (FROM agentchat:m141-admin-reset + /usr/local/bin/agentchat)
-docker run --rm ... version → agentchat 0.28.1
+agentchat:v0.29.0  (FROM agentchat:m141-admin-reset + /usr/local/bin/agentchat)
+docker run --rm ... version → agentchat 0.29.0
 ```
 
 The maintenance upgrade must preserve A's current container mounts, ports,
