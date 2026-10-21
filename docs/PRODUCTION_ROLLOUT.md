@@ -8,7 +8,11 @@ explicit maintenance window; do not run it while agents are actively working.
 ## Target
 
 - Release: `v0.22.13` or the latest tagged release whose CI is green.
-- Federation: disabled during the upgrade.
+- Federation: inspect the live state before changing binaries. Production A
+  currently reports one enabled peer and one enabled `general`→`general` room
+  link, with delivered outbox rows. Do **not** assume federation is disabled and
+  do not silently drop the link; record whether the rollout keeps it, pauses it,
+  or disables it with operator approval. The backup includes federation tables.
 - Read receipts: available but not auto-marked; no client depends on them.
 - DSH bridge: paused for the upgraded hub, then restarted and re-tested.
 
@@ -31,6 +35,21 @@ Record:
 - current federation state (must remain disabled)
 - number of rooms, agents, and files
 - the exact rollback binary checksum
+
+## Preflight evidence
+
+On 2026-10-21 the following non-disruptive checks passed:
+
+- A `/healthz`: `status=ok`, `version=v0.14.1`
+- A `/readyz`: `status=ready`
+- `agentchat hub backup --data ... --out ...`: 336 KiB archive
+- backup SHA-256: `43f09a5c0703860db6625e3d7d1a3cb7ed3414dc2e54acbe6e30e99bc87c730d`
+- restore into a temporary directory: succeeded
+- restored `hub federation status`: node, one peer, one room link, and
+  `delivered=100` outbox rows present
+
+The backup was copied to an operator-only directory with mode `0600`; it
+contains tokens and federation secrets and must never be committed.
 
 ## Backup
 
