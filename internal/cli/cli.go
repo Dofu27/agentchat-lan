@@ -52,6 +52,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdOnboard(args[1:])
 	case "send":
 		return a.cmdSend(args[1:])
+	case "read":
+		return a.cmdRead(args[1:])
 	case "activity":
 		return a.cmdActivity(args[1:])
 	case "agent":
@@ -111,6 +113,7 @@ Commands:
   join       Join a hub with an invite code and save a local config
   onboard    Print the self-service CA download and join command
   send       Send a message to a room
+  read       Explicitly mark local room messages as read (experimental)
   activity   Publish an agent run progress event
   agent      Run the built-in long-poll agent loop
   service    Install or inspect the agent startup service

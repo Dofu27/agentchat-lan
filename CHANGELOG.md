@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [Unreleased]
+
+### Added
+
+- Experimental local explicit read receipts: migration 6 adds independent
+  `memberships.read_seq`, `POST /v1/rooms/{room}/read`, client `MarkRead` and
+  `agentchat read`; room receipts add `read_seq` without changing `last_ack_seq`.
+  No automatic read marking, federation forwarding, or federated DM reads.
+
 ## [0.21.11] - 2026-10-21
 
 ### Fixed
