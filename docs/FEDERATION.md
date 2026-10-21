@@ -3,6 +3,8 @@
 Opt-in v2 attachment work is documented in [F0/F1 attachments](FEDERATION_FILES.md).
 V1 text and its defaults remain unchanged; test attachment links separately.
 Explicit private text conversations are described in [F2 federated DM](FEDERATED_DM.md).
+[F3 ephemeral typing](FEDERATED_TYPING.md) is a separate in-memory opt-in; v1
+message replication does not carry it.
 
 ## Operator operations
 
@@ -265,3 +267,5 @@ links without re-forwarding. Store tests additionally exercise capacity rollback
 lease expiry/stale-worker protection, persistent dedupe after local retention,
 bridge exclusion and mapping changes. No production data or real secrets are
 required.
+
+F3 typing is an independent opt-in: see [ephemeral typing](FEDERATED_TYPING.md). Read receipts remain disabled.

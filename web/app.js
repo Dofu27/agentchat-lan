@@ -24,6 +24,8 @@
     typingSent: false,
     typingSentAt: 0,
     typingNames: [],
+ remoteTyping: [],
+ localTypingExpires: 0,
     ackTimer: null,
   };
 
@@ -84,32 +86,26 @@
     el.classList.toggle("bad", !ok);
   }
 
-  function renderTyping(names) {
-    const el = $("typing");
-    if (state.typingTimer) {
-      window.clearTimeout(state.typingTimer);
-      state.typingTimer = null;
-    }
+  function renderTyping(names, remote = [], refresh = true) {
+    const el = $("typing"), now = performance.now();
+    if (state.typingTimer) window.clearTimeout(state.typingTimer);
     state.typingNames = names || [];
+    if (refresh) state.localTypingExpires = now + 5500;
+    state.remoteTyping = remote.map((a) => refresh ? {...a, expires: now + Math.min(5000, Math.max(0, Number(a.ttl_ms) || 0))} : a).filter((a) => a.expires > now);
     const own = state.me && state.me.agent ? state.me.agent.name : "";
-    const others = state.typingNames.filter((name) => name && name !== own);
-    if (others.length === 0) {
-      el.textContent = "";
-      el.classList.add("hidden");
-      return;
+    const others = now < state.localTypingExpires ? state.typingNames.filter((name) => name && name !== own) : [];
+    others.push(...state.remoteTyping.map((a) => a.name + "@" + a.node_id + " · " + t("chat.remote")));
+    el.textContent = others.length === 1 ? t("typing.one", {name: others[0]}) : others.length ? t("typing.many", {names: others.join(", ")}) : "";
+    el.classList.toggle("hidden", others.length === 0);
+    if (others.length) {
+      const deadlines = state.remoteTyping.map((a) => a.expires);
+      if (state.typingNames.length && now < state.localTypingExpires) deadlines.push(state.localTypingExpires);
+      state.typingTimer = window.setTimeout(() => renderTyping(state.typingNames, state.remoteTyping, false), Math.max(1, Math.min(...deadlines) - now));
     }
-    el.textContent = others.length === 1
-      ? t("typing.one", { name: others[0] })
-      : t("typing.many", { names: others.join(", ") });
-    el.classList.remove("hidden");
-    state.typingTimer = window.setTimeout(() => {
-      state.typingTimer = null;
-      renderTyping([]);
-    }, 5500);
   }
 
   async function sendTyping(typing) {
-    if (isFederatedDM()) return;
+    if (isFederatedDM() && !state.rooms.find((r) => r.id === state.room)?.ephemeral_typing) return;
     if (!state.room || !state.writeEnabled) return;
     state.typingSent = typing;
     try {
@@ -753,6 +749,7 @@
   }
 
   function stopEvents() {
+    renderTyping(state.typingNames, [], false);
     if (state.eventsAbort) {
       state.eventsAbort.abort();
       state.eventsAbort = null;
@@ -773,7 +770,7 @@
     try {
       const payload = JSON.parse(data.join("\n"));
       if (event === "typing") {
-        renderTyping((payload && payload.agents) || []);
+        renderTyping((payload && payload.agents) || [], (payload && payload.remote_agents) || []);
         return;
       }
       if (event !== "message") return;
@@ -814,6 +811,7 @@
         if (!controller.signal.aborted) throw new Error("event stream ended");
       } catch (err) {
         if (controller.signal.aborted) return;
+        renderTyping(state.typingNames, [], false);
         setConnection(false, "reconnecting");
         await new Promise((resolve) => window.setTimeout(resolve, 3000));
       }
@@ -886,7 +884,7 @@
       updateLangToggle();
       setConnection(state.connection.ok, state.connection.key);
       renderAgents();
-      renderTyping(state.typingNames);
+      renderTyping(state.typingNames, state.remoteTyping, false);
       if (state.room) void selectRoom(state.room);
       if (state.mention.open) updateMentionMenu();
     });

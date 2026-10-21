@@ -102,11 +102,12 @@ type Agent struct {
 
 // Room is a chat room or a direct-message conversation.
 type Room struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Topic     string    `json:"topic,omitempty"`
-	Kind      string    `json:"kind"`
-	CreatedAt time.Time `json:"created_at"`
+	EphemeralTyping bool      `json:"ephemeral_typing,omitempty"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Topic           string    `json:"topic,omitempty"`
+	Kind            string    `json:"kind"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // FileRef is the metadata for an uploaded file.
