@@ -16,6 +16,10 @@ Updated: 2026-10-21
   -> `/api/chat` identity, with no token in any API response.
 - Screenshots are deferred to Codex desktop capture; both READMEs now contain a
   bilingual textual UI overview instead.
+- `v0.29.0` release candidate is built and checksum-verified: Windows
+  installer plus Linux/macOS launcher packages; CI run `39660598264` passed
+  Linux race/vet, Windows tests, the installer install/startup/uninstall check,
+  and cross-platform builds. Not tagged yet.
 - `v0.28.1` is published with the installer checksum using the release asset
   basename.
   `v0.28.0` publishes a complete checksum manifest including the Windows
