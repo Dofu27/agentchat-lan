@@ -63,6 +63,7 @@
   <button id="tab-chat-btn" type="button" data-i18n="tab.chat">Chat</button>
   <button id="tab-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
   <button id="tab-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
+  <button id="tab-settings-btn" type="button" data-i18n="tab.settings">Settings</button>
 </nav>
 <main id="overview-view">
   <section>
@@ -178,6 +179,26 @@
     <pre id="log-output" class="logs"></pre>
   </section>
 </main>
+<main id="settings-view" class="hidden">
+  <section class="wide">
+    <h2 data-i18n="settings.title">Console role</h2>
+    <div class="row">
+      <select id="role-select">
+        <option value="hub" data-i18n="role.hub">Hub host</option>
+        <option value="client" data-i18n="role.client">Chat client</option>
+        <option value="bridge" data-i18n="role.bridge">Agent bridge</option>
+        <option value="observer" data-i18n="role.observer">Observer</option>
+      </select>
+      <button id="role-save" class="primary" type="button" data-i18n="settings.save">Save role</button>
+    </div>
+    <div class="kv">
+      <span class="k" data-i18n="settings.config">Desktop config</span><span class="v" id="settings-config"></span>
+      <span class="k" data-i18n="settings.agent">Agent config</span><span class="v" id="settings-agent"></span>
+      <span class="k" data-i18n="settings.hub">Hub</span><span class="v" id="settings-hub"></span>
+    </div>
+    <div id="settings-error" class="small" style="margin-top:8px"></div>
+  </section>
+</main>
 <script>
 (() => {
   "use strict";
@@ -185,8 +206,11 @@
   const dict = {
     en: {
       "open.admin":"Open Web admin",
-      "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.logs":"Logs",
+      "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.logs":"Logs", "tab.settings":"Settings",
       "logs.title":"Logs", "logs.desktop":"Desktop", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "settings.title":"Console role", "settings.save":"Save role", "settings.config":"Desktop config",
+      "settings.agent":"Agent config", "settings.hub":"Hub",
+      "role.hub":"Hub host", "role.client":"Chat client", "role.bridge":"Agent bridge", "role.observer":"Observer",
       "chat.title":"Agent chat", "chat.open":"Open chat window", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent config", "chat.hub":"Hub",
       "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
@@ -210,8 +234,11 @@
     },
     zh: {
       "open.admin":"打开管理网页",
-      "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.logs":"日志",
+      "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.logs":"日志", "tab.settings":"设置",
       "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "settings.title":"控制台角色", "settings.save":"保存角色", "settings.config":"桌面配置",
+      "settings.agent":"Agent 配置", "settings.hub":"Hub",
+      "role.hub":"Hub 主机", "role.client":"聊天客户端", "role.bridge":"Agent 桥接", "role.observer":"观察者",
       "chat.title":"Agent 聊天", "chat.open":"打开聊天窗口", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent 配置", "chat.hub":"Hub",
       "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
@@ -376,6 +403,41 @@
       $("log-output").textContent = err.message || String(err);
     } finally { logsBusy = false; }
   }
+  const roleTabs = {
+    hub: ["overview", "chat", "bridge", "logs", "settings"],
+    client: ["chat", "logs", "settings"],
+    bridge: ["bridge", "logs", "settings"],
+    observer: ["chat", "logs", "settings"]
+  };
+  let currentRole = "hub";
+  function applyRole(role) {
+    currentRole = roleTabs[role] ? role : "hub";
+    const allowed = roleTabs[currentRole];
+    const tabIds = ["overview", "chat", "bridge", "logs", "settings"];
+    for (const tab of tabIds) {
+      const button = $("tab-" + tab + "-btn");
+      if (button) button.classList.toggle("hidden", !allowed.includes(tab));
+    }
+    if (!allowed.includes(activeTab)) showTab(allowed[0]);
+  }
+  async function refreshSettings() {
+    const body = await api("/api/settings");
+    $("role-select").value = body.role || "hub";
+    $("settings-config").textContent = body.config_path || "";
+    $("settings-agent").textContent = body.agent_config || "";
+    $("settings-hub").textContent = body.hub_url || "";
+    $("settings-error").textContent = "";
+    applyRole(body.role || "hub");
+  }
+  async function saveRole() {
+    try {
+      const body = await api("/api/settings", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ role: $("role-select").value }) });
+      $("settings-error").textContent = "";
+      applyRole(body.role);
+    } catch (err) {
+      $("settings-error").textContent = err.message || String(err);
+    }
+  }
   async function refreshChat() {
     const body = await api("/api/chat");
     $("chat-agent").textContent = body.agent_name || "";
@@ -431,17 +493,22 @@
     $("chat-view").classList.toggle("hidden", tab !== "chat");
     $("bridge-view").classList.toggle("hidden", tab !== "bridge");
     $("logs-view").classList.toggle("hidden", tab !== "logs");
+    $("settings-view").classList.toggle("hidden", tab !== "settings");
     $("tab-overview-btn").classList.toggle("active", tab === "overview");
     $("tab-chat-btn").classList.toggle("active", tab === "chat");
     $("tab-bridge-btn").classList.toggle("active", tab === "bridge");
     $("tab-logs-btn").classList.toggle("active", tab === "logs");
+    $("tab-settings-btn").classList.toggle("active", tab === "settings");
     if (tab === "logs") refreshLogs();
     if (tab === "chat") refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); });
     if (tab === "bridge") refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); });
+    if (tab === "settings") refreshSettings().catch((err) => { $("settings-error").textContent = err.message || String(err); });
   }
   $("tab-overview-btn").addEventListener("click", () => showTab("overview"));
   $("tab-chat-btn").addEventListener("click", () => showTab("chat"));
   $("tab-bridge-btn").addEventListener("click", () => showTab("bridge"));
+  $("tab-settings-btn").addEventListener("click", () => showTab("settings"));
+  $("role-save").addEventListener("click", saveRole);
   $("chat-refresh").addEventListener("click", () => refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); }));
   $("join-submit").addEventListener("click", joinHub);
   $("open-chat").addEventListener("click", async () => {
@@ -478,6 +545,7 @@
   });
   $("lang-toggle").addEventListener("click", () => { lang = lang === "zh" ? "en" : "zh"; applyLang(); if (last) renderFederation(last.federation, last.federation_error); refresh(); });
   applyLang();
+  refreshSettings().catch((err) => { $("settings-error").textContent = err.message || String(err); });
   refresh();
   setInterval(refresh, 3000);
 })();
