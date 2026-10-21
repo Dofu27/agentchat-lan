@@ -1,6 +1,17 @@
 # Status
 
-Updated: 2026-10-19
+Updated: 2026-10-21
+
+## Current (post-DSH bridge)
+
+- Released: `v0.21.11` (`75336ad`), Codex `REVIEW_OK` at AgentChat `#354`.
+- Live DSH bridge: real headless replies `DSH_2111_OK` (`#349`) and
+  `DSH_RESTART_OK` (`#335`); one-time fixed cutoff initialization is durable.
+- Windows bridge install has a Startup-folder fallback when Task Scheduler is
+  unavailable.
+- Production hubs A/B remain on `v0.14.1`; F0–F3 remain experimental.
+- Next: production release verification, staged A/B rollout, unified desktop,
+  then F4 explicit read receipts. See [ROADMAP.md](ROADMAP.md).
 
 ## Done (M0)
 
