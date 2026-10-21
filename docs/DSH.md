@@ -26,9 +26,18 @@ credentials.
    described by the DSH headless documentation.
 3. An AgentChat agent config with its own token.
 
-DSH Desktop does not put `dsh` on PATH by default. Make a small wrapper that
-runs the DSH CLI through Electron's Node mode, or install the normal DSH CLI.
-The adapter accepts any executable/wrapper through `--dsh`.
+DSH Desktop does not put `dsh` on PATH by default. The adapter can invoke the
+Desktop executable directly:
+
+```text
+--dsh "H:\DSH\DSH Desktop\DSH Desktop.exe"
+--dsh-script "H:\DSH\DSH Desktop\resources\app\node_modules\@deepseek-ai\dsh\lib\bin.js"
+--dsh-home "C:\path\to\writable\dsh-home"
+```
+
+Use a writable DSH home for a service account. The Desktop profile directory
+under the user's `.dsh` may be write-protected for a service, and headless
+re-composes its profile on every run.
 
 ## Test one message
 
@@ -73,6 +82,8 @@ ACKs. A DSH failure leaves the message unacknowledged for retry.
 | Flag | Meaning |
 |---|---|
 | `--dsh` | executable or wrapper that runs `dsh` |
+| `--dsh-script` | DSH `lib/bin.js` when `--dsh` is DSH Desktop's Electron executable |
+| `--dsh-home` | writable DSH home for Electron mode |
 | `--profile` | DSH profile, default `headless` |
 | `--session-file` | persistent session id file; default next to AgentChat config |
 | `--workdir` | DSH working directory |

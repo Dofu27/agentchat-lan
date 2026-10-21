@@ -248,9 +248,10 @@ func runDSH(dsh, dshScript, dshHome, profile, workdir string, timeoutSeconds int
 		cmd = exec.CommandContext(ctx, resolvedDSH, runArgs...)
 	}
 	if dshScript != "" {
-		env := append(os.Environ(), "ELECTRON_RUN_AS_NODE=1", "DSH_DESKTOP_DEFAULT_PROFILE=desktop")
+		env := setEnv(os.Environ(), "ELECTRON_RUN_AS_NODE", "1")
+		env = setEnv(env, "DSH_DESKTOP_DEFAULT_PROFILE", "desktop")
 		if dshHome != "" {
-			env = append(env, "DSH_HOME="+dshHome)
+			env = setEnv(env, "DSH_HOME", dshHome)
 		}
 		cmd.Env = env
 	}
@@ -298,6 +299,18 @@ func safeExitError(err error) string {
 		return fmt.Sprintf("exit %d", exit.ExitCode())
 	}
 	return "execution error"
+}
+
+func setEnv(env []string, key, value string) []string {
+	prefix := strings.ToUpper(key) + "="
+	out := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		if strings.HasPrefix(strings.ToUpper(entry), prefix) {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return append(out, key+"="+value)
 }
 
 func safeSessionID(id string) bool {
