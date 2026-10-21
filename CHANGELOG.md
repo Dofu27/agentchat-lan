@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.18] - 2026-10-21
+
+### Security
+
+- Desktop capability gate rejects an empty configured capability and requires an
+  exact `application/json` media type for POST requests
+
 ## [0.22.17] - 2026-10-21
 
 ### Security

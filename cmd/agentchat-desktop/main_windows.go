@@ -323,12 +323,15 @@ func (a *app) api(next http.Handler) http.Handler {
 			writeJSON(w, http.StatusForbidden, map[string]any{"error": "untrusted origin"})
 			return
 		}
-		if r.Method == http.MethodPost && !strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "application/json") {
-			writeJSON(w, http.StatusUnsupportedMediaType, map[string]any{"error": "application/json required"})
-			return
+		if r.Method == http.MethodPost {
+			mediaType := strings.ToLower(strings.TrimSpace(strings.SplitN(r.Header.Get("Content-Type"), ";", 2)[0]))
+			if mediaType != "application/json" {
+				writeJSON(w, http.StatusUnsupportedMediaType, map[string]any{"error": "application/json required"})
+				return
+			}
 		}
 		got := strings.TrimSpace(r.Header.Get("X-AgentChat-Desktop-Capability"))
-		if subtle.ConstantTimeCompare([]byte(got), []byte(a.cap)) != 1 {
+		if a.cap == "" || got == "" || subtle.ConstantTimeCompare([]byte(got), []byte(a.cap)) != 1 {
 			writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "desktop capability required"})
 			return
 		}
