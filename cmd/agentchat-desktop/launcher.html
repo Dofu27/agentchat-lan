@@ -22,10 +22,10 @@ small{color:#7f8da6}
 <h1>AgentChat LAN</h1>
 <p id="intro">Desktop launcher. Open the hub UI or admin console in your browser.</p>
 <div class="row"><strong>Hub</strong><br><code id="hub"></code></div>
-<div class="row"><strong>Role</strong><br><code id="role"></code></div>
+<div class="row"><strong>Role</strong><br><code id="role"></code><br><small id="role-hint"></small></div>
 <p>
-<a class="button" id="chat" href="#">Chat / 聊天</a>
-<a class="button secondary" id="admin" href="#">Admin / 管理</a>
+<a class="button" id="chat" href="#" rel="noreferrer">Chat / 聊天</a>
+<a class="button secondary" id="admin" href="#" rel="noreferrer">Admin / 管理</a>
 </p>
 <small>This launcher only binds loopback and never exposes tokens. / 仅绑定本机回环，不暴露 token。</small>
 </main>
@@ -37,6 +37,12 @@ small{color:#7f8da6}
   document.getElementById('role').textContent = cfg.role;
   document.getElementById('chat').href = cfg.hub_url + '/';
   document.getElementById('admin').href = cfg.hub_url + '/admin';
+  const hints = {
+    hub: 'Hub mode: manage this node service-side; the browser opens its chat and admin UI. / Hub 模式：服务由本机管理，浏览器打开聊天和管理界面。',
+    bridge: 'Bridge mode: the agent bridge runs separately; this page opens the hub UI. / Bridge 模式：Agent bridge 单独运行，此页打开 Hub UI。',
+    client: 'Client mode: open chat or admin; tokens stay out of this launcher. / 客户端模式：打开聊天或管理，token 不会出现在启动器。'
+  };
+  document.getElementById('role-hint').textContent = hints[cfg.role] || hints.client;
   if (cfg.hub_url.indexOf('https://') !== 0) {
     document.getElementById('intro').textContent = 'Hub is configured over HTTP; use only on loopback or a trusted LAN. / Hub 使用 HTTP，仅限回环或可信局域网。';
   }
