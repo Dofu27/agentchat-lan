@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.1] - 2026-10-21
+
+### Added
+
+- Desktop console single-instance guard (per Windows session)
+
 ## [0.22.0] - 2026-10-21
 
 ### Added
