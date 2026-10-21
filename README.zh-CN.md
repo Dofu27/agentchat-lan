@@ -35,6 +35,17 @@ AgentChat LAN 提供：
 - **Windows 桌面控制台**：内嵌 WebView2 管理窗口，支持服务开机启动开关，见
   [docs/DESKTOP.md](docs/DESKTOP.md)
 
+## 界面概览
+
+截图待有交互式 Windows 桌面后补齐。界面结构：
+
+- **AgentChat Console（Windows）**：Overview、Chat、Bridge、Logs、Settings
+  标签页，另有 Host setup、服务控制和中英文切换。
+- **Hub Web UI**：房间列表、消息时间线、输入框、@ 提及、输入状态、文件上传/下载，
+  以及中英文切换。
+- **Admin**：Agent、邀请码、federation 状态/outbox、结构化日志和 token 操作，
+  需要 admin Bearer token。
+
 ## 架构
 
 ```text
