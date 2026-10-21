@@ -12,7 +12,9 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.22.18` rejects empty desktop capabilities and non-exact JSON media types;
+- `v0.24.0` binds chat tokens to the agent config origin, strengthens installer
+  identity/manifest checks, writes config atomically, and adds bounded
+  multi-peer workers. `v0.22.18` rejects empty desktop capabilities and non-exact JSON media types;
   runtime config/client access remains serialized.
   This host blocks both Startup and HKCU Run, so automatic login startup cannot
   be accepted here; the installer warns, keeps the binaries/config, and exits 0.
