@@ -57,7 +57,7 @@ func TestMarkReadIndependentMonotonicPersistent(t *testing.T) {
 	if err != nil || len(inbox) != 2 || inbox[0].Seq != 2 {
 		t.Fatalf("read changed ACK/inbox: %+v, %v", inbox, err)
 	}
-	receipts, err := s.RoomReceipts(ctx, protocol.DefaultRoom)
+	receipts, err := s.RoomReceipts(ctx, "reader", protocol.DefaultRoom)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,6 +65,12 @@ func TestMarkReadIndependentMonotonicPersistent(t *testing.T) {
 		if r["agent_id"] == "reader" && (r["last_ack_seq"] != int64(1) || r["read_seq"] != int64(2)) {
 			t.Fatal("independent receipt fields", r)
 		}
+	}
+	if _, err = s.RoomReceipts(ctx, "nobody", protocol.DefaultRoom); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("nonmember receipts error = %v", err)
+	}
+	if _, err = s.RoomReceipts(ctx, "reader", "missing-room"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown room receipts error = %v", err)
 	}
 	if err = s.Ack(ctx, "reader", map[string]int64{protocol.DefaultRoom: 3}); err != nil {
 		t.Fatal(err)

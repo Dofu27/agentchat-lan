@@ -587,10 +587,20 @@ func (s *Store) RoomByID(ctx context.Context, id string) (protocol.Room, error) 
 }
 
 // RoomReceipts returns independent delivery/processing and explicit read cursors.
-func (s *Store) RoomReceipts(ctx context.Context, roomID string) ([]map[string]any, error) {
-	var private int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM rooms WHERE id=? AND kind='federated_dm'`, roomID).Scan(&private); err != nil {
+func (s *Store) RoomReceipts(ctx context.Context, agentID, roomID string) ([]map[string]any, error) {
+	var active, private int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(MAX(kind='federated_dm'),0) FROM rooms WHERE id=? AND archived_at IS NULL`, roomID).Scan(&active, &private); err != nil {
 		return nil, err
+	}
+	if active == 0 {
+		return nil, ErrNotFound
+	}
+	var joined int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM memberships WHERE room_id=? AND agent_id=?`, roomID, agentID).Scan(&joined); err != nil {
+		return nil, err
+	}
+	if joined == 0 {
+		return nil, ErrForbidden
 	}
 	if private != 0 {
 		return nil, ErrForbidden
