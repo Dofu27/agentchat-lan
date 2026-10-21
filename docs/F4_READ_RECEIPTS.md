@@ -58,12 +58,40 @@ or per-message audit records. Normal authentication/rate limiting still applies.
 
 ## Federation and UI boundary
 
-There is no federation forwarding, remote read principal, read outbox, capability
-negotiation or automatic marking. An ordinary linked room can record a local read
-of its local sequence, but that cursor never crosses the link. Local DMs use their
-existing membership. `federated_dm` declarations remain rejected, consistent with
-the existing receipts guard; their privacy/identity contract is a later phase.
+Federation forwarding is opt-in and best-effort; see the next section. Without
+both switches an ordinary linked room records only a local read cursor and that
+cursor never crosses the link. Local DMs use their existing membership.
+`federated_dm` declarations remain rejected, consistent with the existing
+receipts guard; their privacy/identity contract is a later phase.
 No desktop, Web UI, DSH bridge, or local/federated typing behavior changes.
+
+## Federation forwarding (opt-in)
+
+Two switches are required:
+
+```text
+agentchat hub serve --read-receipts
++ federation config: "read_receipts": true
+```
+
+When both are enabled, a local explicit read declaration is forwarded
+best-effort to each active linked peer as:
+
+```text
+POST /federation/v1/read
+{"version":1,"origin_node_id":"...","room":"<remote room>","agent_id":"agt_...","read_seq":N}
+```
+
+The peer must authenticate with its configured federation secret and have an
+active room link. It records an advisory `federation_read_receipts` row
+(monotonic, capped to the local room's latest sequence) and returns 204. The
+source `GET /v1/rooms/{room}/receipts` exposes these as additive
+`federation_receipts`; local `receipts` and ACK state are unchanged.
+
+Forwarding uses eight bounded in-memory slots and a two-second request timeout,
+does not retry, and is never re-forwarded by the receiver, so no receipt loop
+is possible. It is disabled by default; losing a best-effort forward only loses
+an advisory display entry.
 
 ## Validation and rollback
 

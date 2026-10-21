@@ -17,10 +17,14 @@ func (s *Server) handleMarkRead(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request", "seq is required", nil)
 		return
 	}
-	receipt, err := s.store.MarkRead(r.Context(), agentFrom(r.Context()).ID, r.PathValue("room"), *req.Seq)
+	me := agentFrom(r.Context())
+	receipt, err := s.store.MarkRead(r.Context(), me.ID, r.PathValue("room"), *req.Seq)
 	if err != nil {
 		s.storeError(w, err)
 		return
+	}
+	if f := s.opts.Federation; f != nil && f.opts.ReadReceipts {
+		f.ForwardRead(r.PathValue("room"), me.ID, *req.Seq)
 	}
 	writeJSON(w, http.StatusOK, receipt)
 }

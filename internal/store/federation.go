@@ -103,6 +103,9 @@ CREATE TABLE IF NOT EXISTS federation_inbox(origin_node_id TEXT NOT NULL, origin
 INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(2,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 CREATE TABLE IF NOT EXISTS federation_operator_retries(job_id TEXT NOT NULL, key_hash TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(job_id,key_hash));
 INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(3,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+CREATE TABLE IF NOT EXISTS federation_read_receipts(peer_id TEXT NOT NULL, room TEXT NOT NULL, agent_id TEXT NOT NULL, read_seq INTEGER NOT NULL CHECK(read_seq>=0), updated_at TEXT NOT NULL, PRIMARY KEY(peer_id,room,agent_id));
+CREATE INDEX IF NOT EXISTS federation_read_receipts_room ON federation_read_receipts(room);
+INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(7,strftime('%Y-%m-%dT%H:%M:%fZ','now'));
 `)
 	if err != nil {
 		return err

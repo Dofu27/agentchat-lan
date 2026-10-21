@@ -296,4 +296,6 @@ lease expiry/stale-worker protection, persistent dedupe after local retention,
 bridge exclusion and mapping changes. No production data or real secrets are
 required.
 
-F3 typing is an independent opt-in: see [ephemeral typing](FEDERATED_TYPING.md). Read receipts remain disabled.
+F3 typing is an independent opt-in: see [ephemeral typing](FEDERATED_TYPING.md).
+F4 read receipts are opt-in via `"read_receipts": true` plus
+`hub serve --read-receipts`; forwarded receipts are best-effort and advisory.
