@@ -12,7 +12,8 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.24.3` removes runtime locks around Status/outbox/retry/service hub I/O.
+- `v0.24.4` moves Bridge CLI execution outside the runtime lock.
+  `v0.24.3` removes runtime locks around Status/outbox/retry/service hub I/O.
   `v0.24.2` performs Host-init CLI I/O outside the runtime lock and builds the
   TLS client before initialization. `v0.24.1` performs Join network I/O outside the runtime lock. `v0.24.0` binds
   chat tokens to the agent config origin, strengthens installer identity/manifest

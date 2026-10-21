@@ -501,34 +501,34 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
 }
 
-func (a *app) bridgeResult(action string) map[string]any {
+func bridgeResult(cfg config, action string) map[string]any {
 	result := map[string]any{
 		"action":       action,
-		"name":         a.cfg.BridgeName,
-		"agent_config": a.cfg.AgentConfig,
-		"agentchat":    a.cfg.AgentchatPath,
-		"bridge_exec":  a.cfg.BridgeExec,
+		"name":         cfg.BridgeName,
+		"agent_config": cfg.AgentConfig,
+		"agentchat":    cfg.AgentchatPath,
+		"bridge_exec":  cfg.BridgeExec,
 	}
-	if a.cfg.AgentchatPath == "" {
+	if cfg.AgentchatPath == "" {
 		result["ok"] = false
 		result["error"] = "agentchat_path is not configured"
 		return result
 	}
-	args := []string{"bridge", action, "--name", a.cfg.BridgeName}
+	args := []string{"bridge", action, "--name", cfg.BridgeName}
 	if action == "install" {
-		if a.cfg.AgentConfig == "" {
+		if cfg.AgentConfig == "" {
 			result["ok"] = false
 			result["error"] = "agent_config is not configured"
 			return result
 		}
-		args = []string{"bridge", "install", "--config", a.cfg.AgentConfig, "--name", a.cfg.BridgeName, "--mention-only", "--typing", "--start-now"}
-		if a.cfg.BridgeExec != "" {
-			args = append(args, "--exec", a.cfg.BridgeExec)
+		args = []string{"bridge", "install", "--config", cfg.AgentConfig, "--name", cfg.BridgeName, "--mention-only", "--typing", "--start-now"}
+		if cfg.BridgeExec != "" {
+			args = append(args, "--exec", cfg.BridgeExec)
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, a.cfg.AgentchatPath, args...)
+	cmd := exec.CommandContext(ctx, cfg.AgentchatPath, args...)
 	out, err := cmd.CombinedOutput()
 	if len(out) > 16<<10 {
 		out = out[:16<<10]
@@ -949,8 +949,9 @@ func (a *app) handleBridge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.mu.RLock()
-	defer a.mu.RUnlock()
-	writeJSON(w, http.StatusOK, a.bridgeResult(action))
+	cfg := a.cfg
+	a.mu.RUnlock()
+	writeJSON(w, http.StatusOK, bridgeResult(cfg, action))
 }
 
 func serviceStatus(name string) (map[string]any, error) {
