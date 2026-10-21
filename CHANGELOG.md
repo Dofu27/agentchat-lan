@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.9] - 2026-10-21
+
+### Added
+
+- First-run role chooser (Hub / Join / Bridge) with persisted `setup_done`
+- Installer/console role selection is reflected in the first-run experience
+
 ## [0.22.8] - 2026-10-21
 
 ### Added

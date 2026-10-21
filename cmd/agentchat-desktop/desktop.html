@@ -66,6 +66,15 @@
   <button id="tab-settings-btn" type="button" data-i18n="tab.settings">Settings</button>
 </nav>
 <main id="overview-view">
+  <section class="wide" id="welcome">
+    <h2 data-i18n="welcome.title">Welcome to AgentChat LAN</h2>
+    <p class="muted" data-i18n="welcome.body">Choose how this machine will participate. You can change the role later in Settings.</p>
+    <div class="row">
+      <button id="welcome-host" class="primary" type="button" data-i18n="welcome.host">Host a hub</button>
+      <button id="welcome-join" type="button" data-i18n="welcome.join">Join a hub</button>
+      <button id="welcome-bridge" type="button" data-i18n="welcome.bridge">Run an agent bridge</button>
+    </div>
+  </section>
   <section>
     <h2 data-i18n="service.title">Windows service</h2>
     <div class="row between">
@@ -208,6 +217,9 @@
       "open.admin":"Open Web admin",
       "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.logs":"Logs", "tab.settings":"Settings",
       "logs.title":"Logs", "logs.desktop":"Desktop", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "welcome.title":"Welcome to AgentChat LAN",
+      "welcome.body":"Choose how this machine will participate. You can change the role later in Settings.",
+      "welcome.host":"Host a hub", "welcome.join":"Join a hub", "welcome.bridge":"Run an agent bridge",
       "settings.title":"Console role", "settings.save":"Save role", "settings.config":"Desktop config",
       "settings.agent":"Agent config", "settings.hub":"Hub",
       "role.hub":"Hub host", "role.client":"Chat client", "role.bridge":"Agent bridge", "role.observer":"Observer",
@@ -236,6 +248,9 @@
       "open.admin":"打开管理网页",
       "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.logs":"日志", "tab.settings":"设置",
       "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "welcome.title":"欢迎使用 AgentChat LAN",
+      "welcome.body":"选择这台机器的角色。之后可以在设置里更改。",
+      "welcome.host":"托管 Hub", "welcome.join":"加入 Hub", "welcome.bridge":"运行 Agent 桥接",
       "settings.title":"控制台角色", "settings.save":"保存角色", "settings.config":"桌面配置",
       "settings.agent":"Agent 配置", "settings.hub":"Hub",
       "role.hub":"Hub 主机", "role.client":"聊天客户端", "role.bridge":"Agent 桥接", "role.observer":"观察者",
@@ -427,7 +442,19 @@
     $("settings-agent").textContent = body.agent_config || "";
     $("settings-hub").textContent = body.hub_url || "";
     $("settings-error").textContent = "";
+    $("welcome").classList.toggle("hidden", !!body.setup_done);
     applyRole(body.role || "hub");
+  }
+  async function completeSetup(role, tab) {
+    try {
+      await api("/api/settings", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ role, setup_done: true }) });
+      applyRole(role);
+      showTab(tab);
+      await refreshSettings();
+    } catch (err) {
+      $("settings-error").textContent = err.message || String(err);
+      showTab("settings");
+    }
   }
   async function saveRole() {
     try {
@@ -509,6 +536,9 @@
   $("tab-bridge-btn").addEventListener("click", () => showTab("bridge"));
   $("tab-settings-btn").addEventListener("click", () => showTab("settings"));
   $("role-save").addEventListener("click", saveRole);
+  $("welcome-host").addEventListener("click", () => completeSetup("hub", "overview"));
+  $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
+  $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
   $("chat-refresh").addEventListener("click", () => refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); }));
   $("join-submit").addEventListener("click", joinHub);
   $("open-chat").addEventListener("click", async () => {

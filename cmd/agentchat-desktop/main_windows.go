@@ -50,6 +50,7 @@ type config struct {
 	BridgeName    string            `json:"bridge_name,omitempty"`
 	BridgeExec    string            `json:"bridge_exec,omitempty"`
 	Role          string            `json:"role,omitempty"`
+	SetupDone     bool              `json:"setup_done,omitempty"`
 }
 
 type app struct {
@@ -578,26 +579,32 @@ func (a *app) saveDesktopConfig() error {
 func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var req struct {
-			Role string `json:"role"`
+			Role      string `json:"role"`
+			SetupDone *bool  `json:"setup_done"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
 			return
 		}
-		switch req.Role {
-		case "hub", "client", "bridge", "observer":
-		default:
-			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid role"})
-			return
+		if req.Role != "" {
+			switch req.Role {
+			case "hub", "client", "bridge", "observer":
+			default:
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid role"})
+				return
+			}
+			a.cfg.Role = req.Role
 		}
-		a.cfg.Role = req.Role
+		if req.SetupDone != nil {
+			a.cfg.SetupDone = *req.SetupDone
+		}
 		if err := a.saveDesktopConfig(); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save desktop config"})
 			return
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"role": a.cfg.Role, "config_path": a.configPath,
+		"role": a.cfg.Role, "setup_done": a.cfg.SetupDone, "config_path": a.configPath,
 		"hub_url": a.cfg.HubURL, "agent_config": a.cfg.AgentConfig,
 	})
 }

@@ -58,6 +58,10 @@ creates Start Menu/Startup entries:
 Useful flags: `-install-dir`, `-no-startup`, `-no-launch`, `-uninstall`, and
 `-remove-data`. No administrator rights are needed.
 
+On first launch with no role chosen, the Overview tab shows a Hub / Join /
+Bridge chooser. The selection is persisted as `setup_done` so later role changes
+in Settings do not repeat it.
+
 The earlier portable zip (`AgentChatConsole-v0.22.7-win64.zip`) remains available
 for users who prefer explicit script-based installation.
 
