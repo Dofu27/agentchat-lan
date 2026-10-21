@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.24.4] - 2026-10-21
+
+### Fixed
+
+- Bridge status/install/uninstall snapshots config under a short lock and runs
+  the external CLI without holding the runtime lock
+
 ## [0.24.3] - 2026-10-21
 
 ### Fixed
