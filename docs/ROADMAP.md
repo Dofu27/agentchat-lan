@@ -43,9 +43,10 @@ Status: `v0.21.11`, Codex `REVIEW_OK`.
 Exit criteria: A and B run an explicitly chosen stable version, both can roll
 back, and the DSH bridge stays live through a host restart.
 
-## P2 — Unified desktop
+## P2 — Unified desktop (in progress)
 
-Design: [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md).
+Design: [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md). The v0.22.1 desktop has the
+single-instance guard; role tabs, setup, and bridge controls are next.
 
 One `AgentChatConsole` entry point with role-aware tabs:
 
