@@ -59,6 +59,7 @@
 </header>
 <nav class="tabs" role="tablist">
   <button id="tab-overview-btn" type="button" class="active" data-i18n="tab.overview">Overview</button>
+  <button id="tab-chat-btn" type="button" data-i18n="tab.chat">Chat</button>
   <button id="tab-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
   <button id="tab-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
 </nav>
@@ -111,6 +112,24 @@
     <div id="dead"></div>
   </section>
 </main>
+<main id="chat-view" class="hidden">
+  <section class="wide">
+    <div class="row between">
+      <h2 style="margin:0" data-i18n="chat.title">Agent chat</h2>
+      <div class="row">
+        <button id="chat-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
+        <button id="open-chat" class="primary" type="button" data-i18n="chat.open">Open chat window</button>
+      </div>
+    </div>
+    <div class="kv">
+      <span class="k" data-i18n="chat.agent">Agent</span><span class="v" id="chat-agent"></span>
+      <span class="k" data-i18n="chat.agent_id">Agent ID</span><span class="v" id="chat-agent-id"></span>
+      <span class="k" data-i18n="chat.config">Agent config</span><span class="v" id="chat-config"></span>
+      <span class="k" data-i18n="chat.hub">Hub</span><span class="v" id="chat-hub"></span>
+    </div>
+    <div id="chat-error" class="small" style="margin-top:8px"></div>
+  </section>
+</main>
 <main id="bridge-view" class="hidden">
   <section class="wide">
     <div class="row between">
@@ -155,8 +174,11 @@
   const dict = {
     en: {
       "open.admin":"Open Web admin",
-      "tab.overview":"Overview", "tab.bridge":"Bridge", "tab.logs":"Logs",
+      "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.logs":"Logs",
       "logs.title":"Logs", "logs.desktop":"Desktop", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "chat.title":"Agent chat", "chat.open":"Open chat window", "chat.agent":"Agent",
+      "chat.agent_id":"Agent ID", "chat.config":"Agent config", "chat.hub":"Hub",
+      "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
       "bridge.title":"Agent bridge", "bridge.install":"Install bridge", "bridge.uninstall":"Uninstall",
       "bridge.name":"Bridge name", "bridge.agent_config":"Agent config", "bridge.exec":"Hook command",
       "bridge.binary":"agentchat binary", "bridge.confirm":"Uninstall the bridge startup entry?",
@@ -175,8 +197,11 @@
     },
     zh: {
       "open.admin":"打开管理网页",
-      "tab.overview":"概览", "tab.bridge":"桥接", "tab.logs":"日志",
+      "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.logs":"日志",
       "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
+      "chat.title":"Agent 聊天", "chat.open":"打开聊天窗口", "chat.agent":"Agent",
+      "chat.agent_id":"Agent ID", "chat.config":"Agent 配置", "chat.hub":"Hub",
+      "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
       "bridge.title":"Agent 桥接", "bridge.install":"安装桥接", "bridge.uninstall":"卸载",
       "bridge.name":"桥接名称", "bridge.agent_config":"Agent 配置", "bridge.exec":"Hook 命令",
       "bridge.binary":"agentchat 可执行文件", "bridge.confirm":"确认卸载桥接启动项？",
@@ -336,6 +361,14 @@
       $("log-output").textContent = err.message || String(err);
     } finally { logsBusy = false; }
   }
+  async function refreshChat() {
+    const body = await api("/api/chat");
+    $("chat-agent").textContent = body.agent_name || "";
+    $("chat-agent-id").textContent = body.agent_id || "";
+    $("chat-config").textContent = body.agent_config || "";
+    $("chat-hub").textContent = body.hub_url || "";
+    $("chat-error").textContent = body.ok ? "" : (body.error || t("chat.unavailable"));
+  }
   async function refreshBridge() {
     const body = await api("/api/bridge");
     $("bridge-name").textContent = body.name || "";
@@ -362,16 +395,25 @@
   function showTab(tab) {
     activeTab = tab;
     $("overview-view").classList.toggle("hidden", tab !== "overview");
+    $("chat-view").classList.toggle("hidden", tab !== "chat");
     $("bridge-view").classList.toggle("hidden", tab !== "bridge");
     $("logs-view").classList.toggle("hidden", tab !== "logs");
     $("tab-overview-btn").classList.toggle("active", tab === "overview");
+    $("tab-chat-btn").classList.toggle("active", tab === "chat");
     $("tab-bridge-btn").classList.toggle("active", tab === "bridge");
     $("tab-logs-btn").classList.toggle("active", tab === "logs");
     if (tab === "logs") refreshLogs();
+    if (tab === "chat") refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); });
     if (tab === "bridge") refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); });
   }
   $("tab-overview-btn").addEventListener("click", () => showTab("overview"));
+  $("tab-chat-btn").addEventListener("click", () => showTab("chat"));
   $("tab-bridge-btn").addEventListener("click", () => showTab("bridge"));
+  $("chat-refresh").addEventListener("click", () => refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); }));
+  $("open-chat").addEventListener("click", async () => {
+    if (!window.__openChatWeb) { $("chat-error").textContent = t("chat.unavailable"); return; }
+    try { await window.__openChatWeb(); } catch (err) { $("chat-error").textContent = err.message || String(err); }
+  });
   $("tab-logs-btn").addEventListener("click", () => showTab("logs"));
   $("bridge-refresh").addEventListener("click", () => refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); }));
   $("bridge-install").addEventListener("click", () => bridgeAction("install"));

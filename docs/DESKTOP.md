@@ -57,6 +57,9 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
 
 - **Open Web admin**: opens the hub admin UI in a second embedded WebView2
   window and auto-fills the configured admin token on the configured origin
+- **Chat tab**: shows the configured agent identity and opens the hub Web UI in
+  an embedded WebView2 window. The token is injected only when the page origin
+  matches the configured hub.
 - **Bridge tab**: shows the configured agent bridge name/config/hook/binary and
   runs `agentchat bridge status|install|uninstall` with explicit arguments.
   Install uses mention-only, typing, and start-now defaults.

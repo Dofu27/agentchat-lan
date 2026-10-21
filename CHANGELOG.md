@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.3] - 2026-10-21
+
+### Added
+
+- Desktop Chat tab: reads the configured agent identity, opens the hub Web UI in
+  an embedded WebView2 window, and injects the session token only on the
+  configured hub origin
+- `GET /api/chat` exposes non-secret agent identity/config metadata
+
 ## [0.22.2] - 2026-10-21
 
 ### Added
