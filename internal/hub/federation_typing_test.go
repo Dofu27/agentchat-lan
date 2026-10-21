@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -364,8 +365,12 @@ func TestFederatedTypingActorBoundAndLatestStop(t *testing.T) {
 func TestFederatedTypingSourceCoalescingAndCurrentLink(t *testing.T) {
 	a, b, ca, cb := startTypingNodes(t)
 	stream := typingStream(t, b, cb, "general")
-	var count atomic.Int32
-	var latest atomic.Bool
+	type delivery struct {
+		at     time.Time
+		typing bool
+	}
+	var mu sync.Mutex
+	var deliveries []delivery
 	original := *b.handler.Load()
 	b.setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/federation/v2/ephemeral/events" {
@@ -376,8 +381,9 @@ func TestFederatedTypingSourceCoalescingAndCurrentLink(t *testing.T) {
 				Typing bool `json:"typing"`
 			}
 			json.Unmarshal(raw, &v)
-			latest.Store(v.Typing)
-			count.Add(1)
+			mu.Lock()
+			deliveries = append(deliveries, delivery{at: time.Now(), typing: v.Typing})
+			mu.Unlock()
 		}
 		original.ServeHTTP(w, r)
 	}))
@@ -386,14 +392,32 @@ func TestFederatedTypingSourceCoalescingAndCurrentLink(t *testing.T) {
 	time.Sleep(80 * time.Millisecond)
 	postTyping(t, a, ca, "general", true)
 	awaitRemote(t, stream, "alice", true)
+	// Sustained input can legitimately span multiple rate windows under -race.
+	// Keep the stop unique so an earlier buffered false cannot satisfy the
+	// final-state assertion while the last local input is still pending.
 	for i := 0; i < 30; i++ {
-		postTyping(t, a, ca, "general", i%2 == 0)
+		postTyping(t, a, ca, "general", true)
 	}
+	postTyping(t, a, ca, "general", false)
 	awaitRemote(t, stream, "alice", false)
-	time.Sleep(250 * time.Millisecond)
-	if latest.Load() || count.Load() > 5 {
-		t.Fatalf("source did not coalesce latest state: %d requests, latest=%t", count.Load(), latest.Load())
+	// Join before examining all deliveries: the receiver broadcasts before its
+	// response completes, so the final sender request may still be in flight.
+	a.stopWorker(t)
+	mu.Lock()
+	observed := append([]delivery(nil), deliveries...)
+	mu.Unlock()
+	if len(observed) < 2 || observed[len(observed)-1].typing {
+		t.Fatalf("source did not deliver the final stop: %+v", observed)
 	}
+	for i := 1; i < len(observed); i++ {
+		// Timestamp the same actor at the receiver, before returning its ACK.
+		// The next request must wait 200ms after the previous ACK completes,
+		// independent of the total duration or number of local HTTP requests.
+		if interval := observed[i].at.Sub(observed[i-1].at); interval < 200*time.Millisecond {
+			t.Fatalf("source exceeded actor rate at delivery %d: interval=%s", i, interval)
+		}
+	}
+	t.Logf("observed %d deliveries over %s; final typing=false", len(observed), observed[len(observed)-1].at.Sub(observed[0].at))
 	// Current DB authorization, rather than the session's cached scope, gates
 	// subsequent inbound events after a room link is disabled.
 	b.stopWorker(t)
