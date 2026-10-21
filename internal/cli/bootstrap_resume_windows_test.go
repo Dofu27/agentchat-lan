@@ -1,0 +1,82 @@
+//go:build windows
+
+package cli
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"golang.org/x/sys/windows"
+)
+
+func TestResumeCredentialSecurityDescriptor(t *testing.T) {
+	token, err := windows.OpenCurrentProcessToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer token.Close()
+	user, err := token.GetTokenUser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := user.User.Sid.String()
+	for _, tc := range []struct {
+		name, sddl string
+		allowed    bool
+	}{
+		{"private", "O:" + u + "D:P(A;;FA;;;SY)(A;;FA;;;" + u + ")", true},
+		{"foreign-owner", "O:BAD:P(A;;FA;;;" + u + ")", false},
+		{"unprotected", "O:" + u + "D:(A;;FA;;;" + u + ")", false},
+		{"everyone-read", "O:" + u + "D:P(A;;FA;;;" + u + ")(A;;FR;;;WD)", false},
+		{"inherited", "O:" + u + "D:P(A;ID;FA;;;" + u + ")", false},
+		{"null-dacl", "O:" + u + "D:PNO_ACCESS_CONTROL", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sd, err := windows.SecurityDescriptorFromString(tc.sddl)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := validateResumeCredentialSecurity(sd); (err == nil) != tc.allowed {
+				t.Fatalf("accepted=%v want=%v: %v", err == nil, tc.allowed, err)
+			}
+		})
+	}
+}
+
+func TestResumeRefusesWidenedRetainedFileBeforeDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "retained")
+	f, err := createBootstrapFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.WriteString("synthetic-invalid-credential\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	sd, err := windows.SecurityDescriptorFromString("D:P(A;;FA;;;SY)(A;;FA;;;OW)(A;;FR;;;WD)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acl, _, err := sd.DACL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, acl, nil); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	ops := defaultBootstrapOps()
+	ops.initialize = func(context.Context, string, string) error { called = true; return nil }
+	err = bootstrapHub(context.Background(), "unused-db", path, true, ops)
+	if err == nil || !strings.Contains(err.Error(), "another account") || called {
+		t.Fatalf("widened credential accepted: %v, initialized=%v", err, called)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("failed resume removed retained file", err)
+	}
+}

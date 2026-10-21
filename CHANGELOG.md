@@ -8,6 +8,11 @@ v1.0.
 
 ### Security
 
+- Explicit resume now revalidates retained credential ownership and private
+  permissions before reading it; Windows rejects unprotected/inherited or
+  foreign-access DACLs and explicitly assigns new credentials to the initiator.
+- Federation tests hard-assert 32 deliveries/32 attempts/zero dead jobs and
+  verify expired claims cannot corrupt counters through stale completions.
 - Hub-init durably writes the caller-generated admin credential before committing
   its DB hash; write/sync/close errors cannot initialize the DB. Failed attempts
   retain the credential without path-based cleanup. `--resume-init` explicitly

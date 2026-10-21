@@ -29,6 +29,11 @@ administrator service installation or production ACL modification is performed.
 An administrator able to change machine ACLs is outside the ordinary-user
 threat model. Printed installation hints are advisory; installation via the
 console revalidates and pins the executable at the time of the operation.
+Do not copy a printed `next` command as a security-validated installation path:
+its guards have already closed. Use the console's installation action for the
+verified operation. Provision a local, non-reparse machine path with machine
+ownership and no ordinary-user mutation rights on every ancestor before using
+that action; an existing writable volume root deliberately fails this policy.
 
 ## Contained tool execution
 
@@ -61,6 +66,12 @@ agentchat hub init --data <same-directory> --admin-token-file <retained-file> --
 ```
 
 Resume rejects a final symlink/non-regular file and checks the opened identity.
+Before reading the credential, Windows also rechecks that same handle's owner
+(initiating user or SYSTEM), protected DACL, absence of inherited/unsupported
+ACEs, and absence of allow grants to any other account. New files explicitly
+set the initiating user as owner. ACL widening after creation therefore blocks
+resume; fix permissions through an authorized local recovery procedure first.
+Unix resume requires initiating-user ownership and no group/other permissions.
 It validates the credential before opening the DB. The same token/hash is
 idempotent; a different existing admin hash is never replaced. Partial or corrupt
 credential files require operator inspection; they never authorize a DB commit.
@@ -82,3 +93,8 @@ claims, storage errors and cancellation release admission; lease time is never
 spent waiting for capacity. Tests assert 32 valid peer deliveries, zero dead
 jobs from admission waiting, at most eight concurrent requests, healthy-peer
 progress during another peer's backlog, and drain after that peer recovers.
+The 32-peer case also asserts exactly 32 attempts. Cancellation after a claim
+leaves its lease for expiry; recovery tests assert one delivered job, zero dead
+jobs and two attempts despite stale success/failure completions. Network retries
+remain at-least-once; receiver idempotency, rather than leases alone, prevents
+duplicate stored messages.
