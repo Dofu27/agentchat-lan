@@ -352,9 +352,16 @@ func (s *Store) ImportFederation(ctx context.Context, peer string, e FederationE
 // ClaimFederationJob atomically recovers expired leases and claims at most one
 // job. A lease token prevents a late worker from completing a newer attempt.
 func (s *Store) ClaimFederationJob(ctx context.Context, now time.Time, lease time.Duration) (*FederationJob, error) {
-	return s.claimFederationJob(ctx, now, lease, "federation_outbox")
+	return s.claimFederationJob(ctx, now, lease, "federation_outbox", "")
 }
-func (s *Store) claimFederationJob(ctx context.Context, now time.Time, lease time.Duration, table string) (*FederationJob, error) {
+
+// ClaimFederationJobForPeer keeps a slow peer's backlog from consuming every
+// worker and starving other peers.
+func (s *Store) ClaimFederationJobForPeer(ctx context.Context, peerID string, now time.Time, lease time.Duration) (*FederationJob, error) {
+	return s.claimFederationJob(ctx, now, lease, "federation_outbox", peerID)
+}
+
+func (s *Store) claimFederationJob(ctx context.Context, now time.Time, lease time.Duration, table, peerID string) (*FederationJob, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.federation == nil {
@@ -369,8 +376,15 @@ func (s *Store) claimFederationJob(ctx context.Context, now time.Time, lease tim
 	if err != nil {
 		return nil, err
 	}
+	query := `SELECT id,peer_id,payload,attempts,max_attempts FROM ` + table + ` WHERE state='pending' AND next_attempt<=?`
+	args := []any{now.UnixMilli()}
+	if peerID != "" {
+		query += ` AND peer_id=?`
+		args = append(args, peerID)
+	}
+	query += ` ORDER BY created_at,id LIMIT 1`
 	var job FederationJob
-	err = tx.QueryRowContext(ctx, `SELECT id,peer_id,payload,attempts,max_attempts FROM `+table+` WHERE state='pending' AND next_attempt<=? ORDER BY created_at,id LIMIT 1`, now.UnixMilli()).Scan(&job.ID, &job.PeerID, &job.Payload, &job.Attempts, &job.MaxAttempts)
+	err = tx.QueryRowContext(ctx, query, args...).Scan(&job.ID, &job.PeerID, &job.Payload, &job.Attempts, &job.MaxAttempts)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, tx.Commit()
 	}

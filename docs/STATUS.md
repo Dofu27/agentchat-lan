@@ -12,7 +12,8 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.24.6` serializes Host setup/Join and checks startup Run removal.
+- `v0.26.0` uses one federation claim worker per peer, a config-generation check
+  for Host init, and a single Status snapshot. `v0.24.6` serializes Host setup/Join and checks startup Run removal.
   `v0.24.5` rolls back failed Host-init side effects and verifies the installer's
   junction identity guard with a real junction. `v0.24.4` moves Bridge CLI execution outside the runtime lock.
   `v0.24.3` removes runtime locks around Status/outbox/retry/service hub I/O.

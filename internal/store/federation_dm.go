@@ -427,7 +427,7 @@ func (s *Store) ClaimFederationDMJob(ctx context.Context, now time.Time, lease t
 	if !s.federationDM.Load() {
 		return nil, nil
 	}
-	return s.claimFederationJob(ctx, now, lease, "federation_dm_outbox")
+	return s.claimFederationJob(ctx, now, lease, "federation_dm_outbox", "")
 }
 func (s *Store) FinishFederationDMJob(ctx context.Context, j FederationJob, delivered, permanent bool, next time.Time, reason string) error {
 	return s.finishFederationJob(ctx, j, delivered, permanent, next, reason, "federation_dm_outbox")
