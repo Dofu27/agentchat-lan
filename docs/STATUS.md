@@ -12,8 +12,8 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.22.16` hardens the installer with an ownership marker, safe uninstall,
-  `.lnk`/HKCU startup, canonical token origin, and atomic settings persistence.
+- `v0.22.17` serializes desktop hub runtime state; Host setup builds the
+  candidate client before publishing and retires idle connections.
   This host blocks both Startup and HKCU Run, so automatic login startup cannot
   be accepted here; the installer warns, keeps the binaries/config, and exits 0.
   An elevated temporary hub service (`AgentChatHubTest`) started successfully,
