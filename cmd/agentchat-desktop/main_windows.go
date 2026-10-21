@@ -759,18 +759,10 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub TLS client could not be built"})
 		return
 	}
-	_, dataStatErr := os.Stat(req.Data)
-	dataExisted := dataStatErr == nil
-	_, tokenStatErr := os.Stat(req.TokenFile)
-	tokenExisted := tokenStatErr == nil
-	cleanupInit := func() {
-		if !tokenExisted {
-			_ = os.Remove(req.TokenFile)
-		}
-		if !dataExisted {
-			_ = os.RemoveAll(req.Data)
-		}
-	}
+	// Do not delete a failed init's data/token here: another process may have
+	// created those paths after our preflight stat. Leave them for the operator
+	// to inspect instead of risking removal of unowned files.
+	cleanupInit := func() {}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	args := []string{"hub", "init", "--data", req.Data, "--admin-token-file", req.TokenFile, "--json"}
