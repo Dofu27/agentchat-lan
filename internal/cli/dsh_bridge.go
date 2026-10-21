@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -59,6 +60,8 @@ func (a *App) cmdDshBridge(args []string) int {
 	fs := a.newFlagSet("dsh-bridge")
 	cfgPath := fs.String("config", "", "agent config file path")
 	dsh := fs.String("dsh", "dsh", "DSH executable or wrapper")
+	dshScript := fs.String("dsh-script", "", "DSH bin.js when --dsh is the Electron executable")
+	dshHome := fs.String("dsh-home", "", "DSH_HOME for Electron mode")
 	profile := fs.String("profile", "headless", "DSH profile")
 	sessionFile := fs.String("session-file", "", "persistent DSH session id file")
 	workdir := fs.String("workdir", "", "DSH working directory")
@@ -133,7 +136,7 @@ func (a *App) cmdDshBridge(args []string) int {
 			return a.fail(fmt.Errorf("record DSH run: %w", err))
 		}
 		sessionID := readDSHSession(sessionPath)
-		final, newSession, parseErr := runDSH(*dsh, *profile, *workdir, *timeout, sessionID, dshPrompt(cfg.AgentName, msg))
+		final, newSession, parseErr := runDSH(*dsh, *dshScript, *dshHome, *profile, *workdir, *timeout, stateDir, sessionID, dshPrompt(cfg.AgentName, msg))
 		if parseErr != nil {
 			_ = writeDSHState(statePath, dshState{Status: "failed", ErrorClass: parseErr.Error()})
 			return a.fail(parseErr)
@@ -170,15 +173,87 @@ func (a *App) cmdDshBridge(args []string) int {
 	return 0
 }
 
-func runDSH(dsh, profile, workdir string, timeoutSeconds int, sessionID, prompt string) (string, string, error) {
+func runDSH(dsh, dshScript, dshHome, profile, workdir string, timeoutSeconds int, launcherDir, sessionID, prompt string) (string, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
 	defer cancel()
-	runArgs := []string{"--profile", profile, "--json"}
+	if sessionID != "" && !safeSessionID(sessionID) {
+		return "", "", fmt.Errorf("unsafe DSH session id")
+	}
+	runArgs := []string{}
+	if dshScript != "" {
+		runArgs = append(runArgs, "--expose-internals", dshScript)
+	}
+	runArgs = append(runArgs, "--profile", profile, "--json")
 	if sessionID != "" {
 		runArgs = append(runArgs, "--session-id", sessionID)
 	}
-	runArgs = append(runArgs, prompt)
-	cmd := exec.CommandContext(ctx, dsh, runArgs...)
+	// Batch wrappers get the untrusted task through a private prompt file. For
+	// a direct executable, exec.Command passes the task as one argv element,
+	// never through a shell.
+	batch := runtime.GOOS == "windows" && isBatchFile(dsh)
+	if batch {
+		runArgs = append(runArgs, "-")
+	} else {
+		runArgs = append(runArgs, prompt)
+	}
+	resolvedDSH := dsh
+	if p, err := exec.LookPath(dsh); err == nil {
+		resolvedDSH = p
+	}
+	var cmd *exec.Cmd
+	var launcher, promptPath string
+	if runtime.GOOS == "windows" && batch {
+		// cmd.exe's /C quote parsing and pipe inheritance are brittle. Use a
+		// private one-shot launcher plus a prompt file, so the message never
+		// becomes part of a batch command line.
+		promptFile, err := os.CreateTemp(launcherDir, "agentchat-dsh-prompt-*.txt")
+		if err != nil {
+			return "", "", fmt.Errorf("create DSH prompt: %w", err)
+		}
+		promptPath = promptFile.Name()
+		if _, err = promptFile.WriteString(prompt); err != nil {
+			promptFile.Close()
+			os.Remove(promptPath)
+			return "", "", fmt.Errorf("write DSH prompt: %w", err)
+		}
+		if err = promptFile.Close(); err != nil {
+			os.Remove(promptPath)
+			return "", "", err
+		}
+		f, err := os.CreateTemp(launcherDir, "agentchat-dsh-*.cmd")
+		if err != nil {
+			os.Remove(promptPath)
+			return "", "", fmt.Errorf("create DSH launcher: %w", err)
+		}
+		quoted := make([]string, 0, len(runArgs))
+		for _, arg := range runArgs {
+			quoted = append(quoted, quoteWindowsArg(arg))
+		}
+		content := "@echo off\r\ncall " + quoteWindowsArg(resolvedDSH) + " " + strings.Join(quoted, " ") +
+			" < " + quoteWindowsArg(promptPath) + "\r\n"
+		if _, err = f.WriteString(content); err != nil {
+			f.Close()
+			os.Remove(f.Name())
+			os.Remove(promptPath)
+			return "", "", fmt.Errorf("write DSH launcher: %w", err)
+		}
+		if err = f.Close(); err != nil {
+			os.Remove(f.Name())
+			os.Remove(promptPath)
+			return "", "", err
+		}
+		launcher = f.Name()
+		cmd = exec.CommandContext(ctx, "cmd.exe", "/D", "/S", "/C", launcher)
+	} else {
+		cmd = exec.CommandContext(ctx, resolvedDSH, runArgs...)
+	}
+	if dshScript != "" {
+		env := append(os.Environ(), "ELECTRON_RUN_AS_NODE=1", "DSH_DESKTOP_DEFAULT_PROFILE=desktop")
+		if dshHome != "" {
+			env = append(env, "DSH_HOME="+dshHome)
+		}
+		cmd.Env = env
+	}
 	if workdir != "" {
 		cmd.Dir = workdir
 	}
@@ -189,10 +264,22 @@ func runDSH(dsh, profile, workdir string, timeoutSeconds int, sessionID, prompt 
 	cmd.WaitDelay = 3 * time.Second
 	cleanup, startErr := startDSHProcess(cmd)
 	if startErr != nil {
+		if launcher != "" {
+			_ = os.Remove(launcher)
+		}
+		if promptPath != "" {
+			_ = os.Remove(promptPath)
+		}
 		return "", "", fmt.Errorf("start DSH: %w", startErr)
 	}
 	runErr := cmd.Wait()
 	cleanup()
+	if launcher != "" {
+		_ = os.Remove(launcher)
+	}
+	if promptPath != "" {
+		_ = os.Remove(promptPath)
+	}
 	if ctx.Err() != nil {
 		return "", "", fmt.Errorf("DSH timed out after %ds", timeoutSeconds)
 	}
@@ -211,6 +298,30 @@ func safeExitError(err error) string {
 		return fmt.Sprintf("exit %d", exit.ExitCode())
 	}
 	return "execution error"
+}
+
+func safeSessionID(id string) bool {
+	if len(id) < 1 || len(id) > 128 {
+		return false
+	}
+	for _, r := range id {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-' || r == '.') {
+			return false
+		}
+	}
+	return true
+}
+
+func isBatchFile(path string) bool {
+	if resolved, err := exec.LookPath(path); err == nil {
+		path = resolved
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	return ext == ".cmd" || ext == ".bat"
+}
+
+func quoteWindowsArg(arg string) string {
+	return `"` + strings.ReplaceAll(arg, `"`, `\"`) + `"`
 }
 
 func safeMessageID(id string) bool {
