@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.26.2] - 2026-10-21
+
+### Security
+
+- Failed Host init no longer deletes data/token paths that another process may
+  have created after preflight; it leaves them for operator inspection
+- Uninstall distinguishes a missing HKCU Run value from query execution or
+  permission failures and returns the latter
+
 ## [0.26.1] - 2026-10-21
 
 ### Security
