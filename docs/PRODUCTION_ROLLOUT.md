@@ -42,6 +42,9 @@ On 2026-10-21 the following non-disruptive checks passed:
 
 - A `/healthz`: `status=ok`, `version=v0.14.1`
 - A `/readyz`: `status=ready`
+- B `/healthz`: `status=ok`, `version=dev` (record the binary checksum before
+  upgrading because the version string is not a release tag)
+- B `/readyz`: `status=ready`
 - `agentchat hub backup --data ... --out ...`: 336 KiB archive
 - backup SHA-256: `43f09a5c0703860db6625e3d7d1a3cb7ed3414dc2e54acbe6e30e99bc87c730d`
 - restore into a temporary directory: succeeded
