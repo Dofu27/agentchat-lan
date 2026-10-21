@@ -21,7 +21,7 @@ embedded Web UI.
 
 ## Next: v0.29.0 (pending review)
 
-`main 5f3335a` adds opt-in federation read-receipt forwarding, multi-peer DM
+`main 3076529` adds opt-in federation read-receipt forwarding, multi-peer DM
 and typing fanout, launcher URL hardening, exclusive desktop Join config, and
 release-versioned installer CLI. It is staged on A (`agentchat:v0.29.0`) and
 rehearsed against the v0.14.1 backup; it is not tagged or published until the
@@ -86,5 +86,6 @@ down-migrate or rebuild the database.
 - Tokens and federation secrets are never included in release artifacts.
 - Never expose the desktop loopback capability API beyond loopback.
 - See [SECURITY.md](SECURITY.md).
+
 
 
