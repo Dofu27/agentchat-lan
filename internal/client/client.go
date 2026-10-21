@@ -127,6 +127,16 @@ func (c *Client) Ack(ctx context.Context, acks map[string]int64) error {
 	return c.doJSON(ctx, http.MethodPost, "/v1/ack", c.Token, protocol.AckRequest{Acks: acks}, nil)
 }
 
+// MarkRead explicitly declares local read progress without changing inbox ACKs.
+func (c *Client) MarkRead(ctx context.Context, room string, seq int64) (*protocol.ReadReceipt, error) {
+	var out protocol.ReadReceipt
+	path := "/v1/rooms/" + url.PathEscape(room) + "/read"
+	if err := c.doJSON(ctx, http.MethodPost, path, c.Token, protocol.MarkReadRequest{Seq: seq}, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Rooms lists rooms the agent can see.
 func (c *Client) Rooms(ctx context.Context) ([]protocol.Room, error) {
 	var out protocol.RoomsResponse

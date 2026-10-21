@@ -111,6 +111,17 @@ type Room struct {
 	LatestSeq       *int64    `json:"latest_seq,omitempty"`
 }
 
+// MarkReadRequest is an explicit local declaration, independent of inbox ACKs.
+type MarkReadRequest struct {
+	Seq int64 `json:"seq"`
+}
+
+type ReadReceipt struct {
+	Room    string `json:"room"`
+	AgentID string `json:"agent_id"`
+	ReadSeq int64  `json:"read_seq"`
+}
+
 // FileRef is the metadata for an uploaded file.
 type FileRef struct {
 	ID     string `json:"id"`

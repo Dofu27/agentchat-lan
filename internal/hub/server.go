@@ -163,6 +163,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /v1/rooms/{room}/messages", s.agentAuth(http.HandlerFunc(s.handleSend)))
 	mux.Handle("POST /v1/rooms/{room}/typing", s.ephemeralAgentAuth(http.HandlerFunc(s.handleTyping)))
 	mux.Handle("GET /v1/rooms/{room}/receipts", s.agentAuth(http.HandlerFunc(s.handleReceipts)))
+	mux.Handle("POST /v1/rooms/{room}/read", s.agentAuth(http.HandlerFunc(s.handleMarkRead)))
 	mux.Handle("GET /v1/rooms/{room}/search", s.agentAuth(http.HandlerFunc(s.handleSearch)))
 	mux.Handle("POST /v1/dm", s.agentAuth(http.HandlerFunc(s.handleCreateDM)))
 	mux.Handle("GET /v1/inbox", s.agentAuth(http.HandlerFunc(s.handleInbox)))
@@ -919,6 +920,8 @@ func (s *Server) storeError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "conflict", "resource already exists", nil)
 	case errors.Is(err, store.ErrInvalidTarget):
 		writeError(w, http.StatusUnprocessableEntity, "validation_failed", "message target is not a room member", nil)
+	case errors.Is(err, store.ErrInvalidReadSeq):
+		writeError(w, http.StatusBadRequest, "invalid_request", "seq must be between 0 and the room's current sequence", nil)
 	case errors.Is(err, store.ErrFileNotFound):
 		writeError(w, http.StatusBadRequest, "invalid_request", "one or more file IDs are invalid", nil)
 	default:
