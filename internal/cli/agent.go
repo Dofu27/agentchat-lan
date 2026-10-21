@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -33,6 +34,7 @@ func (a *App) cmdAgent(args []string) (exit int) {
 	mentionOnly := fs.Bool("mention-only", false, "only invoke the hook for @me, @all, and DM messages")
 	typing := fs.Bool("typing", false, "publish typing while the hook runs")
 	startNow := fs.Bool("start-now", false, "ack the existing inbox before serving new messages")
+	startCutoffs := fs.String("start-cutoffs", "", "legacy hub cutoff as room=seq,room=seq")
 	jsonOut := fs.Bool("json", false, "print each message as JSON when no --exec is set")
 
 	codeExit, ok := a.parse(fs, args)
@@ -72,14 +74,26 @@ func (a *App) cmdAgent(args []string) (exit int) {
 			return a.fail(fmt.Errorf("--start-now requires --ack"))
 		}
 		marker := startNowMarker(*cfgPath, cfg)
+		unlock, err := lockStartNow(marker + ".lock")
+		if err != nil {
+			return a.fail(fmt.Errorf("lock start-now: %w", err))
+		}
+		defer unlock()
 		state, exists, err := loadStartNowState(marker)
 		if err != nil {
 			return a.fail(fmt.Errorf("read start-now state: %w", err))
 		}
 		if !exists {
-			state.Cutoffs, err = captureRoomCutoffs(ctx, c)
-			if err != nil {
-				return a.fail(fmt.Errorf("capture start-now cutoffs: %w", err))
+			if strings.TrimSpace(*startCutoffs) != "" {
+				state.Cutoffs, err = parseStartCutoffs(*startCutoffs)
+				if err != nil {
+					return a.fail(err)
+				}
+			} else {
+				state.Cutoffs, err = captureRoomCutoffs(ctx, c)
+				if err != nil {
+					return a.fail(fmt.Errorf("capture start-now cutoffs: %w", err))
+				}
 			}
 			if err := saveStartNowState(marker, state); err != nil {
 				return a.fail(fmt.Errorf("record start-now cutoffs: %w", err))
@@ -251,6 +265,29 @@ func saveStartNowState(path string, state startNowState) error {
 	return nil
 }
 
+func parseStartCutoffs(raw string) (map[string]int64, error) {
+	cutoffs := make(map[string]int64)
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		room, value, ok := strings.Cut(part, "=")
+		if !ok || strings.TrimSpace(room) == "" {
+			return nil, fmt.Errorf("invalid --start-cutoffs entry %q", part)
+		}
+		seq, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+		if err != nil || seq < 0 {
+			return nil, fmt.Errorf("invalid --start-cutoffs sequence %q", part)
+		}
+		cutoffs[strings.TrimSpace(room)] = seq
+	}
+	if len(cutoffs) == 0 {
+		return nil, fmt.Errorf("--start-cutoffs is empty")
+	}
+	return cutoffs, nil
+}
+
 func captureRoomCutoffs(ctx context.Context, c *client.Client) (map[string]int64, error) {
 	rooms, err := c.Rooms(ctx)
 	if err != nil {
@@ -258,27 +295,10 @@ func captureRoomCutoffs(ctx context.Context, c *client.Client) (map[string]int64
 	}
 	cutoffs := make(map[string]int64, len(rooms))
 	for _, room := range rooms {
-		if room.LatestSeq > 0 {
-			cutoffs[room.ID] = room.LatestSeq
-			continue
+		if room.LatestSeq == nil {
+			return nil, fmt.Errorf("hub does not expose fixed latest_seq; upgrade the hub or pass --start-cutoffs room=seq,...")
 		}
-		// Older hubs do not expose latest_seq. Walk history once to find the
-		// room's current high-water mark.
-		var after int64
-		for {
-			page, err := c.History(ctx, room.ID, after, 200)
-			if err != nil {
-				return nil, err
-			}
-			if len(page.Messages) == 0 {
-				break
-			}
-			after = page.Messages[len(page.Messages)-1].Seq
-			if !page.HasMore {
-				break
-			}
-		}
-		cutoffs[room.ID] = after
+		cutoffs[room.ID] = *room.LatestSeq
 	}
 	return cutoffs, nil
 }
