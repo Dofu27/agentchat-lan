@@ -171,7 +171,13 @@ func installDesktop(dir, role, hub string, startup bool) error {
 			err := exec.Command("reg.exe", "add", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
 				"/v", "AgentChatConsole", "/t", "REG_SZ", "/d", value, "/f").Run()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: cannot create Startup entry: %v\n", err)
+				task := "\"" + filepath.Join(absDir, "AgentChatConsole.exe") + "\" --config \"" + cfgPath + "\""
+				if taskErr := exec.Command("schtasks.exe", "/Create", "/TN", "AgentChatConsole",
+					"/SC", "ONLOGON", "/TR", task, "/F", "/RL", "LIMITED").Run(); taskErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: cannot create Startup entry: %v (task: %v)\n", err, taskErr)
+				} else {
+					fmt.Println("Installed ONLOGON scheduled task")
+				}
 			} else {
 				fmt.Println("Installed HKCU Run startup entry")
 			}
@@ -334,6 +340,11 @@ func removeStartupEntries() error {
 		}
 	} else if err := exec.Command("reg.exe", "delete", runKey, "/v", "AgentChatConsole", "/f").Run(); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("remove HKCU startup entry: %w", err))
+	}
+	if err := exec.Command("schtasks.exe", "/Query", "/TN", "AgentChatConsole").Run(); err == nil {
+		if err := exec.Command("schtasks.exe", "/Delete", "/TN", "AgentChatConsole", "/F").Run(); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("remove scheduled task: %w", err))
+		}
 	}
 	return errs
 }

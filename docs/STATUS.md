@@ -12,7 +12,9 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.26.6` tracks the launcher page so Linux/macOS release builds succeed.
+- `v0.27.2` adds an ONLOGON scheduled-task startup fallback; this host still
+  denies all startup mechanisms, so real login startup remains untested.
+  `v0.26.6` tracks the launcher page so Linux/macOS release builds succeed.
   `v0.26.5` adds a reproducible Linux CLI build check (v0.26.4 passes).
   `v0.26.4` bounds Bridge output and kills its process tree on timeout.
   `v0.26.3` refuses an existing Host-init target, serializes Settings with setup,
