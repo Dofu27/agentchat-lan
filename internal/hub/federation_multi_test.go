@@ -51,3 +51,52 @@ func TestFederationMultiPeerFanout(t *testing.T) {
 		}
 	}
 }
+
+func TestFederationMultiPeerOfflinePeerDoesNotBlock(t *testing.T) {
+	a, b, c := newFederationNode(t), newFederationNode(t), newFederationNode(t)
+	a.startMulti(t, b, c)
+	c.start(t, a)
+	a.run()
+	c.run()
+
+	sender := nodeReader(t, a, "alice")
+	cReader := nodeReader(t, c, "carol")
+	if _, err := sender.SendMessage(context.Background(), "general", protocol.SendMessageRequest{Text: "isolated"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFederation(t, func() bool {
+		stats, _ := a.st.FederationStats(context.Background())
+		return stats.Delivered == 1
+	})
+	history, _, err := c.st.History(context.Background(), senderBIdentity(t, cReader), "general", 0, 0, 100)
+	if err != nil || len(history) != 1 || history[0].Text != "isolated" {
+		t.Fatalf("online peer was blocked by offline peer: %v %v", history, err)
+	}
+}
+
+func TestFederationMultiPeerDoesNotForwardThirdParty(t *testing.T) {
+	a, b, c := newFederationNode(t), newFederationNode(t), newFederationNode(t)
+	a.startMulti(t, b, c)
+	b.start(t, a)
+	c.start(t, a)
+	a.run()
+	b.run()
+	c.run()
+
+	envelope := store.FederationEnvelope{
+		Version: 1, OriginNodeID: b.id, OriginMessageID: "third-party",
+		SourceRoom: "general", DestinationRoom: "general",
+		Text: "do not forward", Sender: protocol.AgentRef{ID: "bob", Name: "bob", Kind: "test"},
+		SentAt: time.Now().UTC(),
+	}
+	if status, _ := fedRequest(t, a, b.id, federationTestSecret, envelope); status != 200 {
+		t.Fatalf("inbound status %d", status)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if stats, _ := a.st.FederationStats(context.Background()); stats.Delivered != 0 || stats.Pending != 0 || stats.Inflight != 0 {
+		t.Fatalf("A forwarded a third-party message: %+v", stats)
+	}
+	if history, _, err := c.st.History(context.Background(), senderBIdentity(t, nodeReader(t, c, "carol")), "general", 0, 0, 100); err != nil || len(history) != 0 {
+		t.Fatalf("C received a forwarded third-party message: %v %v", history, err)
+	}
+}
