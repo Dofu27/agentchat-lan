@@ -40,6 +40,7 @@ func (a *App) serviceInstall(args []string) int {
 	hook := fs.String("exec", "", "optional agent hook command")
 	mentionOnly := fs.Bool("mention-only", false, "only invoke the hook for @me, @all, and DM messages")
 	typing := fs.Bool("typing", false, "publish typing while the hook runs")
+	startNow := fs.Bool("start-now", false, "ack the existing inbox before serving new messages")
 	if codeExit, ok := a.parse(fs, args); !ok {
 		return codeExit
 	}
@@ -80,6 +81,9 @@ func (a *App) serviceInstall(args []string) int {
 	}
 	if *typing {
 		agentArgs = append(agentArgs, "--typing")
+	}
+	if *startNow {
+		agentArgs = append(agentArgs, "--start-now")
 	}
 
 	if runtime.GOOS == "windows" {

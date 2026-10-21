@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.21.6] - 2026-10-21
+
+### Added
+
+- `agentchat agent --start-now` drains and acknowledges the existing inbox once
+  before serving new messages
+- `join --bridge` and `bridge install` pass `--start-now` by default
+- New bridge installs no longer replay historical room messages through DSH
+
+### Fixed
+
+- DSH Desktop Electron mode can use an explicit writable `--dsh-home`, and the
+  bridge hook works with an explicit DSH working directory
+
 ## [0.21.0] - 2026-10-21
 
 ### Added
