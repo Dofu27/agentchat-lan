@@ -87,6 +87,11 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 		return nil, errors.New("federation lease must cover two request timeouts and be at most one minute")
 	}
 	peers := opts.Peers
+	if len(peers) > 0 && opts.Peer.NodeID != "" {
+		if len(peers) != 1 || peers[0].NodeID != opts.Peer.NodeID {
+			return nil, errors.New("configure either peer or peers, not both")
+		}
+	}
 	if len(peers) == 0 && opts.Peer.NodeID != "" {
 		peers = []FederationPeerOptions{opts.Peer}
 	}
@@ -219,6 +224,40 @@ func (f *Federation) runV1(ctx context.Context) error {
 			c.CloseIdleConnections()
 		}
 	}()
+	workers := len(f.peers)
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > 4 {
+		workers = 4
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var wg sync.WaitGroup
+	errs := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := f.runV1Worker(ctx); err != nil && ctx.Err() == nil {
+				select {
+				case errs <- err:
+				default:
+				}
+				cancel()
+			}
+		}()
+	}
+	wg.Wait()
+	select {
+	case err := <-errs:
+		return err
+	default:
+		return nil
+	}
+}
+
+func (f *Federation) runV1Worker(ctx context.Context) error {
 	timer := time.NewTicker(f.opts.PollInterval)
 	defer timer.Stop()
 	for {

@@ -12,6 +12,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/sys/windows"
 )
 
 //go:embed assets
@@ -65,8 +67,33 @@ const installMarkerName = ".agentchat-install.json"
 type installMarker struct {
 	App           string   `json:"app"`
 	Root          string   `json:"root"`
+	VolumeSerial  uint32   `json:"volume_serial"`
+	FileIndexHigh uint32   `json:"file_index_high"`
+	FileIndexLow  uint32   `json:"file_index_low"`
 	Files         []string `json:"files"`
 	ConfigCreated bool     `json:"config_created"`
+}
+
+func directoryIdentity(path string) (uint32, uint32, uint32, error) {
+	ptr, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	h, err := windows.CreateFile(ptr, windows.GENERIC_READ,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil,
+		windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	defer windows.CloseHandle(h)
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(h, &info); err != nil {
+		return 0, 0, 0, err
+	}
+	if info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+		return 0, 0, 0, errors.New("install path is a reparse point")
+	}
+	return info.VolumeSerialNumber, info.FileIndexHigh, info.FileIndexLow, nil
 }
 
 func installDesktop(dir, role, hub string, startup bool) error {
@@ -102,8 +129,13 @@ func installDesktop(dir, role, hub string, startup bool) error {
 	if err != nil {
 		return err
 	}
+	vol, hi, lo, err := directoryIdentity(absDir)
+	if err != nil {
+		return err
+	}
 	marker := installMarker{
 		App: "agentchat-desktop", Root: filepath.Clean(absDir),
+		VolumeSerial: vol, FileIndexHigh: hi, FileIndexLow: lo,
 		Files: []string{"AgentChatConsole.exe", "agentchat.exe"}, ConfigCreated: configCreated,
 	}
 	markerData, _ := json.MarshalIndent(marker, "", "  ")
@@ -197,6 +229,15 @@ func uninstallDesktop(dir string, removeData bool) error {
 	if err := json.Unmarshal(data, &marker); err != nil || marker.App != "agentchat-desktop" || !strings.EqualFold(filepath.Clean(marker.Root), abs) {
 		return fmt.Errorf("ownership marker does not match %s", abs)
 	}
+	vol, hi, lo, err := directoryIdentity(abs)
+	if err != nil {
+		return fmt.Errorf("ownership identity does not match %s", abs)
+	}
+	if marker.VolumeSerial != 0 || marker.FileIndexHigh != 0 || marker.FileIndexLow != 0 {
+		if vol != marker.VolumeSerial || hi != marker.FileIndexHigh || lo != marker.FileIndexLow {
+			return fmt.Errorf("ownership identity does not match %s", abs)
+		}
+	}
 	if err := removeStartupEntries(); err != nil {
 		return err
 	}
@@ -206,25 +247,37 @@ func uninstallDesktop(dir string, removeData bool) error {
 			removeErr = errors.Join(removeErr, fmt.Errorf("%s: %w", path, err))
 		}
 	}
+	var owned []string
 	for _, name := range marker.Files {
 		path, ok := safeMarkerPath(abs, name)
 		if !ok {
 			return fmt.Errorf("invalid owned file in marker: %q", name)
 		}
+		if info, err := os.Lstat(path); err == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				return fmt.Errorf("refusing to remove reparse/symlink: %s", path)
+			}
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+		owned = append(owned, path)
+	}
+	for _, path := range owned {
 		remove(path)
 	}
 	if removeData && marker.ConfigCreated {
 		remove(filepath.Join(abs, "desktop.json"))
 	}
 	if removeData {
-		remove(filepath.Join(abs, installMarkerName))
-		if removeErr == nil {
-			if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
-				fmt.Printf("Kept %s because it contains unknown files\n", abs)
-			}
-		}
 		if removeErr != nil {
 			return removeErr
+		}
+		remove(filepath.Join(abs, installMarkerName))
+		if removeErr != nil {
+			return removeErr
+		}
+		if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Kept %s because it contains unknown files\n", abs)
 		}
 		return nil
 	}

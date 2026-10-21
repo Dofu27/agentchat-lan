@@ -3,6 +3,7 @@ package hub_test
 import (
 	"bytes"
 	"context"
+	"net/http"
 	"path/filepath"
 	"testing"
 	"time"
@@ -110,6 +111,37 @@ func TestFederationMultiPeerOfflinePeerDoesNotBlock(t *testing.T) {
 	history, _, err := c.st.History(context.Background(), senderBIdentity(t, cReader), "general", 0, 0, 100)
 	if err != nil || len(history) != 1 || history[0].Text != "isolated" {
 		t.Fatalf("online peer was blocked by offline peer: %v %v", history, err)
+	}
+}
+
+func TestFederationMultiPeerSlowPeerDoesNotBlock(t *testing.T) {
+	a, b, c := newFederationNode(t), newFederationNode(t), newFederationNode(t)
+	a.startMulti(t, b, c)
+	b.start(t, a)
+	c.start(t, a)
+	baseHandler := *b.handler.Load()
+	b.setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/federation/v1/messages" {
+			time.Sleep(2 * time.Second)
+		}
+		baseHandler.ServeHTTP(w, r)
+	}))
+	a.run()
+	b.run()
+	c.run()
+
+	sender := nodeReader(t, a, "alice")
+	cReader := nodeReader(t, c, "carol")
+	start := time.Now()
+	if _, err := sender.SendMessage(context.Background(), "general", protocol.SendMessageRequest{Text: "slow peer"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFederation(t, func() bool {
+		history, _, _ := c.st.History(context.Background(), senderBIdentity(t, cReader), "general", 0, 0, 20)
+		return len(history) == 1
+	})
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("slow peer blocked C for %v", elapsed)
 	}
 }
 

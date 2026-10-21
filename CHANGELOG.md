@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.24.0] - 2026-10-21
+
+### Security
+
+- Chat token injection now requires the agent config `hub_url` to canonicalize
+  to the desktop hub origin
+- Installer ownership markers record volume/file identity; uninstall rejects
+  reparse points, moved/junction roots, and pre-validates every manifest entry
+  before deleting anything; a failed remove-data keeps the marker retryable
+- Desktop config saves use a same-directory temp file, fsync, and replace
+- Join/Host-init body parsing happens before the write lock
+
+### Changed
+
+- Multi-peer text workers run bounded concurrent consumers (up to four) so one
+  slow peer no longer serializes delivery to another
+
 ## [0.23.3] - 2026-10-21
 
 ### Added

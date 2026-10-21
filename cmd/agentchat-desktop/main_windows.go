@@ -386,6 +386,14 @@ func (a *app) loadAgentConfig() (agentConfigFile, error) {
 	if strings.TrimSpace(cfg.Token) == "" || strings.TrimSpace(cfg.AgentID) == "" {
 		return agentConfigFile{}, errors.New("agent config has no token or agent_id")
 	}
+	desktopOrigin, err := canonicalOrigin(a.cfg.HubURL)
+	if err != nil {
+		return agentConfigFile{}, err
+	}
+	agentOrigin, err := canonicalOrigin(cfg.HubURL)
+	if err != nil || agentOrigin != desktopOrigin {
+		return agentConfigFile{}, errors.New("agent config hub_url does not match the desktop hub")
+	}
 	return cfg, nil
 }
 
@@ -534,8 +542,6 @@ func (a *app) bridgeResult(action string) map[string]any {
 }
 
 func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	var req struct {
 		Invite string `json:"invite"`
 		Name   string `json:"name"`
@@ -555,6 +561,8 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invite and name are required"})
 		return
 	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	path := a.cfg.AgentConfig
 	if path == "" {
 		base := a.configPath
@@ -625,7 +633,37 @@ func (a *app) saveConfig(cfg config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(a.configPath, data, 0o600)
+	dir := filepath.Dir(a.configPath)
+	tmp, err := os.CreateTemp(dir, ".desktop-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	from, err := windows.UTF16PtrFromString(tmpName)
+	if err != nil {
+		return err
+	}
+	to, err := windows.UTF16PtrFromString(a.configPath)
+	if err != nil {
+		return err
+	}
+	return windows.MoveFileEx(from, to, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
 }
 
 func (a *app) saveDesktopConfig() error {
@@ -633,8 +671,6 @@ func (a *app) saveDesktopConfig() error {
 }
 
 func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
 	var req struct {
 		Data      string `json:"data"`
 		TokenFile string `json:"token_file"`
@@ -673,6 +709,8 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	args := []string{"hub", "init", "--data", req.Data, "--admin-token-file", req.TokenFile, "--json"}
 	out, err := exec.CommandContext(ctx, a.cfg.AgentchatPath, args...).CombinedOutput()
 	if err != nil {
