@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.26.5] - 2026-10-21
+
+### Added
+
+- `scripts/verify-reproducible.sh` builds the Linux CLI twice and compares
+  bytes; the v0.26.4 tree passes
+
 ## [0.26.4] - 2026-10-21
 
 ### Security
