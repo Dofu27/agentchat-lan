@@ -11,9 +11,9 @@ v1.0.
 - Opt-in F4 federation read-receipt forwarding: authenticated, linked,
   monotonic remote cursor, additive `federation_receipts`, bounded best-effort
   fanout, no ACK changes and no re-forwarding loop
-- Multi-peer federated DM fanout: each configured peer has its own conversation
-  and outbox; text DMs no longer require a single-peer federation. Multi-peer DM
-  typing remains single-peer.
+- Multi-peer federated DM and typing fanout: each configured peer has its own
+  conversation, outbox, and ephemeral typing session; text DMs and typing no
+  longer require a single-peer federation.
 - Linux/macOS launcher rejects non-HTTP(S) or userinfo hub URLs, normalizes the
   URL, and shows role-specific guidance; it remains a browser launcher, not the
   full WebView console.

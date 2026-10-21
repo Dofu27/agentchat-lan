@@ -141,29 +141,27 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 			if c.PeerID == "" || !known[c.PeerID] {
 				return nil, errors.New("DM conversation references an unknown peer")
 			}
-			if c.Typing {
-				return nil, errors.New("multi-peer federation does not support DM typing")
-			}
 			opts.DMConversations = append(opts.DMConversations, c)
 		}
 		links := make(map[string]bool)
 		for _, l := range cfg.Links {
-			if l.Typing {
-				return nil, errors.New("multi-peer federation does not support typing")
-			}
 			if l.PeerID == "" || !known[l.PeerID] {
 				return nil, errors.New("link references an unknown peer")
-			}
-			if !l.Attachments && (l.LinkID != "" || l.Epoch != 0) {
-				return nil, errors.New("link identity requires attachments=true")
 			}
 			key := l.PeerID + "\x00" + l.LocalRoom
 			if links[key] {
 				return nil, errors.New("duplicate peer/local_room link")
 			}
 			links[key] = true
-			if l.Attachments {
+			if l.Typing {
+				if l.LinkID == "" || l.Epoch < 1 {
+					return nil, errors.New("typing link requires link_id and epoch")
+				}
+				opts.TypingLinks = append(opts.TypingLinks, store.FederationTypingLink{PeerID: l.PeerID, Kind: "room", LinkID: l.LinkID, Epoch: l.Epoch, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom})
+			} else if l.Attachments {
 				opts.FileLinks = append(opts.FileLinks, store.FederationFileLink{PeerID: l.PeerID, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom, LinkID: l.LinkID, Epoch: l.Epoch})
+			} else if l.LinkID != "" || l.Epoch != 0 {
+				return nil, errors.New("link identity requires attachments=true or typing=true")
 			}
 			opts.Links = append(opts.Links, store.FederationLink{PeerID: l.PeerID, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom})
 		}

@@ -76,12 +76,14 @@ type ephemeralTyping struct {
 	now      func() time.Time
 }
 
-func typingLinkKey(l store.FederationTypingLink) string { return l.Kind + ":" + l.LinkID }
+func typingLinkKey(l store.FederationTypingLink) string {
+	return l.PeerID + "\x00" + l.Kind + ":" + l.LinkID
+}
 func (f *Federation) initTyping(ctx context.Context) error {
 	links := append([]store.FederationTypingLink(nil), f.opts.TypingLinks...)
 	for _, d := range f.opts.DMConversations {
 		if d.Typing {
-			links = append(links, store.FederationTypingLink{Kind: "federated_dm", LinkID: d.LinkID, Epoch: d.Epoch, ConversationID: d.ConversationID})
+			links = append(links, store.FederationTypingLink{PeerID: d.PeerID, Kind: "federated_dm", LinkID: d.LinkID, Epoch: d.Epoch, ConversationID: d.ConversationID})
 		}
 	}
 	if len(links) == 0 {
@@ -92,16 +94,23 @@ func (f *Federation) initTyping(ctx context.Context) error {
 	}
 	keys, rooms := map[string]bool{}, map[string]bool{}
 	for i, l := range links {
-		_, room, err := f.store.TypingScope(ctx, f.opts.Peer.NodeID, l)
+		if l.PeerID == "" {
+			links[i].PeerID = f.opts.Peer.NodeID
+		} else if _, ok := f.peers[l.PeerID]; !ok {
+			return errors.New("typing link references an unknown peer")
+		}
+		l = links[i]
+		_, room, err := f.store.TypingScope(ctx, l.PeerID, l)
 		if err != nil {
 			return errors.New("invalid explicit typing link")
 		}
 		key := typingLinkKey(l)
-		if keys[key] || rooms[room] {
+		roomKey := l.PeerID + "\x00" + room
+		if keys[key] || rooms[roomKey] {
 			return errors.New("duplicate typing scope")
 		}
 		keys[key] = true
-		rooms[room] = true
+		rooms[roomKey] = true
 		links[i].LocalRoom = room
 	}
 	f.ephemeral = &ephemeralTyping{boot: protocol.NewToken("epb"), links: links, now: time.Now}
@@ -121,8 +130,9 @@ func (f *Federation) typingEnabled(ctx context.Context, room string) bool {
 	}
 	for _, l := range f.ephemeral.links {
 		if l.LocalRoom == room {
-			_, _, err := f.store.TypingScope(ctx, f.opts.Peer.NodeID, l)
-			return err == nil
+			if _, _, err := f.store.TypingScope(ctx, l.PeerID, l); err == nil {
+				return true
+			}
 		}
 	}
 	return false
@@ -132,28 +142,32 @@ func (f *Federation) publishTyping(ctx context.Context, room, actor string, acti
 		return
 	}
 	e := f.ephemeral
+	matched := make([]store.FederationTypingLink, 0, 2)
 	for _, l := range e.links {
-		if l.LocalRoom != room {
-			continue
+		if l.LocalRoom == room {
+			if _, err := f.store.TypingActor(ctx, l.PeerID, l, actor); err == nil {
+				matched = append(matched, l)
+			}
 		}
-		if _, err := f.store.TypingActor(ctx, f.opts.Peer.NodeID, l, actor); err != nil {
-			return
-		}
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		if !e.running {
-			return
-		}
+	}
+	if len(matched) == 0 {
+		return
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if !e.running {
+		return
+	}
+	for _, l := range matched {
 		key := typingLinkKey(l) + ":" + actor
 		if _, exists := e.pending[key]; !exists && len(e.pending) >= 256 {
-			return
+			continue
 		}
 		if _, exists := e.next[key]; !exists && len(e.next) >= 256 {
-			return
+			continue
 		}
 		e.revision++
 		e.pending[key] = typingPending{link: l, actor: actor, typing: active, at: e.now(), revision: e.revision}
-		return
 	}
 }
 func decodeEphemeral(w http.ResponseWriter, r *http.Request, v any) bool {
@@ -167,12 +181,14 @@ func decodeEphemeral(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 func (s *Server) handleTypingSession(w http.ResponseWriter, r *http.Request) {
-	if !s.federationPeer(w, r) {
+	f := s.opts.Federation
+	node, ok := f.authenticatedPeer(r)
+	if !ok {
+		http.Error(w, "unauthorized", 401)
 		return
 	}
-	f := s.opts.Federation
 	e := f.ephemeral
-	if !s.allow("typing-session:"+f.opts.Peer.NodeID, 120, 10) {
+	if !s.allow("typing-session:"+node, 120, 10) {
 		writeError(w, 429, "rate_limited", "ephemeral session rate limit", nil)
 		return
 	}
@@ -186,7 +202,10 @@ func (s *Server) handleTypingSession(w http.ResponseWriter, r *http.Request) {
 	}
 	var matched *store.FederationTypingLink
 	for _, l := range e.links {
-		scope, _, err := f.store.TypingScope(r.Context(), f.opts.Peer.NodeID, l)
+		if l.PeerID != node {
+			continue
+		}
+		scope, _, err := f.store.TypingScope(r.Context(), node, l)
 		if err != nil {
 			continue
 		}
@@ -220,12 +239,14 @@ func (s *Server) handleTypingSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, typingSessionReply{ID: id, TTL: 5000})
 }
 func (s *Server) handleRemoteTyping(w http.ResponseWriter, r *http.Request) {
-	if !s.federationPeer(w, r) {
+	f := s.opts.Federation
+	node, ok := f.authenticatedPeer(r)
+	if !ok {
+		http.Error(w, "unauthorized", 401)
 		return
 	}
-	f := s.opts.Federation
 	e := f.ephemeral
-	if !s.allow("typing-events:"+f.opts.Peer.NodeID, 1200, 40) {
+	if !s.allow("typing-events:"+node, 1200, 40) {
 		writeError(w, 429, "rate_limited", "ephemeral peer rate limit", nil)
 		return
 	}
@@ -250,11 +271,11 @@ func (s *Server) handleRemoteTyping(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	if key == "" || ev.Seq <= session.seq {
+	if key == "" || ev.Seq <= session.seq || session.link.PeerID != node {
 		writeError(w, 409, "stale_session", "expired session or stale sequence", nil)
 		return
 	}
-	scope, room, err := f.store.TypingScope(r.Context(), f.opts.Peer.NodeID, session.link)
+	scope, room, err := f.store.TypingScope(r.Context(), node, session.link)
 	if err != nil || scope.Kind == "federated_dm" && ev.Actor.ID != scope.DestinationAgentID {
 		delete(e.inbound, key)
 		writeError(w, 403, "forbidden", "typing scope or actor no longer authorized", nil)
@@ -292,7 +313,7 @@ func (s *Server) handleRemoteTyping(w http.ResponseWriter, r *http.Request) {
 	if limited {
 		next = old.next
 	}
-	e.remote[actorKey] = typingRemote{agent: remoteTypingAgent{NodeID: f.opts.Peer.NodeID, AgentID: ev.Actor.ID, Name: ev.Actor.Name, Kind: ev.Actor.Kind, Revision: e.revision}, room: room, session: session.id, expires: expires, next: next, active: ev.Typing, dirty: limited}
+	e.remote[actorKey] = typingRemote{agent: remoteTypingAgent{NodeID: node, AgentID: ev.Actor.ID, Name: ev.Actor.Name, Kind: ev.Actor.Kind, Revision: e.revision}, room: room, session: session.id, expires: expires, next: next, active: ev.Typing, dirty: limited}
 	if !limited {
 		s.broadcast()
 	}
@@ -405,20 +426,24 @@ func (f *Federation) runTyping(ctx context.Context) error {
 		}
 	}
 }
-func (f *Federation) typingRequest(ctx context.Context, path string, in, out any) bool {
+func (f *Federation) typingRequest(ctx context.Context, peer, path string, in, out any) bool {
 	data, err := json.Marshal(in)
 	if err != nil {
 		return false
 	}
 	ctx, cancel := context.WithTimeout(ctx, min(f.opts.RequestTimeout, time.Second))
 	defer cancel()
-	req, done, err := f.peerRequest(ctx, f.opts.Peer.NodeID, "POST", "/federation/v2/ephemeral/"+path, bytes.NewReader(data))
+	req, done, err := f.peerRequest(ctx, peer, "POST", "/federation/v2/ephemeral/"+path, bytes.NewReader(data))
 	if err != nil {
 		return false
 	}
 	defer done()
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := f.http.Do(req)
+	client := f.clients[peer]
+	if client == nil {
+		return false
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return false
 	}
@@ -430,11 +455,12 @@ func (f *Federation) typingRequest(ctx context.Context, path string, in, out any
 }
 func (f *Federation) deliverTyping(ctx context.Context, p typingPending) bool {
 	e := f.ephemeral
-	actor, err := f.store.TypingActor(ctx, f.opts.Peer.NodeID, p.link, p.actor)
+	peer := p.link.PeerID
+	actor, err := f.store.TypingActor(ctx, peer, p.link, p.actor)
 	if err != nil {
 		return false
 	}
-	scope, _, err := f.store.TypingScope(ctx, f.opts.Peer.NodeID, p.link)
+	scope, _, err := f.store.TypingScope(ctx, peer, p.link)
 	if err != nil {
 		return false
 	}
@@ -450,7 +476,7 @@ func (f *Federation) deliverTyping(ctx context.Context, p typingPending) bool {
 	if !now.Before(session.expires) {
 		var reply typingSessionReply
 		start := e.now()
-		if !f.typingRequest(ctx, "session", typingSessionRequest{Boot: boot, Scope: scope}, &reply) || reply.ID == "" || len(reply.ID) > 128 || reply.TTL < 1 || reply.TTL > 5000 {
+		if !f.typingRequest(ctx, peer, "session", typingSessionRequest{Boot: boot, Scope: scope}, &reply) || reply.ID == "" || len(reply.ID) > 128 || reply.TTL < 1 || reply.TTL > 5000 {
 			return false
 		}
 		session = typingSession{id: reply.ID, expires: start.Add(time.Duration(reply.TTL) * time.Millisecond)}
@@ -461,7 +487,7 @@ func (f *Federation) deliverTyping(ctx context.Context, p typingPending) bool {
 	}
 	session.seq++
 	ev := remoteTypingEvent{Session: session.id, Seq: session.seq, Actor: actor, Typing: p.typing, TTL: ttl}
-	if !f.typingRequest(ctx, "events", ev, nil) {
+	if !f.typingRequest(ctx, peer, "events", ev, nil) {
 		return false
 	}
 	e.mu.Lock()
