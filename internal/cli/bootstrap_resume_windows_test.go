@@ -81,36 +81,55 @@ func TestResumeCredentialSecurityDescriptor(t *testing.T) {
 }
 
 func TestResumeRefusesWidenedRetainedFileBeforeDatabase(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "retained")
-	f, err := createBootstrapFile(path)
+	token, err := windows.OpenCurrentProcessToken()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.WriteString("synthetic-invalid-credential\n"); err != nil {
-		t.Fatal(err)
-	}
-	if err = f.Close(); err != nil {
-		t.Fatal(err)
-	}
-	sd, err := windows.SecurityDescriptorFromString("D:P(A;;FA;;;SY)(A;;FA;;;OW)(A;;FR;;;WD)")
+	defer token.Close()
+	user, err := token.GetTokenUser()
 	if err != nil {
 		t.Fatal(err)
 	}
-	acl, _, err := sd.DACL()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, acl, nil); err != nil {
-		t.Fatal(err)
-	}
-	called := false
-	ops := defaultBootstrapOps()
-	ops.initialize = func(context.Context, string, string) error { called = true; return nil }
-	err = bootstrapHub(context.Background(), "unused-db", path, true, ops)
-	if err == nil || !strings.Contains(err.Error(), "another account") || called {
-		t.Fatalf("widened credential accepted: %v, initialized=%v", err, called)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatal("failed resume removed retained file", err)
+	for _, tc := range []struct{ name, extraSID string }{
+		{"everyone-read-only", "WD"},
+		{"owner-rights-alias-only", "OW"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "retained")
+			f, err := createBootstrapFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			if _, err = f.WriteString("synthetic-invalid-credential\n"); err != nil {
+				t.Fatal(err)
+			}
+			if err = f.Close(); err != nil {
+				t.Fatal(err)
+			}
+			// Baseline uses the actual current-user SID, never OWNER RIGHTS.
+			// Exactly one additional trustee isolates each rejection cause.
+			sd, err := windows.SecurityDescriptorFromString("D:P(A;;FA;;;SY)(A;;FA;;;" + user.User.Sid.String() + ")(A;;FR;;;" + tc.extraSID + ")")
+			if err != nil {
+				t.Fatal(err)
+			}
+			acl, _, err := sd.DACL()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, acl, nil); err != nil {
+				t.Fatal(err)
+			}
+			called := false
+			ops := defaultBootstrapOps()
+			ops.initialize = func(context.Context, string, string) error { called = true; return nil }
+			err = bootstrapHub(context.Background(), "unused-db", path, true, ops)
+			if err == nil || !strings.Contains(err.Error(), "another account") || called {
+				t.Fatalf("extra trustee accepted: %v, initialized=%v", err, called)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Fatal("failed resume removed retained file", err)
+			}
+		})
 	}
 }
