@@ -17,7 +17,7 @@ import (
 
 func TestExplicitReadReceiptsHTTP(t *testing.T) {
 	ctx := context.Background()
-	st, ts := openTestHub(t, filepath.Join(t.TempDir(), "reads.sqlite"), hub.Options{Burst: 200, RequestsPerMinute: 10000})
+	st, ts := openTestHub(t, filepath.Join(t.TempDir(), "reads.sqlite"), hub.Options{Burst: 200, RequestsPerMinute: 10000, ReadReceipts: true})
 	if _, err := st.CreateInvite(ctx, "read-invite", store.Invite{Room: protocol.DefaultRoom, TTL: time.Hour, Uses: 2}, "test"); err != nil {
 		t.Fatal(err)
 	}
@@ -122,5 +122,22 @@ func TestExplicitReadReceiptsHTTP(t *testing.T) {
 	}
 	if _, err := a.MarkRead(ctx, protocol.DefaultRoom, 3); !client.IsUnauthorized(err) {
 		t.Fatal("revoked token accepted", err)
+	}
+}
+
+func TestReadReceiptsRequireOptIn(t *testing.T) {
+	ctx := context.Background()
+	st, ts := openTestHub(t, filepath.Join(t.TempDir(), "reads-off.sqlite"), hub.Options{Burst: 200, RequestsPerMinute: 10000})
+	if _, err := st.CreateInvite(ctx, "read-off-invite", store.Invite{Room: protocol.DefaultRoom, TTL: time.Hour, Uses: 1}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	a := joinAgent(t, ts.URL, "read-off-invite", "read-off")
+	if _, err := a.SendMessage(ctx, protocol.DefaultRoom, protocol.SendMessageRequest{Text: "read off"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := a.MarkRead(ctx, protocol.DefaultRoom, 1)
+	var api *client.APIError
+	if !errors.As(err, &api) || api.StatusCode != http.StatusNotFound {
+		t.Fatalf("read receipts must be opt-in, got %v", err)
 	}
 }

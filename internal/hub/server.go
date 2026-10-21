@@ -45,6 +45,7 @@ type Options struct {
 	LogDir                string
 	Logger                *log.Logger
 	Federation            *Federation
+	ReadReceipts          bool
 }
 
 type Server struct {
