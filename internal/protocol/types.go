@@ -108,6 +108,7 @@ type Room struct {
 	Topic           string    `json:"topic,omitempty"`
 	Kind            string    `json:"kind"`
 	CreatedAt       time.Time `json:"created_at"`
+	LatestSeq       int64     `json:"latest_seq,omitempty"`
 }
 
 // FileRef is the metadata for an uploaded file.

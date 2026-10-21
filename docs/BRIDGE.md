@@ -24,10 +24,11 @@ agentchat join https://agentchat.lan:8787 \
 agentchat agent --config <config> --mention-only --typing --start-now --exec "<hook>"
 ```
 
-`--start-now` acknowledges one inbox snapshot once per hub/agent before serving
-new messages. A local marker in the config directory makes it one-time; later
-restarts keep unprocessed messages. It prevents a newly installed bridge from
-replaying historical room messages through the agent runtime.
+`--start-now` persists fixed per-room high-water cutoffs once per hub/agent,
+then paginates and acknowledges only the backlog at or below those cutoffs.
+Messages above the cutoff remain for normal hook processing. A local state file
+in the config directory makes this one-time and resumable; later restarts keep
+unprocessed messages.
 
 On Windows this is a Task Scheduler entry at logon. On Linux it is a systemd
 user service with `Restart=on-failure`.
