@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.10] - 2026-10-21
+
+### Added
+
+- Desktop Host setup: initialize the hub database/admin token with absolute
+  paths, listen address, optional TLS cert/key/CA, and a generated service
+  command; the desktop config and admin token are updated in place
+
 ## [0.22.9] - 2026-10-21
 
 ### Added

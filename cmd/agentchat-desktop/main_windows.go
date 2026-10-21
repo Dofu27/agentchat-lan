@@ -51,6 +51,10 @@ type config struct {
 	BridgeExec    string            `json:"bridge_exec,omitempty"`
 	Role          string            `json:"role,omitempty"`
 	SetupDone     bool              `json:"setup_done,omitempty"`
+	HubData       string            `json:"hub_data,omitempty"`
+	HubListen     string            `json:"hub_listen,omitempty"`
+	HubCert       string            `json:"hub_tls_cert,omitempty"`
+	HubKey        string            `json:"hub_tls_key,omitempty"`
 }
 
 type app struct {
@@ -438,6 +442,7 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("POST /api/client/join", a.api(http.HandlerFunc(a.handleJoin)))
 	mux.Handle("GET /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
 	mux.Handle("POST /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
+	mux.Handle("POST /api/hub/init", a.api(http.HandlerFunc(a.handleHubInit)))
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
 	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
@@ -576,6 +581,96 @@ func (a *app) saveDesktopConfig() error {
 	return os.WriteFile(a.configPath, data, 0o600)
 }
 
+func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Data      string `json:"data"`
+		TokenFile string `json:"token_file"`
+		Listen    string `json:"listen"`
+		HubURL    string `json:"hub_url"`
+		TLSCert   string `json:"tls_cert"`
+		TLSKey    string `json:"tls_key"`
+		TLSCA     string `json:"tls_ca"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+		return
+	}
+	for _, p := range []string{req.Data, req.TokenFile, req.TLSCert, req.TLSKey, req.TLSCA} {
+		if p != "" && (!filepath.IsAbs(p) || strings.ContainsRune(p, 0)) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "paths must be absolute"})
+			return
+		}
+	}
+	if req.Data == "" || req.TokenFile == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "data and token_file are required"})
+		return
+	}
+	host, port, err := net.SplitHostPort(req.Listen)
+	if err != nil || host == "" || port == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "listen must be host:port"})
+		return
+	}
+	if (req.TLSCert == "") != (req.TLSKey == "") {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "tls_cert and tls_key must be supplied together"})
+		return
+	}
+	if a.cfg.AgentchatPath == "" {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "agentchat_path is not configured"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	args := []string{"hub", "init", "--data", req.Data, "--admin-token-file", req.TokenFile, "--json"}
+	out, err := exec.CommandContext(ctx, a.cfg.AgentchatPath, args...).CombinedOutput()
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": strings.TrimSpace(string(out))})
+		return
+	}
+	hubURL := strings.TrimRight(strings.TrimSpace(req.HubURL), "/")
+	if hubURL == "" {
+		scheme := "http"
+		if req.TLSCert != "" {
+			scheme = "https"
+		}
+		hubURL = scheme + "://" + host + ":" + port
+	}
+	parsed, err := url.Parse(hubURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub_url must be http(s)"})
+		return
+	}
+	if parsed.Scheme == "http" && !isLoopbackHostName(parsed.Hostname()) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "non-loopback hub_url must use https"})
+		return
+	}
+	if data, err := os.ReadFile(req.TokenFile); err == nil {
+		a.token = strings.TrimSpace(string(data))
+	}
+	a.cfg.Service = "AgentChatHub"
+	a.cfg.HubData = req.Data
+	a.cfg.TokenFile = req.TokenFile
+	a.cfg.HubListen = req.Listen
+	a.cfg.HubCert = req.TLSCert
+	a.cfg.HubKey = req.TLSKey
+	a.cfg.CAFile = req.TLSCA
+	a.cfg.HubURL = hubURL
+	a.cfg.Role = "hub"
+	a.cfg.SetupDone = true
+	if err := a.saveDesktopConfig(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but desktop config could not be saved"})
+		return
+	}
+	next := `sc.exe create AgentChatHub binPath= "\"` + a.cfg.AgentchatPath + `\" service run --name AgentChatHub --log \"` + filepath.Join(req.Data, "hub.log") + `\" -- hub serve --data \"` + req.Data + `\" --listen "` + req.Listen + `"`
+	if req.TLSCert != "" {
+		next += ` --tls-cert "` + req.TLSCert + `" --tls-key "` + req.TLSKey + `"`
+	}
+	next += `" start= auto obj= LocalSystem`
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "hub_url": hubURL, "data": req.Data,
+		"token_file": req.TokenFile, "next": next,
+	})
+}
+
 func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var req struct {
@@ -603,9 +698,18 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	defaultData := ""
+	if base := os.Getenv("LOCALAPPDATA"); base != "" {
+		defaultData = filepath.Join(base, "AgentChat", "hub")
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"role": a.cfg.Role, "setup_done": a.cfg.SetupDone, "config_path": a.configPath,
 		"hub_url": a.cfg.HubURL, "agent_config": a.cfg.AgentConfig,
+		"token_file": a.cfg.TokenFile,
+		"hub_data":   a.cfg.HubData, "hub_listen": a.cfg.HubListen,
+		"hub_tls_cert": a.cfg.HubCert, "hub_tls_key": a.cfg.HubKey,
+		"default_data":  defaultData,
+		"default_token": filepath.Join(defaultData, "admin.token"),
 	})
 }
 
