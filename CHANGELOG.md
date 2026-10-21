@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.28.1] - 2026-10-22
+
+### Fixed
+
+- Installer checksum uses the release asset basename (not a local `dist/` path)
+
 ## [0.28.0] - 2026-10-22
 
 ### Fixed

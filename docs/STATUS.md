@@ -12,7 +12,8 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.28.0` publishes a complete checksum manifest including the Windows
+- `v0.28.1` fixes the installer checksum to use the release asset basename.
+  `v0.28.0` publishes a complete checksum manifest including the Windows
   installer. `v0.27.4` is published on GitHub with the security-hardening branch merge.
   It adds pre-init token reservation, Job Object process
   containment/bounded redacted output, protected service-binary checks, and
