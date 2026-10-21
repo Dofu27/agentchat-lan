@@ -138,6 +138,35 @@ func TestMarkReadConcurrentMaximum(t *testing.T) {
 	}
 }
 
+func TestMarkReadAllocatedSequenceBoundary(t *testing.T) {
+	s, _ := readReceiptStore(t)
+	ctx := context.Background()
+	var max int64
+	var sqliteVersion string
+	if err := s.db.QueryRow(`SELECT next_seq FROM rooms WHERE id='general'`).Scan(&max); err != nil || max != 3 {
+		t.Fatal("highest allocated sequence", max, err)
+	}
+	if _, err := s.MarkRead(ctx, "reader", "general", max); err != nil {
+		t.Fatal("equality must be accepted", err)
+	}
+	if _, err := s.MarkRead(ctx, "reader", "general", max+1); !errors.Is(err, ErrInvalidReadSeq) {
+		t.Fatal("next unused sequence must be rejected", err)
+	}
+	if err := s.CreateRoom(ctx, protocol.Room{ID: "empty-read"}, []string{"reader"}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MarkRead(ctx, "reader", "empty-read", 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.MarkRead(ctx, "reader", "empty-read", 1); !errors.Is(err, ErrInvalidReadSeq) {
+		t.Fatal("empty room accepts only zero", err)
+	}
+	if err := s.db.QueryRow(`SELECT sqlite_version()`).Scan(&sqliteVersion); err != nil {
+		t.Fatal(err)
+	}
+	t.Log("SQLite runtime", sqliteVersion, "supports UPDATE RETURNING")
+}
+
 func TestMarkReadStaysLocalOnFederationLink(t *testing.T) {
 	s, _ := federationTestStore(t)
 	enableFederationTest(t, s, 10, 3)
