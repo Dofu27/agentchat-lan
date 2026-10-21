@@ -59,6 +59,7 @@ type app struct {
 var (
 	instanceMutex windows.Handle
 	adminWindow   webview2.WebView
+	chatWindow    webview2.WebView
 )
 
 func main() {
@@ -234,6 +235,14 @@ func main() {
 		})
 		return nil
 	})
+	_ = w.Bind("__openChatWeb", func() error {
+		w.Dispatch(func() {
+			if err := a.openChatWindow(); err != nil {
+				log.Printf("open chat window: %v", err)
+			}
+		})
+		return nil
+	})
 	w.Navigate(origin + "/")
 	w.Run()
 }
@@ -316,6 +325,64 @@ func (a *app) openAdminWindow() error {
 	return nil
 }
 
+type agentConfigFile struct {
+	HubURL    string `json:"hub_url"`
+	AgentName string `json:"agent_name"`
+	AgentID   string `json:"agent_id"`
+	Token     string `json:"token"`
+}
+
+func (a *app) loadAgentConfig() (agentConfigFile, error) {
+	if strings.TrimSpace(a.cfg.AgentConfig) == "" {
+		return agentConfigFile{}, errors.New("agent_config is not configured")
+	}
+	data, err := os.ReadFile(a.cfg.AgentConfig)
+	if err != nil {
+		return agentConfigFile{}, err
+	}
+	var cfg agentConfigFile
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return agentConfigFile{}, err
+	}
+	if strings.TrimSpace(cfg.Token) == "" || strings.TrimSpace(cfg.AgentID) == "" {
+		return agentConfigFile{}, errors.New("agent config has no token or agent_id")
+	}
+	return cfg, nil
+}
+
+func (a *app) openChatWindow() error {
+	if chatWindow != nil {
+		chatWindow.Navigate(a.cfg.HubURL + "/")
+		return nil
+	}
+	agent, err := a.loadAgentConfig()
+	if err != nil {
+		return err
+	}
+	chatWindow = webview2.NewWithOptions(webview2.WebViewOptions{
+		Debug: false,
+		WindowOptions: webview2.WindowOptions{
+			Title: "AgentChat", Width: 1280, Height: 860, Center: true,
+		},
+	})
+	if chatWindow == nil {
+		return errors.New("could not create the chat WebView2 window")
+	}
+	chatWindow.Init(chatLoginScript(agent.Token, a.cfg.HubURL))
+	chatWindow.Navigate(a.cfg.HubURL + "/")
+	return nil
+}
+
+func chatLoginScript(token, hubURL string) string {
+	u, _ := url.Parse(hubURL)
+	origin := ""
+	if u != nil {
+		origin = u.Scheme + "://" + u.Host
+	}
+	return `(function(){var t=` + strconv.Quote(token) + `,o=` + strconv.Quote(origin) +
+		`;if(location.origin!==o)return;try{sessionStorage.setItem("agentchat_token",t);}catch(e){}})();`
+}
+
 func adminLoginScript(token, hubURL string) string {
 	u, _ := url.Parse(hubURL)
 	origin := ""
@@ -353,6 +420,7 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/logs", a.api(http.HandlerFunc(a.handleLogs)))
 	mux.Handle("GET /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
 	mux.Handle("POST /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
+	mux.Handle("GET /api/chat", a.api(http.HandlerFunc(a.handleChat)))
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
 	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
@@ -396,6 +464,24 @@ func (a *app) bridgeResult(action string) map[string]any {
 		result["error"] = err.Error()
 	}
 	return result
+}
+
+func (a *app) handleChat(w http.ResponseWriter, r *http.Request) {
+	out := map[string]any{
+		"hub_url":      a.cfg.HubURL,
+		"agent_config": a.cfg.AgentConfig,
+	}
+	agent, err := a.loadAgentConfig()
+	if err != nil {
+		out["ok"] = false
+		out["error"] = err.Error()
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
+	out["ok"] = true
+	out["agent_name"] = agent.AgentName
+	out["agent_id"] = agent.AgentID
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (a *app) handleBridge(w http.ResponseWriter, r *http.Request) {

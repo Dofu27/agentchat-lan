@@ -7,8 +7,8 @@ Updated: 2026-10-21
 - Released: `v0.21.11` (`75336ad`), Codex `REVIEW_OK` at AgentChat `#354`.
 - F4 local explicit read receipts merged for `v0.22.0` from Codex `1602baa`,
   with a receipts ACL fix; federation forwarding remains disabled.
-- `v0.22.2` adds the desktop Bridge tab and fixed local bridge API actions;
-  unified role tabs, setup, and single-installer work are next.
+- `v0.22.3` adds the desktop Chat tab (embedded hub Web UI) and fixed local
+  bridge actions; role-based setup and single-installer work are next.
 - Live DSH bridge: real headless replies `DSH_2111_OK` (`#349`) and
   `DSH_RESTART_OK` (`#335`); one-time fixed cutoff initialization is durable.
 - Windows bridge install has a Startup-folder fallback when Task Scheduler is
