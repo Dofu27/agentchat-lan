@@ -60,7 +60,13 @@ func (a *App) serviceInstall(args []string) int {
 		return a.fail(fmt.Errorf("prepare logs failed"))
 	}
 	if err := logbroker.PreparePermissions(logOpts.Dir, *logSID); err != nil {
-		return a.fail(fmt.Errorf("prepare log permissions failed"))
+		if runtime.GOOS != "windows" {
+			return a.fail(fmt.Errorf("prepare log permissions failed"))
+		}
+		// Per-user bridges cannot always change a protected DACL. The log
+		// directory is still user-owned; keep the install usable and surface
+		// the degraded ACL preparation explicitly.
+		fmt.Fprintf(a.Stderr, "warning: log ACL preparation failed: %v\n", err)
 	}
 	probe, err := logbroker.New(logOpts)
 	if err != nil {
@@ -94,10 +100,18 @@ func (a *App) serviceInstall(args []string) int {
 		tr := `cmd /c "` + launcher + `"`
 		cmd := exec.Command("schtasks", "/Create", "/TN", *name, "/SC", "ONLOGON", "/TR", tr, "/F")
 		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return a.fail(fmt.Errorf("create scheduled task: %w: %s", err, strings.TrimSpace(string(out))))
+		if err == nil && exec.Command("schtasks", "/Query", "/TN", *name).Run() == nil {
+			fmt.Fprintf(a.Stdout, "installed scheduled task %s at logon (launcher: %s)\n", *name, launcher)
+			return 0
 		}
-		fmt.Fprintf(a.Stdout, "installed scheduled task %s at logon (launcher: %s)\n", *name, launcher)
+		startup, startupErr := installWindowsStartup(*name, launcher)
+		if startupErr != nil {
+			if err != nil {
+				return a.fail(fmt.Errorf("create scheduled task: %w: %s", err, strings.TrimSpace(string(out))))
+			}
+			return a.fail(fmt.Errorf("Task Scheduler unavailable and Startup install failed: %w", startupErr))
+		}
+		fmt.Fprintf(a.Stdout, "Task Scheduler unavailable; installed Startup entry %s (launcher: %s)\n", startup, launcher)
 		return 0
 	}
 	if runtime.GOOS == "linux" {
@@ -150,7 +164,10 @@ func (a *App) serviceUninstall(args []string) int {
 		if launcher, pathErr := windowsLauncherPath(*name); pathErr == nil {
 			_ = os.Remove(launcher)
 		}
-		fmt.Fprintf(a.Stdout, "removed scheduled task %s\n", *name)
+		if startup, startupErr := windowsStartupPath(*name); startupErr == nil {
+			_ = os.Remove(startup)
+		}
+		fmt.Fprintf(a.Stdout, "removed scheduled task/startup entry %s\n", *name)
 		return 0
 	}
 	if runtime.GOOS == "linux" {
@@ -177,11 +194,17 @@ func (a *App) serviceStatus(args []string) int {
 	}
 	if runtime.GOOS == "windows" {
 		out, err := exec.Command("schtasks", "/Query", "/TN", *name).CombinedOutput()
-		if err != nil {
-			return a.fail(fmt.Errorf("scheduled task %s is not installed: %s", *name, strings.TrimSpace(string(out))))
+		if err == nil {
+			fmt.Fprint(a.Stdout, string(out))
+			return 0
 		}
-		fmt.Fprint(a.Stdout, string(out))
-		return 0
+		if startup, startupErr := windowsStartupPath(*name); startupErr == nil {
+			if _, statErr := os.Stat(startup); statErr == nil {
+				fmt.Fprintf(a.Stdout, "installed Startup entry %s\n", startup)
+				return 0
+			}
+		}
+		return a.fail(fmt.Errorf("scheduled task %s is not installed: %s", *name, strings.TrimSpace(string(out))))
 	}
 	if runtime.GOOS == "linux" {
 		out, err := exec.Command("systemctl", "--user", "is-active", *name).CombinedOutput()
@@ -210,6 +233,32 @@ func writeWindowsLauncher(name, exe string, args []string) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+func windowsStartupPath(name string) (string, error) {
+	appData := os.Getenv("APPDATA")
+	if appData == "" {
+		return "", fmt.Errorf("APPDATA is not set")
+	}
+	return filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Startup", name+".cmd"), nil
+}
+
+func installWindowsStartup(name, launcher string) (string, error) {
+	dest, err := windowsStartupPath(name)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(launcher)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(dest, data, 0o600); err != nil {
+		return "", err
+	}
+	return dest, nil
 }
 
 func windowsLauncherPath(name string) (string, error) {
