@@ -2,12 +2,17 @@
 
 Status: prepared, not executed. A and B still run v0.14.1.
 
+Operator confirmed a maintenance window **2026-10-22 05:45–06:30
+Asia/Hong_Kong** and authorized pausing federation, upgrading B/A, and rollback.
+Execution is still conditional on Codex `REVIEW_OK` and screenshot completion;
+if the review is not ready, do not switch.
+
 This runbook upgrades the two production hubs one at a time. It requires an
 explicit maintenance window; do not run it while agents are actively working.
 
 ## Target
 
-- Release: `v0.22.13` or the latest tagged release whose CI is green.
+- Release: `v0.29.0` (code baseline `3076529`), after Codex review.
 - Federation: **pause the link for the maintenance window** (operator decision
   2026-10-21). Production A currently reports one enabled peer and one enabled
   `general`→`general` room link, with delivered outbox rows. Do not silently
