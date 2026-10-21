@@ -23,11 +23,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
+	"unsafe"
 
 	agentconfig "github.com/Dofu27/agentchat-lan/internal/config"
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
@@ -518,12 +521,13 @@ func (b *cappedBuffer) Write(p []byte) (int, error) {
 		b.truncated = true
 		return len(p), nil
 	}
+	original := len(p)
 	if len(p) > remaining {
 		b.truncated = true
 		p = p[:remaining]
 	}
 	_, _ = b.buf.Write(p)
-	return len(p), nil
+	return original, nil
 }
 
 func (b *cappedBuffer) String() string {
@@ -535,20 +539,78 @@ func (b *cappedBuffer) String() string {
 	return b.buf.String()
 }
 
+func createKillJob() windows.Handle {
+	job, err := windows.CreateJobObject(nil, nil)
+	if err != nil {
+		return 0
+	}
+	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
+	info.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+	if _, err := windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation,
+		uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info))); err != nil {
+		windows.CloseHandle(job)
+		return 0
+	}
+	return job
+}
+
+func resumeProcessThreads(pid uint32) {
+	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
+	if err != nil {
+		return
+	}
+	defer windows.CloseHandle(snap)
+	var entry windows.ThreadEntry32
+	entry.Size = uint32(unsafe.Sizeof(entry))
+	for err = windows.Thread32First(snap, &entry); err == nil; err = windows.Thread32Next(snap, &entry) {
+		if entry.OwnerProcessID != pid {
+			continue
+		}
+		h, err := windows.OpenThread(windows.THREAD_SUSPEND_RESUME, false, entry.ThreadID)
+		if err != nil {
+			continue
+		}
+		_, _ = windows.ResumeThread(h)
+		windows.CloseHandle(h)
+	}
+}
+
 func runBoundedCommand(ctx context.Context, name string, args []string, limit int) (string, error) {
 	out := &cappedBuffer{limit: limit}
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdout = out
 	cmd.Stderr = out
 	cmd.WaitDelay = 2 * time.Second
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_SUSPENDED}
+	job := createKillJob()
+	if job != 0 {
+		defer windows.CloseHandle(job)
+	}
+	if err := cmd.Start(); err != nil {
+		return out.String(), err
+	}
+	if job != 0 {
+		proc, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE|windows.PROCESS_QUERY_INFORMATION, false, uint32(cmd.Process.Pid))
+		if err == nil {
+			_ = windows.AssignProcessToJobObject(job, proc)
+			windows.CloseHandle(proc)
+		}
+	}
+	resumeProcessThreads(uint32(cmd.Process.Pid))
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return nil
 		}
 		return exec.Command("taskkill.exe", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
 	}
-	err := cmd.Run()
+	err := cmd.Wait()
 	return out.String(), err
+}
+
+var credentialPattern = regexp.MustCompile(`(?i)(agentchat_token|authorization|bearer|token|secret|password|api[_-]?key)\s*[:=]\s*[^\s"']+|agt_[A-Za-z0-9_-]+|adm_[A-Za-z0-9_-]+|github_pat_[A-Za-z0-9_]+`)
+
+func redactOutput(s string) string {
+	return credentialPattern.ReplaceAllString(s, "[redacted]")
 }
 
 func bridgeResult(cfg config, action string) map[string]any {
@@ -579,10 +641,10 @@ func bridgeResult(cfg config, action string) map[string]any {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	out, err := runBoundedCommand(ctx, cfg.AgentchatPath, args, 16<<10)
-	result["output"] = strings.TrimSpace(out)
+	result["output"] = redactOutput(strings.TrimSpace(out))
 	result["ok"] = err == nil
 	if err != nil {
-		result["error"] = err.Error()
+		result["error"] = redactOutput(err.Error())
 	}
 	return result
 }
@@ -824,10 +886,10 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	args := []string{"hub", "init", "--data", req.Data, "--admin-token-file", req.TokenFile, "--json"}
-	out, err := exec.CommandContext(ctx, base.AgentchatPath, args...).CombinedOutput()
+	out, err := runBoundedCommand(ctx, base.AgentchatPath, args, 16<<10)
 	if err != nil {
 		cleanupInit()
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": strings.TrimSpace(string(out))})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": redactOutput(strings.TrimSpace(out))})
 		return
 	}
 	tokenData, err := os.ReadFile(req.TokenFile)
@@ -858,28 +920,97 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		oldClient.CloseIdleConnections()
 	}
 	a.mu.Unlock()
-	next := `sc.exe create AgentChatHub binPath= "\"` + candidate.AgentchatPath + `\" service run --name AgentChatHub --log \"` + filepath.Join(req.Data, "hub.log") + `\" -- hub serve --data \"` + req.Data + `\" --listen "` + req.Listen + `"`
-	if req.TLSCert != "" {
-		next += ` --tls-cert "` + req.TLSCert + `" --tls-key "` + req.TLSKey + `"`
+	next := ""
+	serviceError := ""
+	if err := trustedServiceBinary(candidate.AgentchatPath); err != nil {
+		serviceError = err.Error()
+	} else {
+		binPath := quoteWindowsArg(candidate.AgentchatPath) + " service run --name AgentChatHub --log " +
+			quoteWindowsArg(filepath.Join(req.Data, "hub.log")) + " -- hub serve --data " +
+			quoteWindowsArg(req.Data) + " --listen " + quoteWindowsArg(req.Listen)
+		if req.TLSCert != "" {
+			binPath += " --tls-cert " + quoteWindowsArg(req.TLSCert) + " --tls-key " + quoteWindowsArg(req.TLSKey)
+		}
+		next = "sc.exe create AgentChatHub binPath= " + quoteWindowsArg(binPath) + " start= auto obj= LocalSystem"
 	}
-	next += `" start= auto obj= LocalSystem`
 	result := map[string]any{
 		"ok": true, "hub_url": hubURL, "data": req.Data,
 		"token_file": req.TokenFile, "next": next,
 	}
+	if serviceError != "" {
+		result["service_error"] = serviceError
+	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func quoteWindowsArg(s string) string {
+	if s == "" {
+		return `""`
+	}
+	if !strings.ContainsAny(s, " \t\n\v\"") {
+		return s
+	}
+	var b strings.Builder
+	b.WriteByte('"')
+	backslashes := 0
+	for _, r := range s {
+		if r == '\\' {
+			backslashes++
+			continue
+		}
+		if r == '"' {
+			b.WriteString(strings.Repeat(`\`, 2*backslashes+1))
+			b.WriteByte('"')
+			backslashes = 0
+			continue
+		}
+		if backslashes > 0 {
+			b.WriteString(strings.Repeat(`\`, backslashes))
+			backslashes = 0
+		}
+		b.WriteRune(r)
+	}
+	if backslashes > 0 {
+		b.WriteString(strings.Repeat(`\`, 2*backslashes))
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+func trustedServiceBinary(path string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	info, err := os.Lstat(abs)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("service binary must be a regular, non-reparse file")
+	}
+	lower := strings.ToLower(filepath.Clean(abs))
+	for _, root := range []string{os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)"), os.Getenv("WINDIR")} {
+		if root == "" {
+			continue
+		}
+		root = strings.ToLower(filepath.Clean(root))
+		if strings.HasPrefix(lower, root+string(os.PathSeparator)) {
+			return nil
+		}
+	}
+	return errors.New("service binary is in a user-writable directory")
 }
 
 func (a *app) hubServiceBinPath() (string, error) {
 	if a.cfg.AgentchatPath == "" || a.cfg.HubData == "" || a.cfg.HubListen == "" {
 		return "", errors.New("host setup is incomplete")
 	}
-	quote := func(v string) string { return `"` + v + `"` }
-	bin := quote(a.cfg.AgentchatPath) + " service run --name AgentChatHub --log " +
-		quote(filepath.Join(a.cfg.HubData, "hub.log")) + " -- hub serve --data " +
-		quote(a.cfg.HubData) + " --listen " + quote(a.cfg.HubListen)
+	if err := trustedServiceBinary(a.cfg.AgentchatPath); err != nil {
+		return "", err
+	}
+	bin := quoteWindowsArg(a.cfg.AgentchatPath) + " service run --name AgentChatHub --log " +
+		quoteWindowsArg(filepath.Join(a.cfg.HubData, "hub.log")) + " -- hub serve --data " +
+		quoteWindowsArg(a.cfg.HubData) + " --listen " + quoteWindowsArg(a.cfg.HubListen)
 	if a.cfg.HubCert != "" {
-		bin += " --tls-cert " + quote(a.cfg.HubCert) + " --tls-key " + quote(a.cfg.HubKey)
+		bin += " --tls-cert " + quoteWindowsArg(a.cfg.HubCert) + " --tls-key " + quoteWindowsArg(a.cfg.HubKey)
 	}
 	return bin, nil
 }
@@ -897,8 +1028,8 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	run := func(args ...string) (string, error) {
-		out, err := exec.CommandContext(ctx, "sc.exe", args...).CombinedOutput()
-		return strings.TrimSpace(string(out)), err
+		out, err := runBoundedCommand(ctx, "sc.exe", args, 16<<10)
+		return strings.TrimSpace(out), err
 	}
 	result := map[string]any{"action": req.Action}
 	switch req.Action {

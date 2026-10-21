@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -105,14 +106,49 @@ func (a *App) hubInit(args []string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	token, err := hub.Init(ctx, hubDBPath(*data))
-	if err != nil {
-		return a.fail(err)
+	var reserved *os.File
+	if *tokenFile != "" {
+		if err := os.MkdirAll(filepath.Dir(*tokenFile), 0o700); err != nil {
+			return a.fail(fmt.Errorf("create token directory: %w", err))
+		}
+		f, err := os.OpenFile(*tokenFile, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			if errors.Is(err, os.ErrExist) {
+				return a.fail(fmt.Errorf("%s already exists; refusing to overwrite a secret", *tokenFile))
+			}
+			return a.fail(fmt.Errorf("reserve token file: %w", err))
+		}
+		reserved = f
 	}
 
-	if *tokenFile != "" {
-		if err := writeSecret(*tokenFile, token); err != nil {
-			return a.fail(err)
+	token, err := hub.Init(ctx, hubDBPath(*data))
+	if err != nil {
+		if reserved != nil {
+			name := reserved.Name()
+			reserved.Close()
+			_ = os.Remove(name)
+		}
+		return a.fail(err)
+	}
+	if reserved != nil {
+		if _, err := reserved.Seek(0, io.SeekStart); err != nil {
+			reserved.Close()
+			return a.fail(fmt.Errorf("seek token file: %w", err))
+		}
+		if err := reserved.Truncate(0); err != nil {
+			reserved.Close()
+			return a.fail(fmt.Errorf("truncate token file: %w", err))
+		}
+		if _, err := reserved.WriteString(token + "\n"); err != nil {
+			reserved.Close()
+			return a.fail(fmt.Errorf("write token file: %w", err))
+		}
+		if err := reserved.Sync(); err != nil {
+			reserved.Close()
+			return a.fail(fmt.Errorf("sync token file: %w", err))
+		}
+		if err := reserved.Close(); err != nil {
+			return a.fail(fmt.Errorf("close token file: %w", err))
 		}
 	}
 	out := map[string]any{

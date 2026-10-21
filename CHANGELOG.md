@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.27.4] - 2026-10-21 (pending review)
+
+### Security
+
+- Hub-init reserves the admin token file with `O_EXCL` before initializing the
+  database, so a concurrent token creation fails before DB initialization
+- Bridge/Host-init/service commands run under a Windows Job Object with
+  `KILL_ON_JOB_CLOSE`; bounded output follows `io.Writer` and redacts
+  credential-shaped values
+- Host service creation refuses a binary outside Program Files/Windows
+- Federation acquires the global delivery slot before claiming a lease
+
 ## [0.27.3] - 2026-10-21
 
 ### Changed
