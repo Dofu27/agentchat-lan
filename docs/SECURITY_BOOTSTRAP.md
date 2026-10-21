@@ -83,6 +83,11 @@ It validates the credential before opening the DB. The same token/hash is
 idempotent; a different existing admin hash is never replaced. Partial or corrupt
 credential files require operator inspection; they never authorize a DB commit.
 No plaintext credential appears in ordinary errors or file-backed init output.
+An error about this attempt not committing an admin credential is not evidence
+that a DB file is absent or disposable. InitWithToken opens/migrates the DB
+before checking the admin hash, and an interrupted response can follow a commit.
+Retain the DB and credential together and inspect/resume; do not delete the DB
+based on an initialization error message.
 The existing no-file CLI mode retains its explicit one-time stdout delivery.
 Keep the retained credential private; do not paste it into logs or review chat.
 

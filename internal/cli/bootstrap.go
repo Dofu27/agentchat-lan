@@ -74,17 +74,17 @@ func bootstrapHub(ctx context.Context, db, path string, resume bool, ops bootstr
 		}
 		closeErr := f.Close()
 		if err := errors.Join(writeErr, syncErr, closeErr); err != nil {
-			return fmt.Errorf("credential persistence failed; database was not initialized; inspect retained file %s: %w", path, err)
+			return fmt.Errorf("credential persistence failed; this attempt did not commit an admin credential; inspect retained file %s: %w", path, err)
 		}
 		if ops.syncParent != nil {
 			if err := ops.syncParent(path); err != nil {
-				return fmt.Errorf("credential directory persistence failed; database was not initialized; retained file %s: %w", path, err)
+				return fmt.Errorf("credential directory persistence failed; this attempt did not commit an admin credential; retained file %s: %w", path, err)
 			}
 		}
 	}
 	decoded, decodeErr := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(token, "adm_"))
 	if !strings.HasPrefix(token, "adm_") || decodeErr != nil || len(decoded) != 32 {
-		return errors.New("retained initializer credential is invalid; database was not initialized")
+		return errors.New("retained initializer credential is invalid; this attempt did not commit an admin credential")
 	}
 	if err := ops.initialize(ctx, db, token); err != nil {
 		return fmt.Errorf("initialization failed; credential retained at %s; retry with --resume-init and the same --admin-token-file: %w", path, err)
