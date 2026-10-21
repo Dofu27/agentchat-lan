@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -226,6 +227,25 @@ func (s *Store) EnsureAdminToken(ctx context.Context) (string, bool, error) {
 		return token, true, nil
 	}
 	return "", false, errors.New("admin token was initialized concurrently; retrieve it from the initializer")
+}
+
+// InitializeAdminToken supports durable credential delivery before DB commit.
+// Repeating the same initializer token is safe; a different token never replaces it.
+func (s *Store) InitializeAdminToken(ctx context.Context, token string) error {
+	decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(token, "adm_"))
+	if !strings.HasPrefix(token, "adm_") || err != nil || len(decoded) != 32 {
+		return errors.New("invalid initializer credential")
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err = s.db.ExecContext(ctx, `INSERT OR IGNORE INTO settings(key,value) VALUES('admin_token_hash',?)`, hashToken(token))
+	if err != nil {
+		return err
+	}
+	if !s.IsAdminToken(ctx, token) {
+		return errors.New("hub already initialized with a different admin credential")
+	}
+	return nil
 }
 
 // RotateAdminToken replaces the admin credential and returns the new plaintext

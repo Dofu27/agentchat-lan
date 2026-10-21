@@ -266,6 +266,12 @@ func (f *Federation) runV1Worker(ctx context.Context, peerID string) error {
 		if ctx.Err() != nil {
 			return nil
 		}
+		// Admission precedes Claim: queueing for capacity must not consume a lease.
+		select {
+		case f.deliverySlots <- struct{}{}:
+		case <-ctx.Done():
+			return nil
+		}
 		var j *store.FederationJob
 		var err error
 		if peerID == "" {
@@ -274,17 +280,13 @@ func (f *Federation) runV1Worker(ctx context.Context, peerID string) error {
 			j, err = f.store.ClaimFederationJobForPeer(ctx, peerID, time.Now(), f.opts.LeaseDuration)
 		}
 		if err != nil {
+			<-f.deliverySlots
 			if ctx.Err() != nil {
 				return nil
 			}
 			return err
 		}
 		if j != nil {
-			select {
-			case f.deliverySlots <- struct{}{}:
-			case <-ctx.Done():
-				return nil
-			}
 			delivered, permanent, reason := f.deliver(ctx, *j)
 			<-f.deliverySlots
 			// Preserve a lease on abrupt cancellation; a restart safely retries it.
@@ -300,6 +302,7 @@ func (f *Federation) runV1Worker(ctx context.Context, peerID string) error {
 			}
 			continue
 		}
+		<-f.deliverySlots
 		select {
 		case <-ctx.Done():
 			return nil

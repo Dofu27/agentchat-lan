@@ -123,6 +123,12 @@ rendered.
 
 ## Headless API (local diagnostics)
 
+Service executable validation, process containment, and explicit bootstrap
+credential recovery are specified in [SECURITY_BOOTSTRAP.md](SECURITY_BOOTSTRAP.md).
+An interrupted file-backed initializer retains its credential; inspect the
+reported path and use the CLI's `--resume-init` with the same data/token paths.
+Do not delete a retained credential merely because the desktop reported failure.
+
 For supervised diagnostics only:
 
 ```powershell
