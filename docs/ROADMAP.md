@@ -83,6 +83,8 @@ remains disabled unless the operator opts in.
 
 ## P4 — Federation and cross-platform
 
+Design: [THREE_NODE_FEDERATION.md](THREE_NODE_FEDERATION.md).
+
 - Promote F0–F3 only after P1 has a stable rollback path.
 - F4 read receipts after P3.
 - Three nodes, at least two peers, with explicit trust domains and link maps.
