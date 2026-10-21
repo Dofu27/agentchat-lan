@@ -48,10 +48,12 @@ func (s *Server) handleRemoteDM(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, room)
 }
 func (s *Server) handleFederationDM(w http.ResponseWriter, r *http.Request) {
-	if !s.federationPeer(w, r) {
+	node, ok := s.opts.Federation.authenticatedPeer(r)
+	if !ok {
+		http.Error(w, "unauthorized", 401)
 		return
 	}
-	if !s.allow("federation-dm:"+s.opts.Federation.opts.Peer.NodeID, 120, 20) {
+	if !s.allow("federation-dm:"+node, 120, 20) {
 		http.Error(w, "rate limited", 429)
 		return
 	}
@@ -66,7 +68,7 @@ func (s *Server) handleFederationDM(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid DM envelope", 400)
 		return
 	}
-	receipt, err := s.store.ImportFederationDM(r.Context(), s.opts.Federation.opts.Peer.NodeID, e)
+	receipt, err := s.store.ImportFederationDM(r.Context(), node, e)
 	if err != nil {
 		if errors.Is(err, store.ErrFederationConflict) {
 			writeError(w, 409, "conflict", "conflicting federation delivery", nil)
@@ -115,7 +117,7 @@ func (f *Federation) deliverDM(ctx context.Context, j store.FederationJob) (bool
 	if json.Unmarshal([]byte(j.Payload), &e) != nil {
 		return false, true, "invalid stored envelope"
 	}
-	if j.PeerID != f.opts.Peer.NodeID || e.OriginNodeID != f.nodeID || !f.store.FederationDMJobAuthorized(ctx, j, e) {
+	if _, ok := f.peer(j.PeerID); !ok || e.OriginNodeID != f.nodeID || !f.store.FederationDMJobAuthorized(ctx, j, e) {
 		return false, true, "peer or room link disabled"
 	}
 	req, cancel, err := f.peerRequest(ctx, j.PeerID, "GET", "/federation/v2/capabilities", nil)

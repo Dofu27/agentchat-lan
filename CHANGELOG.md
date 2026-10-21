@@ -11,6 +11,9 @@ v1.0.
 - Opt-in F4 federation read-receipt forwarding: authenticated, linked,
   monotonic remote cursor, additive `federation_receipts`, bounded best-effort
   fanout, no ACK changes and no re-forwarding loop
+- Multi-peer federated DM fanout: each configured peer has its own conversation
+  and outbox; text DMs no longer require a single-peer federation. Multi-peer DM
+  typing remains single-peer.
 
 ## [0.28.1] - 2026-10-22
 
