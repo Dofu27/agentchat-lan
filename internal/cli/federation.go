@@ -118,9 +118,6 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 		if cfg.Peer.NodeID != "" || cfg.Peer.BaseURL != "" || cfg.Peer.SecretFile != "" {
 			return nil, errors.New("use either peer or peers, not both")
 		}
-		if len(cfg.DMConversations) > 0 {
-			return nil, errors.New("multi-peer federation supports text room links only")
-		}
 		opts := hub.FederationOptions{MaxOutbox: cfg.MaxOutbox, MaxAttempts: cfg.MaxAttempts, ReadReceipts: cfg.ReadReceipts}
 		if len(fileDirs) > 0 {
 			opts.FileDir = fileDirs[0]
@@ -139,6 +136,15 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 				return nil, err
 			}
 			opts.Peers = append(opts.Peers, hub.FederationPeerOptions{NodeID: p.NodeID, BaseURL: p.BaseURL, Secret: strings.TrimSpace(raw), TLS: client.TLSOptions{CAFile: resolve(p.CAFile)}})
+		}
+		for _, c := range cfg.DMConversations {
+			if c.PeerID == "" || !known[c.PeerID] {
+				return nil, errors.New("DM conversation references an unknown peer")
+			}
+			if c.Typing {
+				return nil, errors.New("multi-peer federation does not support DM typing")
+			}
+			opts.DMConversations = append(opts.DMConversations, c)
 		}
 		links := make(map[string]bool)
 		for _, l := range cfg.Links {

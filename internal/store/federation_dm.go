@@ -17,6 +17,7 @@ import (
 // Configuration is approval of a stable two-end identity pair, not a directory
 // lookup by display name and not permission to export an existing local DM.
 type FederationDMConversation struct {
+	PeerID         string `json:"peer_id,omitempty"`
 	Typing         bool   `json:"typing,omitempty"`
 	ConversationID string `json:"conversation_id"`
 	LinkID         string `json:"link_id"`
@@ -117,7 +118,7 @@ func (s *Store) ConfigureFederationDM(ctx context.Context, peer string, conversa
 			return err
 		}
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT peer_id,conversation_id,epoch,local_room FROM federation_dm_conversations WHERE active=1`)
+	rows, err := tx.QueryContext(ctx, `SELECT peer_id,conversation_id,epoch,local_room FROM federation_dm_conversations WHERE active=1 AND peer_id=?`, peer)
 	if err != nil {
 		return err
 	}
