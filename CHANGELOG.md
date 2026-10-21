@@ -17,6 +17,8 @@ v1.0.
 - Linux/macOS launcher rejects non-HTTP(S) or userinfo hub URLs, normalizes the
   URL, and shows role-specific guidance; it remains a browser launcher, not the
   full WebView console.
+- Desktop Join saves a new agent config with `O_EXCL`; concurrent joins can no
+  longer overwrite the first successful config.
 
 ## [0.28.1] - 2026-10-22
 
