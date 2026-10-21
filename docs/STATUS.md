@@ -12,7 +12,8 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.24.1` performs Join network I/O outside the runtime lock. `v0.24.0` binds
+- `v0.24.2` performs Host-init CLI I/O outside the runtime lock and builds the
+  TLS client before initialization. `v0.24.1` performs Join network I/O outside the runtime lock. `v0.24.0` binds
   chat tokens to the agent config origin, strengthens installer identity/manifest
   checks, writes config atomically, and adds bounded multi-peer workers.
   `v0.22.18` rejects empty desktop capabilities and non-exact JSON media types;

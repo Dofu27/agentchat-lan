@@ -710,18 +710,12 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "tls_cert and tls_key must be supplied together"})
 		return
 	}
-	if a.cfg.AgentchatPath == "" {
+	a.mu.RLock()
+	base := a.cfg
+	configPath := a.configPath
+	a.mu.RUnlock()
+	if base.AgentchatPath == "" {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "agentchat_path is not configured"})
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	args := []string{"hub", "init", "--data", req.Data, "--admin-token-file", req.TokenFile, "--json"}
-	out, err := exec.CommandContext(ctx, a.cfg.AgentchatPath, args...).CombinedOutput()
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": strings.TrimSpace(string(out))})
 		return
 	}
 	hubURL := strings.TrimRight(strings.TrimSpace(req.HubURL), "/")
@@ -741,7 +735,7 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "non-loopback hub_url must use https"})
 		return
 	}
-	candidate := a.cfg
+	candidate := base
 	candidate.Service = "AgentChatHub"
 	candidate.HubData = req.Data
 	candidate.TokenFile = req.TokenFile
@@ -752,17 +746,27 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	candidate.HubURL = hubURL
 	candidate.Role = "hub"
 	candidate.SetupDone = true
+	client, err := newHubClient(candidate, configPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub TLS client could not be built"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	args := []string{"hub", "init", "--data", req.Data, "--admin-token-file", req.TokenFile, "--json"}
+	out, err := exec.CommandContext(ctx, base.AgentchatPath, args...).CombinedOutput()
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": strings.TrimSpace(string(out))})
+		return
+	}
 	tokenData, err := os.ReadFile(req.TokenFile)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token could not be read"})
 		return
 	}
-	client, err := newHubClient(candidate, a.configPath)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but TLS client could not be built"})
-		return
-	}
+	a.mu.Lock()
 	if err := a.saveConfig(candidate); err != nil {
+		a.mu.Unlock()
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but desktop config could not be saved"})
 		return
 	}
@@ -773,7 +777,8 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	if oldClient != nil {
 		oldClient.CloseIdleConnections()
 	}
-	next := `sc.exe create AgentChatHub binPath= "\"` + a.cfg.AgentchatPath + `\" service run --name AgentChatHub --log \"` + filepath.Join(req.Data, "hub.log") + `\" -- hub serve --data \"` + req.Data + `\" --listen "` + req.Listen + `"`
+	a.mu.Unlock()
+	next := `sc.exe create AgentChatHub binPath= "\"` + candidate.AgentchatPath + `\" service run --name AgentChatHub --log \"` + filepath.Join(req.Data, "hub.log") + `\" -- hub serve --data \"` + req.Data + `\" --listen "` + req.Listen + `"`
 	if req.TLSCert != "" {
 		next += ` --tls-cert "` + req.TLSCert + `" --tls-key "` + req.TLSKey + `"`
 	}
