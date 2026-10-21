@@ -64,6 +64,19 @@ contains tokens and federation secrets and must never be committed.
 
 On 2026-10-22 `v0.28.1` was staged read-only on A at
 `/home/operator/agentchat-staging/v0.28.1/agentchat` (mode 0700, version checked).
+
+A runs the hub in Docker (`docker ps` shows `agentchat:m141-admin-reset`), not
+from a host binary. A staged image was built without replacing the running
+container:
+
+```text
+agentchat:v0.28.1  (FROM agentchat:m141-admin-reset + /usr/local/bin/agentchat)
+docker run --rm ... version → agentchat 0.28.1
+```
+
+The maintenance upgrade must preserve A's current container mounts, ports,
+user, and TLS/federation flags. Record `docker inspect agentchat` before
+stopping it. B's runtime is not yet verified from this host.
 No service was stopped or replaced. B staging was not possible from this host
 because the A→B SSH key is denied; use B's own console/SSH path during the
 maintenance window.
