@@ -443,6 +443,7 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
 	mux.Handle("POST /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
 	mux.Handle("POST /api/hub/init", a.api(http.HandlerFunc(a.handleHubInit)))
+	mux.Handle("POST /api/hub/service", a.api(http.HandlerFunc(a.handleHubService)))
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
 	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
@@ -669,6 +670,78 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		"ok": true, "hub_url": hubURL, "data": req.Data,
 		"token_file": req.TokenFile, "next": next,
 	})
+}
+
+func (a *app) hubServiceBinPath() (string, error) {
+	if a.cfg.AgentchatPath == "" || a.cfg.HubData == "" || a.cfg.HubListen == "" {
+		return "", errors.New("host setup is incomplete")
+	}
+	quote := func(v string) string { return `"` + v + `"` }
+	bin := quote(a.cfg.AgentchatPath) + " service run --name AgentChatHub --log " +
+		quote(filepath.Join(a.cfg.HubData, "hub.log")) + " -- hub serve --data " +
+		quote(a.cfg.HubData) + " --listen " + quote(a.cfg.HubListen)
+	if a.cfg.HubCert != "" {
+		bin += " --tls-cert " + quote(a.cfg.HubCert) + " --tls-key " + quote(a.cfg.HubKey)
+	}
+	return bin, nil
+}
+
+func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Action string `json:"action"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer cancel()
+	run := func(args ...string) (string, error) {
+		out, err := exec.CommandContext(ctx, "sc.exe", args...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	result := map[string]any{"action": req.Action}
+	switch req.Action {
+	case "install":
+		bin, err := a.hubServiceBinPath()
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		out, err := run("create", "AgentChatHub", "binPath=", bin, "start=", "auto", "obj=", "LocalSystem")
+		result["output"] = out
+		if err != nil {
+			result["ok"] = false
+			result["error"] = "service install failed (run the console as administrator)"
+			writeJSON(w, http.StatusOK, result)
+			return
+		}
+		out, err = run("start", "AgentChatHub")
+		result["output"] = strings.TrimSpace(fmt.Sprintf("%v\n%v", result["output"], out))
+		result["ok"] = err == nil
+		if err != nil {
+			result["error"] = "service installed but start failed"
+		}
+	case "start", "stop":
+		out, err := run(req.Action, "AgentChatHub")
+		result["output"] = out
+		result["ok"] = err == nil
+		if err != nil {
+			result["error"] = "service control failed (administrator required)"
+		}
+	case "uninstall":
+		_, _ = run("stop", "AgentChatHub")
+		out, err := run("delete", "AgentChatHub")
+		result["output"] = out
+		result["ok"] = err == nil
+		if err != nil {
+			result["error"] = "service delete failed (administrator required)"
+		}
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unsupported service action"})
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.11] - 2026-10-21
+
+### Added
+
+- Desktop "Install hub service" action using `sc.exe create` with the configured
+  hub data/listen/TLS command line, followed by service start
+- Service start/stop/uninstall endpoints for the hub service
+
 ## [0.22.10] - 2026-10-21
 
 ### Added
