@@ -260,7 +260,18 @@ func TestCappedWriterContract(t *testing.T) {
 	b := &cappedBuffer{limit: 16 << 10}
 	p := make([]byte, 20<<10)
 	n, err := b.Write(p)
-	if err != nil || n != len(p) || b.buf.Len() < 16<<10 {
+	if err != nil || n != len(p) || b.buf.Len() != 16<<10 {
 		t.Fatalf("invalid writer result: %d %v", n, err)
+	}
+}
+
+func TestTruncatedJSONCredentialIsRedacted(t *testing.T) {
+	b := &cappedBuffer{limit: 16 << 10}
+	if _, err := b.Write([]byte(`{"token":"fixtureCredentialPrefix` + strings.Repeat("x", 300000))); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	if strings.Contains(out, "fixtureCredentialPrefix") {
+		t.Fatal("truncated JSON credential leaked")
 	}
 }
