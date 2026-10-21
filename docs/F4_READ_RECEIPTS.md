@@ -20,12 +20,19 @@ agentchat read --config ./agent.json --room general --seq 17
 The command prints one compact JSON object and returns nonzero on validation,
 authentication, authorization, transport, or server failure. `--seq` is required;
 zero is valid. Tokens remain in the config/Bearer header, never query parameters.
+HTTP 400/401/403/404 failures all use the existing CLI exit code 1; flag syntax
+errors use 2. No per-HTTP-status exit-code mapping is introduced.
 
 The Store transaction validates an active room and a current, nonrevoked member,
 checks `0 <= seq <= room.next_seq`, and advances only `memberships.read_seq`.
 Membership, range validation and update share the write transaction. Unknown or
 archived rooms return 404, nonmembers 403, invalid sequences 400, and invalid or
 revoked API tokens 401. Concurrent declarations preserve the greatest sequence.
+The 403/404 distinction intentionally follows the requested LAN contract and can
+reveal room existence to an authenticated nonmember; it is not anti-enumeration.
+`next_seq` is the highest allocated room-global sequence, despite its name.
+Equality is valid and an empty room accepts only zero. `to`/mentions in ordinary
+rooms do not create private messages or a separate per-recipient sequence.
 
 ## Schema and compatibility
 
@@ -34,6 +41,10 @@ after checking the existing columns. It is safe to reopen an upgraded database;
 existing memberships and future inserts default to zero. Existing ACK cursors are
 retained, never copied into read progress. Both cursors survive normal restart and
 are part of the ordinary SQLite backup/restore data.
+Run upgrades with one migrator per database while the old hub is stopped;
+concurrent processes upgrading the same old schema are not supported. Runtime
+writes in one Store are serialized and SQLite connections use a 5-second busy
+timeout; no additional application-level BUSY retry or multi-process HA is added.
 
 `last_ack_seq` still means the agent intentionally completed/skipped transport
 consumption. `read_seq` means only that this authenticated local agent explicitly

@@ -82,6 +82,12 @@ func TestExplicitReadReceiptsHTTP(t *testing.T) {
 	if err := st.CreateRoom(ctx, protocol.Room{ID: "private-read", Kind: "room"}, []string{identity.ID}, "test"); err != nil {
 		t.Fatal(err)
 	}
+	if err := st.CreateRoom(ctx, protocol.Room{ID: "read/slash", Kind: "room"}, []string{identity.ID}, "test"); err != nil {
+		t.Fatal(err)
+	}
+	if receipt, err := a.MarkRead(ctx, "read/slash", 0); err != nil || receipt.Room != "read/slash" || receipt.ReadSeq != 0 {
+		t.Fatal("escaped slash must remain one mux wildcard value", receipt, err)
+	}
 	for _, tc := range []struct {
 		room string
 		want int

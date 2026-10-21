@@ -380,6 +380,8 @@ Bearer agent authentication and membership are required. The room must be active
 fractional, and overflowing values return `400 invalid_request`. Unknown/archived
 rooms return `404 not_found`; nonmembers return `403 forbidden`. Invalid/revoked
 tokens return `401 unauthorized`; query-string tokens are not accepted.
+The specified 403/404 distinction exposes room existence to an authenticated
+nonmember; this endpoint does not provide room-name enumeration resistance.
 
 The stored value advances with `MAX(read_seq, seq)`. Repeated/backward declarations
 return the current value without decreasing it. Reading never changes
@@ -387,6 +389,12 @@ return the current value without decreasing it. Reading never changes
 do not advance `read_seq`. Upgraded memberships start at `read_seq=0`, regardless
 of earlier ACK progress. A read declaration is a caller assertion, not proof of
 human attention or runtime processing.
+
+The cursor uses the room-global sequence, not a per-recipient numbering scheme.
+Here `rooms.next_seq` stores the highest already allocated sequence: sending
+increments it and assigns that returned value to the message. Equality is valid;
+in an empty room the only valid declaration is zero. Explicit `to`/mentions do
+not make an ordinary room message private; membership controls its visibility.
 
 Ordinary local rooms and local DMs are supported. No federation receipt forwarding,
 outbox, remote reader identity, SSE notification, or automatic Web UI read marking
