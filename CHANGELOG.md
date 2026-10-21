@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.18.0] - 2026-10-21
+
+### Added
+
+- Desktop **Logs** tab with live tail of local Desktop/Hub/Bridge log files
+- `log_files` mapping in `desktop.json`; relative paths resolve against the
+  config directory
+- 1-second refresh, pause/resume, source selection, bounded 1 MiB/1000-line tail
+- Logs remain file-backed while the desktop window is closed; the UI is only a
+  viewer
+
 ## [0.17.0] - 2026-10-21
 
 ### Added

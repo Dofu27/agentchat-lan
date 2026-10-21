@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -31,13 +32,14 @@ import (
 )
 
 type config struct {
-	Service   string `json:"service"`
-	HubURL    string `json:"hub_url"`
-	TokenFile string `json:"token_file"`
-	CAFile    string `json:"tls_ca_file,omitempty"`
-	Title     string `json:"title,omitempty"`
-	Width     int    `json:"width,omitempty"`
-	Height    int    `json:"height,omitempty"`
+	Service   string            `json:"service"`
+	HubURL    string            `json:"hub_url"`
+	TokenFile string            `json:"token_file"`
+	CAFile    string            `json:"tls_ca_file,omitempty"`
+	Title     string            `json:"title,omitempty"`
+	Width     int               `json:"width,omitempty"`
+	Height    int               `json:"height,omitempty"`
+	LogFiles  map[string]string `json:"log_files,omitempty"`
 }
 
 type app struct {
@@ -45,6 +47,7 @@ type app struct {
 	token string
 	cap   string
 	http  *http.Client
+	logs  map[string]string
 }
 
 var (
@@ -153,7 +156,22 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	a := &app{cfg: cfg, token: token, cap: capability, http: client}
+	logDir := "."
+	if cfgPath != "" {
+		logDir = filepath.Dir(cfgPath)
+	}
+	logs := map[string]string{
+		"desktop": filepath.Join(logDir, "console.log"),
+		"hub":     filepath.Join(logDir, "hub.log"),
+		"bridge":  filepath.Join(logDir, "bridge.log"),
+	}
+	for name, p := range cfg.LogFiles {
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(logDir, p)
+		}
+		logs[name] = p
+	}
+	a := &app{cfg: cfg, token: token, cap: capability, http: client, logs: logs}
 
 	ln, srv, err := a.startServer(listen)
 	if err != nil {
@@ -310,6 +328,7 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	})
 	mux.Handle("GET /api/status", a.api(http.HandlerFunc(a.handleStatus)))
 	mux.Handle("POST /api/service", a.api(http.HandlerFunc(a.handleService)))
+	mux.Handle("GET /api/logs", a.api(http.HandlerFunc(a.handleLogs)))
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
 	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
@@ -465,6 +484,60 @@ func (a *app) handleService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func tailFile(path string, maxLines int, maxBytes int64) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	start := info.Size() - maxBytes
+	if start < 0 {
+		start = 0
+	}
+	if _, err := f.Seek(start, io.SeekStart); err != nil {
+		return nil, err
+	}
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 64<<10), 1<<20)
+	lines := make([]string, 0, maxLines)
+	for scanner.Scan() {
+		lines = append(lines, strings.TrimSuffix(scanner.Text(), "\r"))
+		if len(lines) > maxLines {
+			lines = lines[1:]
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return lines, nil
+}
+
+func (a *app) handleLogs(w http.ResponseWriter, r *http.Request) {
+	source := strings.TrimSpace(r.URL.Query().Get("source"))
+	if source == "" {
+		source = "desktop"
+	}
+	path, ok := a.logs[source]
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unknown log source"})
+		return
+	}
+	lines, err := tailFile(path, 1000, 1<<20)
+	if os.IsNotExist(err) {
+		writeJSON(w, http.StatusOK, map[string]any{"source": source, "lines": []string{}, "available": false})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"source": source, "lines": lines, "available": true})
 }
 
 func (a *app) handleOutbox(w http.ResponseWriter, r *http.Request) {
