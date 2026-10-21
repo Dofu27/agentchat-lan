@@ -91,6 +91,12 @@ func (c *Client) SendMessage(ctx context.Context, room string, req protocol.Send
 	return &out, nil
 }
 
+// Typing publishes the caller's ephemeral typing state in a room.
+func (c *Client) Typing(ctx context.Context, room string, typing bool) error {
+	path := "/v1/rooms/" + url.PathEscape(room) + "/typing"
+	return c.doJSON(ctx, http.MethodPost, path, c.Token, map[string]bool{"typing": typing}, nil)
+}
+
 // History fetches room messages after a sequence number.
 func (c *Client) History(ctx context.Context, room string, afterSeq int64, limit int) (*protocol.HistoryResponse, error) {
 	q := url.Values{}
