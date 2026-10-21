@@ -1,7 +1,7 @@
 # Unified desktop console
 
 Status: in progress (P2; single-instance, Chat/Join, Bridge, role tabs, and a
-per-user installer package implemented in v0.22.7)
+self-contained per-user installer EXE implemented in v0.22.8)
 
 ## Goal
 

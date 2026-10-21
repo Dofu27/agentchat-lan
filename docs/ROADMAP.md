@@ -45,9 +45,9 @@ back, and the DSH bridge stays live through a host restart.
 
 ## P2 — Unified desktop (in progress)
 
-Design: [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md). The v0.22.2 desktop has the
-single-instance guard and a Bridge tab; role tabs, setup, client chat, and the
-single installer are next.
+Design: [UNIFIED_DESKTOP.md](UNIFIED_DESKTOP.md). The v0.22.8 desktop has
+single-instance, Chat/Join, Bridge, role tabs, and a self-contained per-user
+installer EXE; setup polish and install/join acceptance remain.
 
 One `AgentChatConsole` entry point with role-aware tabs:
 

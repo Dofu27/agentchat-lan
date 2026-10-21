@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.8] - 2026-10-21
+
+### Added
+
+- Self-contained Windows installer EXE with embedded console and CLI binaries
+- `-role`, `-hub`, `-install-dir`, `-no-startup`, `-no-launch`, `-uninstall`, and
+  `-remove-data` installer flags
+- Build target `scripts/build-desktop-installer.sh`
+
 ## [0.22.7] - 2026-10-21
 
 ### Added
