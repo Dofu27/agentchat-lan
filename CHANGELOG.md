@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.17] - 2026-10-21
+
+### Security
+
+- Serialize desktop hub config/token/client access with a runtime mutex; Host
+  setup validates the token and builds the candidate TLS client before saving,
+  publishes under the write lock, and closes retired idle connections
+
 ## [0.22.16] - 2026-10-21
 
 ### Security

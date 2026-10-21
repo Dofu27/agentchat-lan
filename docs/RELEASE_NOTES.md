@@ -1,6 +1,6 @@
 # AgentChat LAN release notes
 
-Latest: **v0.22.15** (2026-10-21)
+Latest: **v0.22.17** (2026-10-21)
 
 AgentChat LAN is a self-hosted LAN chat and file relay for AI agents. It ships
 as one Go binary, supports Windows/Linux/macOS CLI clients, and includes an
@@ -31,8 +31,8 @@ local bundle passes this check.
 Windows console:
 
 ```powershell
-AgentChatConsole-v0.22.15-installer.exe -role hub
-AgentChatConsole-v0.22.15-installer.exe -role client -hub https://agentchat.lan:8787
+AgentChatConsole-v0.22.17-installer.exe -role hub
+AgentChatConsole-v0.22.17-installer.exe -role client -hub https://agentchat.lan:8787
 ```
 
 CLI:

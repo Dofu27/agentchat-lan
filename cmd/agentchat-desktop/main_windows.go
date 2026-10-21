@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	agentconfig "github.com/Dofu27/agentchat-lan/internal/config"
@@ -64,6 +65,7 @@ type app struct {
 	cap        string
 	http       *http.Client
 	logs       map[string]string
+	mu         sync.RWMutex
 }
 
 var (
@@ -221,7 +223,10 @@ func main() {
 	w.Init("if (window.top === window && location.origin === " + strconv.Quote(origin) +
 		") { window.__agentchatDesktopCapability = " + strconv.Quote(a.cap) + "; }")
 	_ = w.Bind("__openAdminWeb", func() error {
-		if a.token == "" {
+		a.mu.RLock()
+		hasToken := a.token != ""
+		a.mu.RUnlock()
+		if !hasToken {
 			return errors.New("admin token file is not configured")
 		}
 		w.Dispatch(func() {
@@ -332,6 +337,8 @@ func (a *app) api(next http.Handler) http.Handler {
 }
 
 func (a *app) openAdminWindow() error {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	if adminWindow != nil {
 		adminWindow.Navigate(a.cfg.HubURL + "/admin")
 		return nil
@@ -380,6 +387,8 @@ func (a *app) loadAgentConfig() (agentConfigFile, error) {
 }
 
 func (a *app) openChatWindow() error {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	if chatWindow != nil {
 		chatWindow.Navigate(a.cfg.HubURL + "/")
 		return nil
@@ -522,6 +531,8 @@ func (a *app) bridgeResult(action string) map[string]any {
 }
 
 func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	var req struct {
 		Invite string `json:"invite"`
 		Name   string `json:"name"`
@@ -619,6 +630,8 @@ func (a *app) saveDesktopConfig() error {
 }
 
 func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	var req struct {
 		Data      string `json:"data"`
 		TokenFile string `json:"token_file"`
@@ -691,19 +704,26 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	candidate.HubURL = hubURL
 	candidate.Role = "hub"
 	candidate.SetupDone = true
+	tokenData, err := os.ReadFile(req.TokenFile)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token could not be read"})
+		return
+	}
+	client, err := newHubClient(candidate, a.configPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but TLS client could not be built"})
+		return
+	}
 	if err := a.saveConfig(candidate); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but desktop config could not be saved"})
 		return
 	}
+	oldClient := a.http
 	a.cfg = candidate
-	if data, err := os.ReadFile(req.TokenFile); err == nil {
-		a.token = strings.TrimSpace(string(data))
-	}
-	clientError := ""
-	if client, err := newHubClient(a.cfg, a.configPath); err != nil {
-		clientError = err.Error()
-	} else {
-		a.http = client
+	a.token = strings.TrimSpace(string(tokenData))
+	a.http = client
+	if oldClient != nil {
+		oldClient.CloseIdleConnections()
 	}
 	next := `sc.exe create AgentChatHub binPath= "\"` + a.cfg.AgentchatPath + `\" service run --name AgentChatHub --log \"` + filepath.Join(req.Data, "hub.log") + `\" -- hub serve --data \"` + req.Data + `\" --listen "` + req.Listen + `"`
 	if req.TLSCert != "" {
@@ -713,9 +733,6 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{
 		"ok": true, "hub_url": hubURL, "data": req.Data,
 		"token_file": req.TokenFile, "next": next,
-	}
-	if clientError != "" {
-		result["client_error"] = clientError
 	}
 	writeJSON(w, http.StatusOK, result)
 }
@@ -735,6 +752,8 @@ func (a *app) hubServiceBinPath() (string, error) {
 }
 
 func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	var req struct {
 		Action string `json:"action"`
 	}
@@ -793,6 +812,8 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if r.Method == http.MethodPost {
 		var req struct {
 			Role      string `json:"role"`
@@ -837,6 +858,8 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleChat(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	out := map[string]any{
 		"hub_url":      a.cfg.HubURL,
 		"agent_config": a.cfg.AgentConfig,
@@ -855,6 +878,8 @@ func (a *app) handleChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleBridge(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	action := "status"
 	if r.Method == http.MethodPost {
 		var req struct {
@@ -985,6 +1010,8 @@ func serviceAction(name, action, startup string) error {
 }
 
 func (a *app) handleStatus(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	out := map[string]any{
 		"service_name": a.cfg.Service, "hub_url": a.cfg.HubURL,
 	}
@@ -1012,6 +1039,8 @@ func (a *app) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleService(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	var req struct {
 		Action  string `json:"action"`
 		Startup string `json:"startup"`
@@ -1097,6 +1126,8 @@ func tailLogPath(path, component string, maxLines int) ([]string, error) {
 }
 
 func (a *app) handleLogs(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	source := strings.TrimSpace(r.URL.Query().Get("source"))
 	if source == "" {
 		source = "desktop"
@@ -1119,6 +1150,8 @@ func (a *app) handleLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleOutbox(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	if a.token == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "admin token file is not configured"})
 		return
@@ -1136,6 +1169,8 @@ func (a *app) handleOutbox(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleRetry(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	if a.token == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "admin token file is not configured"})
 		return
