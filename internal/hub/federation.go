@@ -31,6 +31,7 @@ type FederationOptions struct {
 	Peer            FederationPeerOptions
 	FileLinks       []store.FederationFileLink
 	DMConversations []store.FederationDMConversation
+	TypingLinks     []store.FederationTypingLink
 	FileDir         string
 	notify          func()
 	Links           []store.FederationLink
@@ -42,6 +43,7 @@ type FederationOptions struct {
 	LeaseDuration   time.Duration
 }
 type Federation struct {
+	ephemeral  *ephemeralTyping
 	store      *store.Store
 	nodeID     string
 	opts       FederationOptions
@@ -110,7 +112,12 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 		c.HTTP.CloseIdleConnections()
 		return nil, err
 	}
-	return &Federation{store: st, nodeID: id, opts: opts, http: c.HTTP, secretHash: sum, blobSlots: make(chan struct{}, 2)}, nil
+	f := &Federation{store: st, nodeID: id, opts: opts, http: c.HTTP, secretHash: sum, blobSlots: make(chan struct{}, 2)}
+	if err = f.initTyping(ctx); err != nil {
+		c.HTTP.CloseIdleConnections()
+		return nil, err
+	}
+	return f, nil
 }
 func (f *Federation) NodeID() string { return f.nodeID }
 

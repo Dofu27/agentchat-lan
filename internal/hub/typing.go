@@ -16,7 +16,7 @@ type typingRequest struct {
 }
 
 func (s *Server) handleTyping(w http.ResponseWriter, r *http.Request) {
-	if s.federatedDMControlDisabled(w, r) {
+	if !s.opts.Federation.typingEnabled(r.Context(), r.PathValue("room")) && s.federatedDMControlDisabled(w, r) {
 		return
 	}
 	var req typingRequest
@@ -43,6 +43,7 @@ func (s *Server) handleTyping(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.typingMu.Unlock()
+	s.opts.Federation.publishTyping(r.Context(), room, agent.ID, req.Typing)
 	s.broadcast()
 	w.WriteHeader(http.StatusNoContent)
 }

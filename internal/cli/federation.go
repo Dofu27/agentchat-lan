@@ -73,6 +73,7 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 			CAFile     string `json:"tls_ca_file"`
 		} `json:"peer"`
 		Links []struct {
+			Typing      bool   `json:"typing"`
 			Attachments bool   `json:"attachments"`
 			LinkID      string `json:"link_id"`
 			Epoch       int64  `json:"epoch"`
@@ -130,8 +131,11 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 	for _, l := range cfg.Links {
 		if l.Attachments {
 			opts.FileLinks = append(opts.FileLinks, store.FederationFileLink{PeerID: cfg.Peer.NodeID, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom, LinkID: l.LinkID, Epoch: l.Epoch})
-		} else if l.LinkID != "" || l.Epoch != 0 {
-			return nil, errors.New("attachment link identity requires attachments=true")
+		} else if !l.Typing && (l.LinkID != "" || l.Epoch != 0) {
+			return nil, errors.New("link identity requires attachments=true or typing=true")
+		}
+		if l.Typing {
+			opts.TypingLinks = append(opts.TypingLinks, store.FederationTypingLink{Kind: "room", LinkID: l.LinkID, Epoch: l.Epoch, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom})
 		}
 		opts.Links = append(opts.Links, store.FederationLink{PeerID: cfg.Peer.NodeID, LocalRoom: l.LocalRoom, RemoteRoom: l.RemoteRoom})
 	}
