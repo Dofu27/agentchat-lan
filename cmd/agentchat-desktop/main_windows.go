@@ -512,6 +512,9 @@ type cappedBuffer struct {
 func (b *cappedBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if len(p) == 0 {
+		return 0, nil
+	}
 	remaining := b.limit - b.buf.Len()
 	if remaining <= 0 {
 		b.truncated = true
@@ -530,7 +533,13 @@ func (b *cappedBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.truncated {
-		return b.buf.String() + "\n[output truncated]"
+		// A cut quoted value may no longer match its complete-field redactor.
+		// Expose only complete lines; an output with no newline is discarded.
+		s := b.buf.String()
+		if end := strings.LastIndexByte(s, '\n'); end >= 0 {
+			return s[:end+1] + outputTruncatedMarker
+		}
+		return outputTruncatedMarker
 	}
 	return b.buf.String()
 }

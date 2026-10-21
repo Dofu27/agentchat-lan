@@ -80,9 +80,15 @@ depend on obtaining complete output. Credential fields and values are
 redacted, including Authorization/Authentication, standalone Bearer, JSON,
 query strings, URL credentials and private key blocks. Arbitrary unlabelled
 secrets cannot be inferred; trusted tools must not print secret material.
-Capture precedes regex redaction. Complete-form tests do not establish safety
-when truncation cuts through a quoted credential or a private-key block; this
-combination remains unverified.
+Capture precedes regex redaction. On overflow the last incomplete line is
+discarded; if no complete line fits, only the truncation marker is returned.
+After complete private-key blocks are redacted, any remaining private-key BEGIN
+is redacted through the end of captured payload. The truncation marker is kept
+outside this payload so EOF redaction cannot consume it. Synthetic tests cover
+JSON cuts inside quoted values and private-key cuts inside body/end markers,
+including one-byte writes and real contained child-process output. Complete
+key blocks still preserve following safe lines. Other malformed or unlabelled
+secret formats remain outside the inference guarantee.
 
 ## Bootstrap credential delivery and recovery
 

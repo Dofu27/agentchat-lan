@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,6 +22,10 @@ func TestSecurityProcessFixture(t *testing.T) {
 	}
 	marker := os.Getenv("AGENTCHAT_SECURITY_MARKER")
 	switch os.Getenv("AGENTCHAT_SECURITY_MODE") {
+	case "truncated-json":
+		fmt.Fprint(os.Stdout, "safe diagnostic\n"+`{"token":"SYNTHETIC_JSON_PREFIX_`+strings.Repeat("value", 100)+`"}`)
+	case "truncated-key":
+		fmt.Fprint(os.Stdout, "safe diagnostic\n-----BEGIN PRIVATE KEY-----\nSYNTHETIC_KEY_PREFIX\n"+strings.Repeat("KEY_MATERIAL_LINE\n", 100)+"-----END PRIVATE KEY-----")
 	case "orphan":
 		exe, _ := os.Executable()
 		c := exec.Command(exe, "-test.run=^TestSecurityProcessFixture$")

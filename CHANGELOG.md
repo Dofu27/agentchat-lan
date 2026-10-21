@@ -8,6 +8,8 @@ v1.0.
 
 ### Security
 
+- Truncated tool output drops incomplete final lines and redacts unterminated
+  private-key blocks through EOF, preserving the truncation marker separately.
 - Desktop service start/restart now validates the actual SCM-registered
   executable, pins its ancestor chain through Start, and refuses unsafe legacy
   user-writable paths, identity changes or binPath drift before starting.
