@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Dofu27/agentchat-lan/internal/hub"
+	"github.com/Dofu27/agentchat-lan/internal/logbroker"
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 	"github.com/Dofu27/agentchat-lan/internal/store"
 )
@@ -143,8 +144,9 @@ func (a *App) hubServe(args []string) int {
 	return a.hubServeContext(ctx, args)
 }
 
-func (a *App) hubServeContext(ctx context.Context, args []string) int {
+func (a *App) hubServeContext(ctx context.Context, args []string) (exit int) {
 	fs := a.newFlagSet("hub serve")
+	logging := logFlags(fs)
 	data := fs.String("data", "./data", "data directory")
 	listen := fs.String("listen", "127.0.0.1:8787", "listen address")
 	certFile := fs.String("tls-cert", "", "TLS certificate PEM file (requires --tls-key)")
@@ -200,7 +202,21 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 		}
 	}
 
+	logCtx, stopLogs := context.WithCancel(ctx)
+	defer stopLogs()
+	logOpts := logging.options("hub", filepath.Join(*data, "logs"))
+	logOpts.OnError = stopLogs
+	logs, err := logbroker.New(logOpts)
+	if err != nil {
+		return a.fail(fmt.Errorf("structured log unavailable"))
+	}
+	defer func() {
+		if logs.Write(logbroker.Record{Level: "info", Event: "stopped"}) != nil {
+			exit = 1
+		}
+	}()
 	srv := hub.New(st, hub.Options{
+		Logs: logs, LogDir: logOpts.Dir,
 		Version:              a.Version,
 		RequestsPerMinute:    *rpm,
 		Burst:                *burst,
@@ -230,7 +246,7 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 		fmt.Fprintln(a.Stderr, "WARNING: non-loopback HTTP listener is insecure; tokens and traffic are unencrypted. Use --tls-cert and --tls-key to enable HTTPS.")
 	}
 	fmt.Fprintf(a.Stdout, "hub listening on %s://%s data=%s\n", scheme, ln.Addr().String(), *data)
-	serveCtx, cancelServe := context.WithCancel(ctx)
+	serveCtx, cancelServe := context.WithCancel(logCtx)
 	defer cancelServe()
 	workerDone := make(chan error, 1)
 	if fed != nil {
@@ -251,6 +267,9 @@ func (a *App) hubServeContext(ctx context.Context, args []string) int {
 	}
 	if err != nil {
 		return a.fail(err)
+	}
+	if logs.Err() != nil {
+		return a.fail(fmt.Errorf("structured logging failed; hub stopped"))
 	}
 	fmt.Fprintln(a.Stdout, "hub stopped")
 	return 0

@@ -147,3 +147,5 @@ one hub is the correct topology.
 
 For unattended machines, run the bridge under a service account and enable
 systemd lingering (Linux) or use a Windows service with the same command.
+
+Structured producer logs, admin tail/SSE, local bridge reader and install-time permissions: [log broker backend contract](LOGS.md).

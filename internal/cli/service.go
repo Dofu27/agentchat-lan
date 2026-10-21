@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/Dofu27/agentchat-lan/internal/logbroker"
 )
 
 const defaultServiceName = "agentchat-agent"
@@ -31,6 +33,8 @@ func (a *App) cmdService(args []string) int {
 
 func (a *App) serviceInstall(args []string) int {
 	fs := a.newFlagSet("service install")
+	logging := logFlags(fs)
+	logSID := fs.String("log-user-sid", "", "Windows user SID allowed with LocalSystem to write logs")
 	name := fs.String("name", defaultServiceName, "service or task name")
 	cfgPath := fs.String("config", "", "agent config file path")
 	hook := fs.String("exec", "", "optional agent hook command")
@@ -50,7 +54,24 @@ func (a *App) serviceInstall(args []string) int {
 	if err != nil {
 		return a.fail(err)
 	}
-	agentArgs := []string{"agent", "--config", abs}
+	logOpts := logging.options("bridge", filepath.Join(filepath.Dir(abs), "logs"))
+	if err := os.MkdirAll(logOpts.Dir, 0700); err != nil {
+		return a.fail(fmt.Errorf("prepare logs failed"))
+	}
+	if err := logbroker.PreparePermissions(logOpts.Dir, *logSID); err != nil {
+		return a.fail(fmt.Errorf("prepare log permissions failed"))
+	}
+	probe, err := logbroker.New(logOpts)
+	if err != nil {
+		return a.fail(fmt.Errorf("invalid log installation settings"))
+	}
+	if err = probe.Write(logbroker.Record{Level: "info", Event: "stopped"}); err != nil {
+		return a.fail(fmt.Errorf("structured log probe failed"))
+	}
+	agentArgs := []string{"agent", "--config", abs, "--log-dir", logOpts.Dir, "--log-max-bytes", fmt.Sprint(logOpts.MaxBytes), "--log-files", fmt.Sprint(logOpts.Files)}
+	if logOpts.BodySummary {
+		agentArgs = append(agentArgs, "--log-body-summary")
+	}
 	if strings.TrimSpace(*hook) != "" {
 		agentArgs = append(agentArgs, "--exec", *hook)
 	}

@@ -18,8 +18,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/Dofu27/agentchat-lan/internal/logbroker"
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 	"github.com/Dofu27/agentchat-lan/internal/store"
 	"github.com/Dofu27/agentchat-lan/web"
@@ -39,20 +41,23 @@ type Options struct {
 	MaxFileSize           int64
 	MaxStorageBytes       int64
 	FileDir               string
+	Logs                  *logbroker.Producer
+	LogDir                string
 	Logger                *log.Logger
 	Federation            *Federation
 }
 
 type Server struct {
-	store    *store.Store
-	files    *fileService
-	opts     Options
-	notifyMu sync.Mutex
-	notify   chan struct{}
-	limitMu  sync.Mutex
-	buckets  map[string]bucket
-	typingMu sync.Mutex
-	typing   map[string]map[string]typingEntry
+	logStreams atomic.Int32
+	store      *store.Store
+	files      *fileService
+	opts       Options
+	notifyMu   sync.Mutex
+	notify     chan struct{}
+	limitMu    sync.Mutex
+	buckets    map[string]bucket
+	typingMu   sync.Mutex
+	typing     map[string]map[string]typingEntry
 }
 
 type bucket struct {
@@ -140,6 +145,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /", s.uiSecurity(http.HandlerFunc(s.handleUI)))
 	mux.Handle("GET /admin", s.uiSecurity(http.HandlerFunc(s.handleAdminUI)))
 	mux.Handle("GET /static/", s.uiSecurity(http.StripPrefix("/static/", http.FileServer(http.FS(web.FS)))))
+	if s.opts.LogDir != "" {
+		mux.Handle("GET /v1/admin/logs", s.adminAuth(http.HandlerFunc(s.handleLogTail)))
+		mux.Handle("GET /v1/admin/logs/events", s.adminAuth(http.HandlerFunc(s.handleLogEvents)))
+	}
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleReady)
 	mux.Handle("POST /v1/join", s.joinRate(http.HandlerFunc(s.handleJoin)))
@@ -186,6 +195,17 @@ func (s *Server) Handler() http.Handler {
 			mux.ServeHTTP(w, r)
 		})
 	}
+	inner := handler
+	handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/v1/admin/logs") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		if strings.HasPrefix(r.URL.Path, "/v1/admin/logs") && (s.opts.LogDir == "" || r.Method != "GET" || (r.URL.Path != "/v1/admin/logs" && r.URL.Path != "/v1/admin/logs/events")) {
+			http.NotFound(w, r)
+			return
+		}
+		inner.ServeHTTP(w, r)
+	})
 	return s.requestLog(handler)
 }
 
@@ -334,6 +354,9 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnprocessableEntity, "validation_failed", err.Error(), nil)
 			return
 		}
+	}
+	if fields := requestLogFields(r.Context()); fields != nil && s.opts.Logs != nil {
+		fields.Chars, fields.Lines = s.opts.Logs.Summary(req.Text)
 	}
 	if req.Meta.Federation != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "meta.federation is reserved for authenticated peer imports", nil)
@@ -743,6 +766,9 @@ func (s *Server) agentAuth(next http.Handler) http.Handler {
 			writeError(w, http.StatusTooManyRequests, "rate_limited", "slow down", nil)
 			return
 		}
+		if fields := requestLogFields(r.Context()); fields != nil {
+			fields.Agent = a.ID
+		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), agentContextKey{}, a)))
 	})
 }
@@ -807,8 +833,22 @@ func (s *Server) requestLog(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-Id", id)
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		start := time.Now()
+		fields := &logRequest{ID: id}
+		r = r.WithContext(context.WithValue(r.Context(), logRequestKey{}, fields))
 		next.ServeHTTP(sw, r)
-		s.opts.Logger.Printf("request_id=%s method=%s path=%q status=%d duration_ms=%d", id, r.Method, r.URL.Path, sw.status, time.Since(start).Milliseconds())
+		if s.opts.Logs != nil {
+			if !isLogRoute(r.Pattern) && !isTransientLogRoute(r.Pattern) {
+				level := "info"
+				if sw.status >= 500 {
+					level = "error"
+				} else if sw.status >= 400 {
+					level = "warn"
+				}
+				_ = s.opts.Logs.Write(logbroker.Record{Level: level, Event: "request", RequestID: id, Room: r.PathValue("room"), Agent: fields.Agent, Route: r.Pattern, Status: sw.status, DurationMS: time.Since(start).Milliseconds(), BodyChars: fields.Chars, BodyLines: fields.Lines})
+			}
+		} else {
+			s.opts.Logger.Printf("request_id=%s method=%s route=%q status=%d duration_ms=%d", id, r.Method, r.Pattern, sw.status, time.Since(start).Milliseconds())
+		}
 	})
 }
 
@@ -837,17 +877,20 @@ func (w *statusWriter) Write(p []byte) (int, error) {
 
 // Flush lets streaming handlers (the room event SSE endpoint) work through
 // the request logger's response wrapper.
-func (w *statusWriter) Flush() {
-	if f, ok := w.ResponseWriter.(http.Flusher); ok {
-		if !w.wrote {
-			w.WriteHeader(http.StatusOK)
-		}
-		f.Flush()
+func (w *statusWriter) Flush() { _ = w.FlushError() }
+func (w *statusWriter) FlushError() error {
+	if !w.wrote {
+		w.WriteHeader(http.StatusOK)
 	}
+	return http.NewResponseController(w.ResponseWriter).Flush()
 }
 
 func (s *Server) internalError(w http.ResponseWriter, err error) {
-	s.opts.Logger.Printf("hub internal error: %v", err)
+	if s.opts.Logs != nil {
+		_ = s.opts.Logs.Write(logbroker.Record{Level: "error", Event: "internal_error", Status: 500})
+	} else {
+		s.opts.Logger.Print("hub internal error")
+	}
 	writeError(w, http.StatusInternalServerError, "internal", "internal server error", nil)
 }
 func (s *Server) storeError(w http.ResponseWriter, err error) {

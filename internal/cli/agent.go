@@ -17,8 +17,9 @@ import (
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
-func (a *App) cmdAgent(args []string) int {
+func (a *App) cmdAgent(args []string) (exit int) {
 	fs := a.newFlagSet("agent")
+	logging := logFlags(fs)
 	cfgPath := fs.String("config", "", "config file path")
 	wait := fs.Int("wait", 30, "long-poll seconds per inbox request")
 	limit := fs.Int("limit", 50, "maximum messages per request")
@@ -43,6 +44,17 @@ func (a *App) cmdAgent(args []string) int {
 	if err != nil {
 		return a.fail(err)
 	}
+	closeLog, err := a.openProcessLog(logging, "bridge", *cfgPath)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer func() {
+		producer := a.logs
+		closeLog()
+		if producer.Err() != nil {
+			exit = 1
+		}
+	}()
 	c, err := a.newClient(cfg)
 	if err != nil {
 		return a.fail(err)
@@ -52,12 +64,16 @@ func (a *App) cmdAgent(args []string) int {
 	defer stop()
 
 	for {
+		if a.logs.Err() != nil {
+			return a.fail(fmt.Errorf("structured bridge logging failed"))
+		}
 		resp, err := c.Inbox(ctx, *wait, *limit)
 		if err != nil {
 			if ctx.Err() != nil {
 				return 0
 			}
-			fmt.Fprintf(a.Stderr, "agent: inbox error: %v\n", err)
+			a.logEvent("error", "inbox_failed", "", cfg.AgentID, 0, "")
+			fmt.Fprintln(a.Stderr, "agent: inbox failed")
 			if *once {
 				return 1
 			}
@@ -84,6 +100,10 @@ func (a *App) cmdAgent(args []string) int {
 				advanceAck(acks, msg)
 				continue
 			}
+			a.logEvent("info", "received", msg.Room, msg.From.ID, msg.Seq, msg.Text)
+			if a.logs.Err() != nil {
+				return a.fail(fmt.Errorf("structured bridge logging failed"))
+			}
 			hookOK := true
 			if strings.TrimSpace(*execHook) == "" {
 				if *jsonOut {
@@ -96,7 +116,8 @@ func (a *App) cmdAgent(args []string) int {
 			} else if err := runAgentHookWithTyping(ctx, c, *execHook, msg, a, *typing); err != nil {
 				hookOK = false
 				hookFailed = true
-				fmt.Fprintf(a.Stderr, "agent: hook failed for seq %d: %v (message remains unacknowledged)\n", msg.Seq, err)
+				a.logEvent("error", "hook_failed", msg.Room, msg.From.ID, msg.Seq, "")
+				fmt.Fprintf(a.Stderr, "agent: hook failed for seq %d (message remains unacknowledged)\n", msg.Seq)
 				if *ack {
 					// Do not process later messages in this batch: a later
 					// cursor advance would implicitly acknowledge this one.
@@ -107,12 +128,16 @@ func (a *App) cmdAgent(args []string) int {
 				advanceAck(acks, msg)
 			}
 		}
+		if a.logs.Err() != nil {
+			return a.fail(fmt.Errorf("structured bridge logging failed"))
+		}
 		if *ack && len(acks) > 0 {
 			ackCtx, cancel := requestContext(10)
 			err := c.Ack(ackCtx, acks)
 			cancel()
 			if err != nil {
-				fmt.Fprintf(a.Stderr, "agent: ack error: %v\n", err)
+				a.logEvent("error", "ack_failed", "", cfg.AgentID, 0, "")
+				fmt.Fprintln(a.Stderr, "agent: ack failed")
 			}
 		}
 		if *once {
@@ -193,13 +218,24 @@ func runAgentHook(ctx context.Context, command string, msg protocol.Message, a *
 	cmd.Stdin = bytes.NewReader(payload)
 	cmd.Stdout = a.Stdout
 	cmd.Stderr = a.Stderr
+	a.logEvent("info", "hook_started", msg.Room, msg.From.ID, msg.Seq, "")
+	if a.logs != nil && a.logs.Err() != nil {
+		return fmt.Errorf("structured bridge logging failed")
+	}
 	cmd.Env = append(os.Environ(),
 		"AGENTCHAT_MESSAGE_JSON="+string(payload),
 		"AGENTCHAT_ROOM="+msg.Room,
 		"AGENTCHAT_SEQ="+fmt.Sprint(msg.Seq),
 		"AGENTCHAT_FROM="+msg.From.Name,
 	)
-	return cmd.Run()
+	if a.logs != nil {
+		cmd.Env = append(cmd.Env, "AGENTCHAT_LOG_DIR="+a.logSettings.Dir, "AGENTCHAT_LOG_MAX_BYTES="+fmt.Sprint(a.logSettings.MaxBytes), "AGENTCHAT_LOG_FILES="+fmt.Sprint(a.logSettings.Files), "AGENTCHAT_LOG_BODY_SUMMARY="+fmt.Sprint(a.logSettings.BodySummary))
+	}
+	err = cmd.Run()
+	if err == nil {
+		a.logEvent("info", "hook_done", msg.Room, msg.From.ID, msg.Seq, "")
+	}
+	return err
 }
 
 func signalContext() (context.Context, context.CancelFunc) {
