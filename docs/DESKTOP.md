@@ -57,8 +57,8 @@ creates Start Menu/Startup entries:
 
 Useful flags: `-install-dir`, `-no-startup`, `-no-launch`, `-uninstall`, and
 `-remove-data`. No administrator rights are needed. If a host policy blocks the
-user Startup folder, the installer warns and still installs the binaries/config
-with exit code 0.
+user Startup folder, the installer tries an HKCU Run entry; if both are blocked
+it warns and still installs the binaries/config with exit code 0.
 
 On first launch with no role chosen, the Overview tab shows a Hub / Join /
 Bridge chooser. The selection is persisted as `setup_done` so later role changes
