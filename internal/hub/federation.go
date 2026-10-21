@@ -33,6 +33,7 @@ type FederationOptions struct {
 	FileLinks       []store.FederationFileLink
 	DMConversations []store.FederationDMConversation
 	TypingLinks     []store.FederationTypingLink
+	ReadReceipts    bool
 	FileDir         string
 	notify          func()
 	Links           []store.FederationLink
@@ -55,6 +56,7 @@ type Federation struct {
 	secretHash    [32]byte
 	blobSlots     chan struct{}
 	deliverySlots chan struct{}
+	readSlots     chan struct{}
 	fileLocks     [64]sync.Mutex
 }
 
@@ -154,7 +156,7 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 	}
 	opts.Peer = peers[0]
 	opts.Peers = peers
-	f := &Federation{store: st, nodeID: id, opts: opts, peers: peerMap, clients: clients, secretHashes: hashes, http: clients[peers[0].NodeID], secretHash: hashes[peers[0].NodeID], blobSlots: make(chan struct{}, 2), deliverySlots: make(chan struct{}, 8)}
+	f := &Federation{store: st, nodeID: id, opts: opts, peers: peerMap, clients: clients, secretHashes: hashes, http: clients[peers[0].NodeID], secretHash: hashes[peers[0].NodeID], blobSlots: make(chan struct{}, 2), deliverySlots: make(chan struct{}, 8), readSlots: make(chan struct{}, 8)}
 	if err = f.initTyping(ctx); err != nil {
 		cleanup()
 		return nil, err
