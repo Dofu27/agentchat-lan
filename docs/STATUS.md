@@ -24,7 +24,7 @@ Updated: 2026-10-21
   until an explicit maintenance window.
 - P4 topology, trust, per-peer queue, loop prevention, and three-node acceptance
   criteria documented in
-  [THREE_NODE_FEDERATION.md](THREE_NODE_FEDERATION.md); `v0.23.0` adds the first
+  [THREE_NODE_FEDERATION.md](THREE_NODE_FEDERATION.md); `v0.23.1` adds the first
   multi-peer text-fanout implementation. Attachments/DM/typing remain
   single-peer, and cross-platform desktop is not started.
 - P1 preflight on 2026-10-21: A health/ready passed at `v0.14.1`; B

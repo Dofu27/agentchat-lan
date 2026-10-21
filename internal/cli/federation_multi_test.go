@@ -41,7 +41,7 @@ func TestLoadMultiPeerFederationConfig(t *testing.T) {
 	if err := os.WriteFile(path, []byte(cfg), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := loadFederation(ctx, st, path); err != nil {
+	if _, err := loadFederation(ctx, st, path, filepath.Join(dir, "files")); err != nil {
 		t.Fatal(err)
 	}
 }

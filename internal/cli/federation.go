@@ -117,7 +117,7 @@ func loadFederation(ctx context.Context, st *store.Store, path string, fileDirs 
 		if cfg.Peer.NodeID != "" || cfg.Peer.BaseURL != "" || cfg.Peer.SecretFile != "" {
 			return nil, errors.New("use either peer or peers, not both")
 		}
-		if len(cfg.DMConversations) > 0 || len(fileDirs) > 0 {
+		if len(cfg.DMConversations) > 0 {
 			return nil, errors.New("multi-peer federation supports text room links only")
 		}
 		opts := hub.FederationOptions{MaxOutbox: cfg.MaxOutbox, MaxAttempts: cfg.MaxAttempts}

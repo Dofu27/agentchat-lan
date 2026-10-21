@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.23.1] - 2026-10-21
+
+### Fixed
+
+- Multi-peer config loading no longer rejects the normal file directory passed
+  by `hub serve`; text-only multi-peer startup is covered with that argument
+
 ## [0.23.0] - 2026-10-21
 
 ### Added
