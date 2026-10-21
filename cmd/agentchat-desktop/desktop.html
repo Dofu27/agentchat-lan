@@ -30,6 +30,7 @@
   select { background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; }
   label.check { display:flex; align-items:center; gap:8px; user-select:none; }
   input[type=checkbox] { width:16px; height:16px; accent-color:var(--accent); }
+  input[type=text],input[type=password] { background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; min-width:180px; }
   .kv { display:grid; grid-template-columns:max-content 1fr; gap:6px 14px; margin-top:12px; font-size:13px; }
   .kv .k { color:var(--muted); }
   .kv .v { overflow-wrap:anywhere; }
@@ -129,6 +130,16 @@
     </div>
     <div id="chat-error" class="small" style="margin-top:8px"></div>
   </section>
+  <section class="wide" id="chat-join">
+    <h2 data-i18n="chat.join_title">Join a hub</h2>
+    <div class="row">
+      <input id="join-invite" type="password" autocomplete="off" placeholder="Invite code">
+      <input id="join-name" type="text" autocomplete="off" placeholder="Agent name">
+      <input id="join-kind" type="text" autocomplete="off" placeholder="human" value="human">
+      <button id="join-submit" class="primary" type="button" data-i18n="chat.join">Join</button>
+    </div>
+    <div id="join-error" class="small" style="margin-top:8px"></div>
+  </section>
 </main>
 <main id="bridge-view" class="hidden">
   <section class="wide">
@@ -179,6 +190,8 @@
       "chat.title":"Agent chat", "chat.open":"Open chat window", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent config", "chat.hub":"Hub",
       "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
+      "chat.join_title":"Join a hub", "chat.join":"Join", "chat.joined":"Joined. Agent config saved.",
+      "chat.join_failed":"Join failed", "chat.join_exists":"Agent config already exists.",
       "bridge.title":"Agent bridge", "bridge.install":"Install bridge", "bridge.uninstall":"Uninstall",
       "bridge.name":"Bridge name", "bridge.agent_config":"Agent config", "bridge.exec":"Hook command",
       "bridge.binary":"agentchat binary", "bridge.confirm":"Uninstall the bridge startup entry?",
@@ -202,6 +215,8 @@
       "chat.title":"Agent 聊天", "chat.open":"打开聊天窗口", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent 配置", "chat.hub":"Hub",
       "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
+      "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存。",
+      "chat.join_failed":"加入失败", "chat.join_exists":"agent 配置已存在，未覆盖。",
       "bridge.title":"Agent 桥接", "bridge.install":"安装桥接", "bridge.uninstall":"卸载",
       "bridge.name":"桥接名称", "bridge.agent_config":"Agent 配置", "bridge.exec":"Hook 命令",
       "bridge.binary":"agentchat 可执行文件", "bridge.confirm":"确认卸载桥接启动项？",
@@ -368,6 +383,24 @@
     $("chat-config").textContent = body.agent_config || "";
     $("chat-hub").textContent = body.hub_url || "";
     $("chat-error").textContent = body.ok ? "" : (body.error || t("chat.unavailable"));
+    $("chat-join").classList.toggle("hidden", !!body.ok);
+  }
+  async function joinHub() {
+    const invite = $("join-invite").value.trim();
+    const name = $("join-name").value.trim();
+    const kind = $("join-kind").value.trim() || "human";
+    $("join-error").textContent = "";
+    if (!invite || !name) { $("join-error").textContent = t("chat.join_failed"); return; }
+    $("join-submit").disabled = true;
+    try {
+      await api("/api/client/join", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ invite, name, kind }) });
+      $("join-invite").value = "";
+      $("join-name").value = "";
+      $("join-error").textContent = t("chat.joined");
+      await refreshChat();
+    } catch (err) {
+      $("join-error").textContent = err.message || t("chat.join_failed");
+    } finally { $("join-submit").disabled = false; }
   }
   async function refreshBridge() {
     const body = await api("/api/bridge");
@@ -410,6 +443,7 @@
   $("tab-chat-btn").addEventListener("click", () => showTab("chat"));
   $("tab-bridge-btn").addEventListener("click", () => showTab("bridge"));
   $("chat-refresh").addEventListener("click", () => refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); }));
+  $("join-submit").addEventListener("click", joinHub);
   $("open-chat").addEventListener("click", async () => {
     if (!window.__openChatWeb) { $("chat-error").textContent = t("chat.unavailable"); return; }
     try { await window.__openChatWeb(); } catch (err) { $("chat-error").textContent = err.message || String(err); }

@@ -59,7 +59,8 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
   window and auto-fills the configured admin token on the configured origin
 - **Chat tab**: shows the configured agent identity and opens the hub Web UI in
   an embedded WebView2 window. The token is injected only when the page origin
-  matches the configured hub.
+  matches the configured hub. With no agent config, the tab offers an invite
+  join form; the issued token is saved only to the user-only config file.
 - **Bridge tab**: shows the configured agent bridge name/config/hook/binary and
   runs `agentchat bridge status|install|uninstall` with explicit arguments.
   Install uses mention-only, typing, and start-now defaults.

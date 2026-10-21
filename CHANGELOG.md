@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.5] - 2026-10-21
+
+### Added
+
+- Desktop Join flow: invite/name/kind through `POST /api/client/join`, saving a
+  user-only agent config; the response never includes the issued token
+- Existing agent configs are never overwritten by the join action
+
 ## [0.22.4] - 2026-10-21
 
 ### Changed

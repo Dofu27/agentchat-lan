@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -27,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	agentconfig "github.com/Dofu27/agentchat-lan/internal/config"
+	"github.com/Dofu27/agentchat-lan/internal/protocol"
 	webview2 "github.com/jchv/go-webview2"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
@@ -49,11 +52,12 @@ type config struct {
 }
 
 type app struct {
-	cfg   config
-	token string
-	cap   string
-	http  *http.Client
-	logs  map[string]string
+	cfg        config
+	configPath string
+	token      string
+	cap        string
+	http       *http.Client
+	logs       map[string]string
 }
 
 var (
@@ -194,7 +198,7 @@ func main() {
 		}
 		logs[name] = p
 	}
-	a := &app{cfg: cfg, token: token, cap: capability, http: client, logs: logs}
+	a := &app{cfg: cfg, configPath: cfgPath, token: token, cap: capability, http: client, logs: logs}
 
 	ln, srv, err := a.startServer(listen)
 	if err != nil {
@@ -421,6 +425,7 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
 	mux.Handle("POST /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
 	mux.Handle("GET /api/chat", a.api(http.HandlerFunc(a.handleChat)))
+	mux.Handle("POST /api/client/join", a.api(http.HandlerFunc(a.handleJoin)))
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
 	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
@@ -464,6 +469,88 @@ func (a *app) bridgeResult(action string) map[string]any {
 		result["error"] = err.Error()
 	}
 	return result
+}
+
+func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Invite string `json:"invite"`
+		Name   string `json:"name"`
+		Kind   string `json:"kind"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8192)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+		return
+	}
+	req.Invite = strings.TrimSpace(req.Invite)
+	req.Name = strings.TrimSpace(req.Name)
+	req.Kind = strings.TrimSpace(req.Kind)
+	if req.Kind == "" {
+		req.Kind = "human"
+	}
+	if req.Invite == "" || req.Name == "" || len(req.Invite) > 512 || len(req.Name) > 64 || len(req.Kind) > 64 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invite and name are required"})
+		return
+	}
+	path := a.cfg.AgentConfig
+	if path == "" {
+		base := a.configPath
+		if base == "" {
+			if dir, err := os.UserConfigDir(); err == nil {
+				base = filepath.Join(dir, "AgentChat", "desktop.json")
+			}
+		}
+		path = filepath.Join(filepath.Dir(base), "agentchat.json")
+	}
+	if _, err := os.Stat(path); err == nil {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": "agent_config already exists"})
+		return
+	} else if !os.IsNotExist(err) {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot inspect agent_config"})
+		return
+	}
+	body, _ := json.Marshal(protocol.JoinRequest{InviteCode: req.Invite, Name: req.Name, Kind: req.Kind})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, a.cfg.HubURL+"/v1/join", bytes.NewReader(body))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot build join request"})
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := a.http.Do(httpReq)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "hub is unreachable"})
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": fmt.Sprintf("hub rejected join with HTTP %d", resp.StatusCode)})
+		return
+	}
+	var joined protocol.JoinResponse
+	if err := json.NewDecoder(http.MaxBytesReader(w, resp.Body, 1<<20)).Decode(&joined); err != nil || joined.Token == "" || joined.Agent.ID == "" {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "invalid join response from hub"})
+		return
+	}
+	rooms := make([]string, 0, len(joined.Rooms))
+	for _, room := range joined.Rooms {
+		rooms = append(rooms, room.ID)
+	}
+	agentCfg := agentconfig.Config{
+		HubURL: a.cfg.HubURL, Token: joined.Token, AgentID: joined.Agent.ID,
+		AgentName: joined.Agent.Name, AgentKind: joined.Agent.Kind, Rooms: rooms,
+	}
+	if err := agentconfig.Save(path, &agentCfg); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save agent config"})
+		return
+	}
+	a.cfg.AgentConfig = path
+	if a.configPath != "" {
+		if data, err := json.MarshalIndent(a.cfg, "", "  "); err == nil {
+			_ = os.WriteFile(a.configPath, data, 0o600)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "agent_id": joined.Agent.ID, "agent_name": joined.Agent.Name, "rooms": rooms, "agent_config": path})
 }
 
 func (a *app) handleChat(w http.ResponseWriter, r *http.Request) {
