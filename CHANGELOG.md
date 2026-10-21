@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.24.6] - 2026-10-21
+
+### Fixed
+
+- Host setup and Join serialize through a dedicated setup mutex; startup Run
+  entry deletion is checked instead of silently ignored
+
 ## [0.24.5] - 2026-10-21
 
 ### Fixed

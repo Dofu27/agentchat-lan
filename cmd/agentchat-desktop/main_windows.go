@@ -66,6 +66,7 @@ type app struct {
 	http       *http.Client
 	logs       map[string]string
 	mu         sync.RWMutex
+	setupMu    sync.Mutex
 }
 
 var (
@@ -561,6 +562,8 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invite and name are required"})
 		return
 	}
+	a.setupMu.Lock()
+	defer a.setupMu.Unlock()
 	a.mu.RLock()
 	path := a.cfg.AgentConfig
 	hubURL := a.cfg.HubURL
@@ -710,6 +713,8 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "tls_cert and tls_key must be supplied together"})
 		return
 	}
+	a.setupMu.Lock()
+	defer a.setupMu.Unlock()
 	a.mu.RLock()
 	base := a.cfg
 	configPath := a.configPath
