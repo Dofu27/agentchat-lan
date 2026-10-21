@@ -61,8 +61,8 @@ contains tokens and federation secrets and must never be committed.
 
 ## Staged release
 
-On 2026-10-21 `v0.26.4` was staged read-only on A at
-`/home/tofu/agentchat-staging/v0.26.4/agentchat` (mode 0700, version checked).
+On 2026-10-22 `v0.28.1` was staged read-only on A at
+`/home/tofu/agentchat-staging/v0.28.1/agentchat` (mode 0700, version checked).
 No service was stopped or replaced. B staging was not possible from this host
 because the A→B SSH key is denied; use B's own console/SSH path during the
 maintenance window.
