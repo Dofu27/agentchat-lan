@@ -14,6 +14,9 @@ v1.0.
 - Multi-peer federated DM fanout: each configured peer has its own conversation
   and outbox; text DMs no longer require a single-peer federation. Multi-peer DM
   typing remains single-peer.
+- Linux/macOS launcher rejects non-HTTP(S) or userinfo hub URLs, normalizes the
+  URL, and shows role-specific guidance; it remains a browser launcher, not the
+  full WebView console.
 
 ## [0.28.1] - 2026-10-22
 
