@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,6 +29,16 @@ type launcherConfig struct {
 	TokenFile   string `json:"token_file,omitempty"`
 }
 
+func normalizeHubURL(raw string) (string, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return "", fmt.Errorf("hub_url must be an http(s) URL without userinfo")
+	}
+	u.Path = strings.TrimRight(u.Path, "/")
+	u.RawQuery, u.Fragment = "", ""
+	return u.String(), nil
+}
+
 func loadLauncherConfig(path string) launcherConfig {
 	cfg := launcherConfig{HubURL: "http://127.0.0.1:8787", Role: "client"}
 	if path == "" {
@@ -38,8 +49,9 @@ func loadLauncherConfig(path string) launcherConfig {
 		return cfg
 	}
 	_ = json.Unmarshal(data, &cfg)
-	cfg.HubURL = strings.TrimRight(strings.TrimSpace(cfg.HubURL), "/")
-	if cfg.HubURL == "" {
+	if normalized, err := normalizeHubURL(cfg.HubURL); err == nil {
+		cfg.HubURL = normalized
+	} else {
 		cfg.HubURL = "http://127.0.0.1:8787"
 	}
 	if cfg.Role == "" {
