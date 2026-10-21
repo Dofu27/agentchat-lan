@@ -44,6 +44,8 @@ Updated: 2026-10-21
   `v0.25.0` adds a Linux/macOS loopback launcher; it is not yet a full native
   console.
 - `v0.26.4` is staged on A for the future window; no service was replaced.
+  A v0.14.1 backup was upgraded in a temporary rehearsal directory and served
+  healthy on v0.26.4 with its federation state intact.
 - P1 preflight on 2026-10-21: A health/ready passed at `v0.14.1`; B
   health/ready passed with `version=dev`. A 336 KiB backup was created, restored
   into a temporary directory, and its federation state verified. Production A
