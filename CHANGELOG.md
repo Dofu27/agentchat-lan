@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.22.4] - 2026-10-21
+
+### Changed
+
+- Merge F4 review evidence `2cfa441`: boundary clarification, slash-room and
+  allocated-sequence tests, and documentation only; no business-logic change
+
 ## [0.22.3] - 2026-10-21
 
 ### Added
