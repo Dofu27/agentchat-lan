@@ -75,6 +75,28 @@
       <button id="welcome-bridge" type="button" data-i18n="welcome.bridge">Run an agent bridge</button>
     </div>
   </section>
+  <section class="wide" id="host-setup">
+    <h2 data-i18n="host.title">Host setup</h2>
+    <div class="row">
+      <input id="host-data" type="text" autocomplete="off" placeholder="Data directory">
+      <input id="host-token" type="text" autocomplete="off" placeholder="Admin token file">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="host-listen" type="text" autocomplete="off" value="127.0.0.1:8787" placeholder="Listen host:port">
+      <input id="host-url" type="text" autocomplete="off" placeholder="Hub URL (optional)">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="host-cert" type="text" autocomplete="off" placeholder="TLS cert (optional)">
+      <input id="host-key" type="text" autocomplete="off" placeholder="TLS key (optional)">
+      <input id="host-ca" type="text" autocomplete="off" placeholder="Client CA (optional)">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="host-init" class="primary" type="button" data-i18n="host.init">Initialize hub</button>
+      <span class="muted small" data-i18n="host.hint">Creates the database and admin token; service installation follows the printed command.</span>
+    </div>
+    <pre id="host-output" class="logs" style="height:140px"></pre>
+    <div id="host-error" class="small" style="margin-top:8px"></div>
+  </section>
   <section>
     <h2 data-i18n="service.title">Windows service</h2>
     <div class="row between">
@@ -220,6 +242,9 @@
       "welcome.title":"Welcome to AgentChat LAN",
       "welcome.body":"Choose how this machine will participate. You can change the role later in Settings.",
       "welcome.host":"Host a hub", "welcome.join":"Join a hub", "welcome.bridge":"Run an agent bridge",
+      "host.title":"Host setup", "host.init":"Initialize hub",
+      "host.hint":"Creates the database and admin token; service installation follows the printed command.",
+      "host.failed":"Hub initialization failed",
       "settings.title":"Console role", "settings.save":"Save role", "settings.config":"Desktop config",
       "settings.agent":"Agent config", "settings.hub":"Hub",
       "role.hub":"Hub host", "role.client":"Chat client", "role.bridge":"Agent bridge", "role.observer":"Observer",
@@ -251,6 +276,9 @@
       "welcome.title":"欢迎使用 AgentChat LAN",
       "welcome.body":"选择这台机器的角色。之后可以在设置里更改。",
       "welcome.host":"托管 Hub", "welcome.join":"加入 Hub", "welcome.bridge":"运行 Agent 桥接",
+      "host.title":"Hub 初始化", "host.init":"初始化 Hub",
+      "host.hint":"创建数据库和管理员 token；按输出命令安装服务。",
+      "host.failed":"Hub 初始化失败",
       "settings.title":"控制台角色", "settings.save":"保存角色", "settings.config":"桌面配置",
       "settings.agent":"Agent 配置", "settings.hub":"Hub",
       "role.hub":"Hub 主机", "role.client":"聊天客户端", "role.bridge":"Agent 桥接", "role.observer":"观察者",
@@ -443,7 +471,30 @@
     $("settings-hub").textContent = body.hub_url || "";
     $("settings-error").textContent = "";
     $("welcome").classList.toggle("hidden", !!body.setup_done);
+    if (!$("host-data").value) $("host-data").value = body.hub_data || body.default_data || "";
+    if (!$("host-token").value) $("host-token").value = body.token_file || body.default_token || "";
+    $("host-setup").classList.toggle("hidden", body.role !== "hub" || !!body.hub_data);
     applyRole(body.role || "hub");
+  }
+  async function initHub() {
+    $("host-error").textContent = "";
+    $("host-output").textContent = "";
+    try {
+      const body = await api("/api/hub/init", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
+        data: $("host-data").value.trim(),
+        token_file: $("host-token").value.trim(),
+        listen: $("host-listen").value.trim(),
+        hub_url: $("host-url").value.trim(),
+        tls_cert: $("host-cert").value.trim(),
+        tls_key: $("host-key").value.trim(),
+        tls_ca: $("host-ca").value.trim()
+      }) });
+      $("host-output").textContent = body.next || "";
+      await refreshSettings();
+      await refresh();
+    } catch (err) {
+      $("host-error").textContent = err.message || t("host.failed");
+    }
   }
   async function completeSetup(role, tab) {
     try {
@@ -539,6 +590,7 @@
   $("welcome-host").addEventListener("click", () => completeSetup("hub", "overview"));
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
+  $("host-init").addEventListener("click", initHub);
   $("chat-refresh").addEventListener("click", () => refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); }));
   $("join-submit").addEventListener("click", joinHub);
   $("open-chat").addEventListener("click", async () => {
