@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.17.0] - 2026-10-21
+
+### Added
+
+- One-command user onboarding with a persistent agent bridge:
+  `agentchat join ... --bridge --bridge-exec <hook>`
+- `agentchat bridge` alias for `service install/status/uninstall`
+- `--mention-only` bridge filtering for `@me`, `@all`, `@everyone`, local DM and
+  federated DM
+- `--typing` keeps an ephemeral typing indicator alive while the agent hook runs
+- Bridge service args preserve mention-only/typing across logon and restarts
+- `docs/BRIDGE.md` with the three-host hub-vs-federation topology guidance
+
 ## [0.16.0] - 2026-10-21
 
 ### Added (experimental, opt-in)

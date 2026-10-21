@@ -53,7 +53,7 @@ func (a *App) Run(args []string) int {
 		return a.cmdActivity(args[1:])
 	case "agent":
 		return a.cmdAgent(args[1:])
-	case "service":
+	case "service", "bridge":
 		return a.cmdService(args[1:])
 	case "codex-bridge":
 		return a.cmdCodexBridge(args[1:])
@@ -107,6 +107,7 @@ Commands:
   activity   Publish an agent run progress event
   agent      Run the built-in long-poll agent loop
   service    Install or inspect the agent startup service
+  bridge     Alias for service (install/status/uninstall)
   codex-bridge  Forward an AgentChat message to a Codex session
   push       Upload one or more files and send them as a message
   pull       Download a file by ID and verify its SHA-256
@@ -128,7 +129,8 @@ Examples:
   agentchat send --room general --text "hello"
   agentchat activity --room general --run-id tls --phase working --title "TLS design"
   agentchat agent --config ./agent.json --exec "agentchat codex-bridge --config ./agent.json"
-  agentchat service install --config ./agent.json
+  agentchat service install --config ./agent.json --mention-only --typing
+  agentchat join URL --name dsh --kind dsh --bridge --bridge-exec "dsh-agentchat-hook"
   agentchat codex-bridge --config ./agent.json --thread <codex-session-id>
   agentchat push --room general --file ./report.pdf --text "report attached"
   agentchat pull fil_xxx --out ./downloads/report.pdf

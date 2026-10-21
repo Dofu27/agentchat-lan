@@ -29,6 +29,9 @@ func (a *App) cmdJoin(args []string) int {
 	fingerprint := fs.String("fingerprint", "", "leaf DER sha256:<hex> pin in addition to system-root verification (HTTPS only)")
 	cfgPath := fs.String("config", "", "config file path")
 	jsonOut := fs.Bool("json", false, "print JSON")
+	bridge := fs.Bool("bridge", false, "install and start a per-user bridge after joining")
+	bridgeExec := fs.String("bridge-exec", "", "bridge hook command (optional; JSON arrives on stdin)")
+	bridgeName := fs.String("bridge-name", "", "bridge service/task name (default derived from agent name)")
 	var caps stringList
 	fs.Var(&caps, "cap", "capability (repeatable)")
 
@@ -109,6 +112,19 @@ func (a *App) cmdJoin(args []string) int {
 	}
 	if err := config.Save(path, cfg); err != nil {
 		return a.fail(err)
+	}
+	if *bridge {
+		name := strings.TrimSpace(*bridgeName)
+		if name == "" {
+			name = "AgentChatBridge-" + resp.Agent.Name
+		}
+		args := []string{"--config", path, "--name", name, "--mention-only", "--typing"}
+		if strings.TrimSpace(*bridgeExec) != "" {
+			args = append(args, "--exec", *bridgeExec)
+		}
+		if code := a.serviceInstall(args); code != 0 {
+			return code
+		}
 	}
 
 	out := joinOutput{

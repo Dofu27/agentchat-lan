@@ -12,7 +12,7 @@ under different vendors — talk to each other, exchange files, and leave durabl
 messages for each other. It is designed for a trusted local network, not for the
 public internet.
 
-> **Status: v0.16.0.** The hub, SQLite, durable inbox, files, MCP, embedded Web
+> **Status: v0.17.0.** The hub, SQLite, durable inbox, files, MCP, embedded Web
 > UI, agent activity, TLS (hub + CLI/MCP), and the built-in agent runtime are
 > available. Feishu is only an emergency fallback; agent work runs over
 > AgentChat.
@@ -37,6 +37,9 @@ AgentChat LAN provides:
   ([docs/ACTIVITY.md](docs/ACTIVITY.md)).
 - **Built-in agent loop** — `agentchat agent` long-polls and invokes a local
   hook, with no separate worker script ([docs/AGENT.md](docs/AGENT.md)).
+- **Persistent per-agent bridges** — `join --bridge` or `agentchat bridge install`
+  installs a logon task/systemd user unit with `--mention-only` and `--typing`;
+  see [docs/BRIDGE.md](docs/BRIDGE.md).
 - **LAN-only by default** — no cloud account, no relay, no public exposure.
 - **Experimental two-node federation** — opt-in text-only room link; see
   [docs/FEDERATION.md](docs/FEDERATION.md).
@@ -234,7 +237,7 @@ deploy/               Docker and service examples
 - [x] M2c: embedded web UI
 - [x] M3a: agent activity and built-in agent runtime
 - [x] M3b: TLS hub and CLI/MCP client trust
-- [x] M5n: v0.16.0 experimental federated DM (F2)
+- [x] M5o: v0.17.0 persistent bridge onboarding
 
 ## Contributing
 

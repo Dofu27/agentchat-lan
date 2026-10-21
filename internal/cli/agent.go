@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Dofu27/agentchat-lan/internal/client"
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
@@ -24,6 +25,8 @@ func (a *App) cmdAgent(args []string) int {
 	execHook := fs.String("exec", "", "optional command run for each message; receives JSON on stdin")
 	ack := fs.Bool("ack", true, "advance the server cursor after processing")
 	once := fs.Bool("once", false, "process one inbox batch and exit")
+	mentionOnly := fs.Bool("mention-only", false, "only invoke the hook for @me, @all, and DM messages")
+	typing := fs.Bool("typing", false, "publish typing while the hook runs")
 	jsonOut := fs.Bool("json", false, "print each message as JSON when no --exec is set")
 
 	codeExit, ok := a.parse(fs, args)
@@ -77,6 +80,10 @@ func (a *App) cmdAgent(args []string) int {
 				advanceAck(acks, msg)
 				continue
 			}
+			if *mentionOnly && !agentMentioned(cfg.AgentName, msg) {
+				advanceAck(acks, msg)
+				continue
+			}
 			hookOK := true
 			if strings.TrimSpace(*execHook) == "" {
 				if *jsonOut {
@@ -86,7 +93,7 @@ func (a *App) cmdAgent(args []string) int {
 				} else {
 					printMessage(a, msg)
 				}
-			} else if err := runAgentHook(ctx, *execHook, msg, a); err != nil {
+			} else if err := runAgentHookWithTyping(ctx, c, *execHook, msg, a, *typing); err != nil {
 				hookOK = false
 				hookFailed = true
 				fmt.Fprintf(a.Stderr, "agent: hook failed for seq %d: %v (message remains unacknowledged)\n", msg.Seq, err)
@@ -128,6 +135,48 @@ func advanceAck(acks map[string]int64, msg protocol.Message) {
 
 func printMessage(a *App, msg protocol.Message) {
 	fmt.Fprintf(a.Stdout, "[%s] %s in %s#%d: %s\n", msg.TS.Local().Format("2006-01-02 15:04:05"), msg.From.Name, msg.Room, msg.Seq, msg.Text)
+}
+
+func agentMentioned(name string, msg protocol.Message) bool {
+	if strings.HasPrefix(msg.Room, "dm_") || strings.HasPrefix(msg.Room, "fdm_") {
+		return true
+	}
+	for _, mentioned := range protocol.MentionNames(msg.Text) {
+		if strings.EqualFold(mentioned, name) || strings.EqualFold(mentioned, "all") || strings.EqualFold(mentioned, "everyone") {
+			return true
+		}
+	}
+	return false
+}
+
+func sendTyping(c *client.Client, room string, typing bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = c.Typing(ctx, room, typing)
+}
+
+func runAgentHookWithTyping(ctx context.Context, c *client.Client, command string, msg protocol.Message, a *App, typing bool) error {
+	if !typing {
+		return runAgentHook(ctx, command, msg, a)
+	}
+	sendTyping(c, msg.Room, true)
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				sendTyping(c, msg.Room, true)
+			}
+		}
+	}()
+	err := runAgentHook(ctx, command, msg, a)
+	close(done)
+	sendTyping(c, msg.Room, false)
+	return err
 }
 
 func runAgentHook(ctx context.Context, command string, msg protocol.Message, a *App) error {

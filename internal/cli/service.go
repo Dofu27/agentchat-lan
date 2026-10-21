@@ -34,6 +34,8 @@ func (a *App) serviceInstall(args []string) int {
 	name := fs.String("name", defaultServiceName, "service or task name")
 	cfgPath := fs.String("config", "", "agent config file path")
 	hook := fs.String("exec", "", "optional agent hook command")
+	mentionOnly := fs.Bool("mention-only", false, "only invoke the hook for @me, @all, and DM messages")
+	typing := fs.Bool("typing", false, "publish typing while the hook runs")
 	if codeExit, ok := a.parse(fs, args); !ok {
 		return codeExit
 	}
@@ -51,6 +53,12 @@ func (a *App) serviceInstall(args []string) int {
 	agentArgs := []string{"agent", "--config", abs}
 	if strings.TrimSpace(*hook) != "" {
 		agentArgs = append(agentArgs, "--exec", *hook)
+	}
+	if *mentionOnly {
+		agentArgs = append(agentArgs, "--mention-only")
+	}
+	if *typing {
+		agentArgs = append(agentArgs, "--typing")
 	}
 
 	if runtime.GOOS == "windows" {
