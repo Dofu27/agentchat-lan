@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.24.2] - 2026-10-21
+
+### Fixed
+
+- Host setup validates the TLS client before `hub init` and no longer holds the
+  runtime write lock while running the CLI, reading the token, or saving config
+
 ## [0.24.1] - 2026-10-21
 
 ### Fixed
