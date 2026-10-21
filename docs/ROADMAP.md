@@ -14,7 +14,8 @@ Go binary, one self-hosted LAN hub, and one cross-platform desktop entry point.
   `DSH_RESTART_OK` at `#335`.
 - Production hubs A and B remain on `v0.14.1`.
 - Federation F0–F3 is experimental and not part of the production rollout.
-- F4 explicit read receipts is not implemented.
+- F4 explicit local read receipts is implemented in `v0.22.0` (experimental;
+  no federation forwarding yet).
 
 ## P0 — Live agent runtime (done)
 
@@ -60,7 +61,7 @@ One `AgentChatConsole` entry point with role-aware tabs:
 Exit criteria: a new Windows machine can install once, configure a role, and run
 without a terminal.
 
-## P3 — F4 explicit read receipts
+## P3 — F4 explicit read receipts (local stage done)
 
 Design and implement explicit read state separately from delivery ACK.
 

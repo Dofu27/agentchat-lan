@@ -689,7 +689,7 @@ func (s *Server) handleReceipts(w http.ResponseWriter, r *http.Request) {
 		s.storeError(w, err)
 		return
 	}
-	receipts, err := s.store.RoomReceipts(r.Context(), room)
+	receipts, err := s.store.RoomReceipts(r.Context(), me.ID, room)
 	if err != nil {
 		s.internalError(w, err)
 		return

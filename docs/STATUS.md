@@ -5,6 +5,8 @@ Updated: 2026-10-21
 ## Current (post-DSH bridge)
 
 - Released: `v0.21.11` (`75336ad`), Codex `REVIEW_OK` at AgentChat `#354`.
+- F4 local explicit read receipts merged for `v0.22.0` from Codex `1602baa`,
+  with a receipts ACL fix; federation forwarding remains disabled.
 - Live DSH bridge: real headless replies `DSH_2111_OK` (`#349`) and
   `DSH_RESTART_OK` (`#335`); one-time fixed cutoff initialization is durable.
 - Windows bridge install has a Startup-folder fallback when Task Scheduler is
