@@ -150,16 +150,19 @@ func (s *Store) FederationIdentity(ctx context.Context) (string, error) {
 // ConfigureFederation is explicit startup opt-in. Persisted peer/link rows alone
 // never turn on enqueueing after an ordinary process restart.
 func (s *Store) ConfigureFederation(ctx context.Context, peers []FederationPeer, links []FederationLink, limits FederationLimits) (string, error) {
-	if len(peers) != 1 || limits.MaxOutbox < 1 || limits.MaxOutbox > 10000 || limits.MaxAttempts < 1 || limits.MaxAttempts > 20 {
-		return "", errors.New("PoC requires one peer and bounded outbox/attempt limits")
+	if len(peers) < 1 || len(peers) > 64 || limits.MaxOutbox < 1 || limits.MaxOutbox > 10000 || limits.MaxAttempts < 1 || limits.MaxAttempts > 20 {
+		return "", errors.New("federation requires 1-64 peers and bounded outbox/attempt limits")
 	}
 	id, err := s.FederationIdentity(ctx)
 	if err != nil {
 		return "", err
 	}
-	p := peers[0]
-	if p.NodeID == id || protocol.ValidateAgentName(p.NodeID) != nil || len(p.SecretHash) != 64 {
-		return "", errors.New("invalid federation peer identity")
+	known := make(map[string]bool, len(peers))
+	for _, p := range peers {
+		if p.NodeID == id || protocol.ValidateAgentName(p.NodeID) != nil || len(p.SecretHash) != 64 || known[p.NodeID] {
+			return "", errors.New("invalid or duplicate federation peer identity")
+		}
+		known[p.NodeID] = true
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -168,24 +171,26 @@ func (s *Store) ConfigureFederation(ctx context.Context, peers []FederationPeer,
 		return "", err
 	}
 	defer tx.Rollback()
-	var reusedCredential int
-	if err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM agents WHERE token_hash=?", p.SecretHash).Scan(&reusedCredential); err != nil {
-		return "", err
-	}
-	if reusedCredential != 0 {
-		return "", errors.New("federation secret must not reuse an agent token")
-	}
 	if _, err = tx.ExecContext(ctx, "UPDATE federation_peers SET enabled=0"); err != nil {
 		return "", err
 	}
 	if _, err = tx.ExecContext(ctx, "DELETE FROM federation_room_links"); err != nil {
 		return "", err
 	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO federation_peers VALUES(?,?,?,1) ON CONFLICT(node_id) DO UPDATE SET base_url=excluded.base_url,secret_hash=excluded.secret_hash,enabled=1`, p.NodeID, p.BaseURL, p.SecretHash); err != nil {
-		return "", err
+	for _, p := range peers {
+		var reusedCredential int
+		if err = tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM agents WHERE token_hash=?", p.SecretHash).Scan(&reusedCredential); err != nil {
+			return "", err
+		}
+		if reusedCredential != 0 {
+			return "", errors.New("federation secret must not reuse an agent token")
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO federation_peers VALUES(?,?,?,1) ON CONFLICT(node_id) DO UPDATE SET base_url=excluded.base_url,secret_hash=excluded.secret_hash,enabled=1`, p.NodeID, p.BaseURL, p.SecretHash); err != nil {
+			return "", err
+		}
 	}
 	for _, l := range links {
-		if l.PeerID != p.NodeID || protocol.ValidateAgentName(l.LocalRoom) != nil || protocol.ValidateAgentName(l.RemoteRoom) != nil {
+		if !known[l.PeerID] || protocol.ValidateAgentName(l.LocalRoom) != nil || protocol.ValidateAgentName(l.RemoteRoom) != nil {
 			return "", errors.New("invalid federation room link")
 		}
 		var kind string
