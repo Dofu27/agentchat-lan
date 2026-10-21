@@ -7,12 +7,14 @@ import (
 	"syscall"
 )
 
-func configureDSHProcess(cmd *exec.Cmd) {
+func startDSHProcess(cmd *exec.Cmd) (func(), error) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-}
-
-func killDSHProcess(cmd *exec.Cmd) {
-	if cmd.Process != nil {
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	if err := cmd.Start(); err != nil {
+		return nil, err
 	}
+	return func() {
+		if cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+	}, nil
 }

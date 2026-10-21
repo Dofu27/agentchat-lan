@@ -87,6 +87,9 @@ func (a *App) cmdDshBridge(args []string) int {
 	if err != nil {
 		return a.fail(err)
 	}
+	if strings.TrimSpace(cfg.AgentID) == "" {
+		return a.fail(fmt.Errorf("config has no agent_id; refusing an ambiguous DSH scope"))
+	}
 	configAbs, err := filepath.Abs(*cfgPath)
 	if err != nil {
 		return a.fail(err)
@@ -184,10 +187,13 @@ func runDSH(dsh, profile, workdir string, timeoutSeconds int, sessionID, prompt 
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.WaitDelay = 3 * time.Second
-	configureDSHProcess(cmd)
-	runErr := cmd.Run()
+	cleanup, startErr := startDSHProcess(cmd)
+	if startErr != nil {
+		return "", "", fmt.Errorf("start DSH: %w", startErr)
+	}
+	runErr := cmd.Wait()
+	cleanup()
 	if ctx.Err() != nil {
-		killDSHProcess(cmd)
 		return "", "", fmt.Errorf("DSH timed out after %ds", timeoutSeconds)
 	}
 	if runErr != nil {
