@@ -24,6 +24,9 @@ A read-only SSH session is elevated (`net session` succeeds).
 - B `/healthz`: `status=ok`, `version=dev`; `/readyz`: ready.
 - v0.29.0 Windows CLI staged as `agentchat-v0290-stage.exe`; `version` prints
   `agentchat 0.29.0`; `hub backup` on B data succeeded (463,394 bytes).
+- The same binary is staged at `C:\Program Files\AgentChat\agentchat.exe`
+  (SHA-256 `b1321000804e53ebbe22f39164656cf47c94f78d8947d2d16fbb4a1944949fa6`);
+  the running service still uses the old `agentchat-v0100-svc.exe`.
 - Backup copied to the operator backup directory with SHA-256
   `09696b6870a1beaa445ef60f1c6d63b7f1e1c07d2da560903812ee22365a1caf`.
 - Restored that backup with v0.29.0 on a loopback test hub: health
