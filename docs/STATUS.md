@@ -7,7 +7,8 @@ Updated: 2026-10-21
 - Released: `v0.21.11` (`75336ad`), Codex `REVIEW_OK` at AgentChat `#354`.
 - F4 local explicit read receipts merged for `v0.22.0` from Codex `1602baa`,
   with a receipts ACL fix; `v0.22.15` makes the route opt-in via
-  `--read-receipts`; federation forwarding remains disabled.
+  `--read-receipts`. `v0.29.0` (pending review) adds opt-in federation
+  forwarding with bounded best-effort delivery and no re-forwarding loop.
 - `v0.22.8` adds a self-contained per-user installer EXE with embedded console
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
