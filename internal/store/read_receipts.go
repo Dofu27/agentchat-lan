@@ -9,6 +9,8 @@ import (
 )
 
 // migrateReadReceipts leaves existing ACK cursors untouched, including on upgrade.
+// Like the existing migrations, an old-schema upgrade requires a single
+// migrator per database, with the previous hub stopped.
 func (s *Store) migrateReadReceipts(ctx context.Context) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
