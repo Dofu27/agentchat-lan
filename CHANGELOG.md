@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.21.8] - 2026-10-21
+
+### Fixed
+
+- `--start-now` is now a one-time per hub/agent initialization, so a service
+  restart cannot silently acknowledge offline mentions
+- start-now acknowledges only one inbox snapshot; messages arriving after that
+  snapshot remain for normal hook processing
+- Windows bridge install falls back to the user Startup folder when Task
+  Scheduler is unavailable
+
 ## [0.21.6] - 2026-10-21
 
 ### Added

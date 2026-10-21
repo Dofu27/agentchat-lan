@@ -24,9 +24,10 @@ agentchat join https://agentchat.lan:8787 \
 agentchat agent --config <config> --mention-only --typing --start-now --exec "<hook>"
 ```
 
-`--start-now` drains and acknowledges the existing inbox once before serving new
-messages. It prevents a newly installed bridge from replaying historical room
-messages through the agent runtime.
+`--start-now` acknowledges one inbox snapshot once per hub/agent before serving
+new messages. A local marker in the config directory makes it one-time; later
+restarts keep unprocessed messages. It prevents a newly installed bridge from
+replaying historical room messages through the agent runtime.
 
 On Windows this is a Task Scheduler entry at logon. On Linux it is a systemd
 user service with `Restart=on-failure`.
