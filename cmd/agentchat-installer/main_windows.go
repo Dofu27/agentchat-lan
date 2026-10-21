@@ -305,7 +305,12 @@ func removeStartupEntries() error {
 	if err := os.Remove(menu); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	_ = exec.Command("reg.exe", "delete", `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, "/v", "AgentChatConsole", "/f").Run()
+	runKey := `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+	if err := exec.Command("reg.exe", "query", runKey, "/v", "AgentChatConsole").Run(); err == nil {
+		if err := exec.Command("reg.exe", "delete", runKey, "/v", "AgentChatConsole", "/f").Run(); err != nil {
+			return fmt.Errorf("remove HKCU startup entry: %w", err)
+		}
+	}
 	return nil
 }
 
