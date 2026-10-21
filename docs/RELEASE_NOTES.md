@@ -19,6 +19,13 @@ embedded Web UI.
 - Windows unified console: Chat/Join, Bridge, role tabs, Host setup, logs
 - Self-contained per-user Windows installer EXE
 
+## Release verification
+
+Run `scripts/verify-release.sh v0.22.15 dist` before publishing. It checks every
+required asset, `SHA256SUMS`, the Linux version string, Windows PE headers, the
+installer size floor, and that no private LAN address is embedded. The v0.22.15
+local bundle passes this check.
+
 ## Install
 
 Windows console:
