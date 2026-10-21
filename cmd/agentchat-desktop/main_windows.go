@@ -908,6 +908,9 @@ func hubServiceBinPath(cfg config, guard *serviceBinaryGuard) (string, error) {
 	if cfg.HubData == "" || cfg.HubListen == "" {
 		return "", errors.New("host setup is incomplete")
 	}
+	if (cfg.HubCert == "") != (cfg.HubKey == "") {
+		return "", errors.New("TLS certificate and key must be configured together")
+	}
 	executable, err := guard.ExecutablePath()
 	if err != nil {
 		return "", err
