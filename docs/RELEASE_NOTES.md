@@ -19,6 +19,14 @@ embedded Web UI.
 - Windows unified console: Chat/Join, Bridge, role tabs, Host setup, logs
 - Self-contained per-user Windows installer EXE
 
+## Next: v0.29.0 (pending review)
+
+`main b20397f` adds opt-in federation read-receipt forwarding, multi-peer DM
+and typing fanout, launcher URL hardening, exclusive desktop Join config, and
+release-versioned installer CLI. It is staged on A (`agentchat:v0.29.0`) and
+rehearsed against the v0.14.1 backup; it is not tagged or published until the
+final review.
+
 ## Published release
 
 [v0.28.1](https://github.com/Dofu27/agentchat-lan/releases/tag/v0.28.1) is
