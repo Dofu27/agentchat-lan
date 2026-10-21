@@ -24,14 +24,15 @@ import (
 )
 
 var (
-	ErrNotFound      = errors.New("not found")
-	ErrForbidden     = errors.New("forbidden")
-	ErrConflict      = errors.New("conflict")
-	ErrInviteExpired = errors.New("invite expired")
-	ErrInviteUsed    = errors.New("invite used")
-	ErrInviteInvalid = errors.New("invite invalid")
-	ErrInvalidTarget = errors.New("message target is not a room member")
-	ErrFileNotFound  = errors.New("file not found")
+	ErrNotFound       = errors.New("not found")
+	ErrForbidden      = errors.New("forbidden")
+	ErrConflict       = errors.New("conflict")
+	ErrInviteExpired  = errors.New("invite expired")
+	ErrInviteUsed     = errors.New("invite used")
+	ErrInviteInvalid  = errors.New("invite invalid")
+	ErrInvalidTarget  = errors.New("message target is not a room member")
+	ErrFileNotFound   = errors.New("file not found")
+	ErrInvalidReadSeq = errors.New("read sequence is outside the room's current range")
 )
 
 // Store owns a SQLite database. All public operations are safe for concurrent use.
@@ -158,6 +159,9 @@ INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(1,strftime('%
 	}
 	if err := s.ensureFileNameColumn(ctx); err != nil {
 		return fmt.Errorf("apply file name migration: %w", err)
+	}
+	if err := s.migrateReadReceipts(ctx); err != nil {
+		return fmt.Errorf("apply read receipt migration: %w", err)
 	}
 	return nil
 }
@@ -582,7 +586,7 @@ func (s *Store) RoomByID(ctx context.Context, id string) (protocol.Room, error) 
 	return r, nil
 }
 
-// RoomReceipts returns each member's monotonic read cursor for a room.
+// RoomReceipts returns independent delivery/processing and explicit read cursors.
 func (s *Store) RoomReceipts(ctx context.Context, roomID string) ([]map[string]any, error) {
 	var private int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM rooms WHERE id=? AND kind='federated_dm'`, roomID).Scan(&private); err != nil {
@@ -591,7 +595,7 @@ func (s *Store) RoomReceipts(ctx context.Context, roomID string) ([]map[string]a
 	if private != 0 {
 		return nil, ErrForbidden
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT m.agent_id,a.name,m.last_ack_seq FROM memberships m JOIN agents a ON a.id=m.agent_id WHERE m.room_id=? ORDER BY a.name`, roomID)
+	rows, err := s.db.QueryContext(ctx, `SELECT m.agent_id,a.name,m.last_ack_seq,m.read_seq FROM memberships m JOIN agents a ON a.id=m.agent_id WHERE m.room_id=? ORDER BY a.name`, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -599,11 +603,11 @@ func (s *Store) RoomReceipts(ctx context.Context, roomID string) ([]map[string]a
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, name string
-		var seq int64
-		if err := rows.Scan(&id, &name, &seq); err != nil {
+		var ack, read int64
+		if err := rows.Scan(&id, &name, &ack, &read); err != nil {
 			return nil, err
 		}
-		out = append(out, map[string]any{"agent_id": id, "name": name, "last_ack_seq": seq})
+		out = append(out, map[string]any{"agent_id": id, "name": name, "last_ack_seq": ack, "read_seq": read})
 	}
 	return out, rows.Err()
 }
