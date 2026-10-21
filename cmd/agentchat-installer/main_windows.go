@@ -74,26 +74,38 @@ type installMarker struct {
 	ConfigCreated bool     `json:"config_created"`
 }
 
-func directoryIdentity(path string) (uint32, uint32, uint32, error) {
+func openDirectoryIdentity(path string) (windows.Handle, uint32, uint32, uint32, error) {
 	ptr, err := windows.UTF16PtrFromString(path)
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
+	// Excluding FILE_SHARE_DELETE keeps the verified directory object from being
+	// replaced by a junction between identity validation and file removal.
 	h, err := windows.CreateFile(ptr, windows.GENERIC_READ,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE, nil,
 		windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(h, &info); err != nil {
+		windows.CloseHandle(h)
+		return 0, 0, 0, 0, err
+	}
+	if info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+		windows.CloseHandle(h)
+		return 0, 0, 0, 0, errors.New("install path is a reparse point")
+	}
+	return h, info.VolumeSerialNumber, info.FileIndexHigh, info.FileIndexLow, nil
+}
+
+func directoryIdentity(path string) (uint32, uint32, uint32, error) {
+	h, vol, hi, lo, err := openDirectoryIdentity(path)
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	defer windows.CloseHandle(h)
-	var info windows.ByHandleFileInformation
-	if err := windows.GetFileInformationByHandle(h, &info); err != nil {
-		return 0, 0, 0, err
-	}
-	if info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-		return 0, 0, 0, errors.New("install path is a reparse point")
-	}
-	return info.VolumeSerialNumber, info.FileIndexHigh, info.FileIndexLow, nil
+	windows.CloseHandle(h)
+	return vol, hi, lo, nil
 }
 
 func installDesktop(dir, role, hub string, startup bool) error {
@@ -231,10 +243,15 @@ func uninstallDesktop(dir string, removeData bool) error {
 	if err := json.Unmarshal(data, &marker); err != nil || marker.App != "agentchat-desktop" || !strings.EqualFold(filepath.Clean(marker.Root), abs) {
 		return fmt.Errorf("ownership marker does not match %s", abs)
 	}
-	vol, hi, lo, err := directoryIdentity(abs)
+	dirHandle, vol, hi, lo, err := openDirectoryIdentity(abs)
 	if err != nil {
 		return fmt.Errorf("ownership identity does not match %s", abs)
 	}
+	defer func() {
+		if dirHandle != 0 {
+			windows.CloseHandle(dirHandle)
+		}
+	}()
 	if marker.VolumeSerial != 0 || marker.FileIndexHigh != 0 || marker.FileIndexLow != 0 {
 		if vol != marker.VolumeSerial || hi != marker.FileIndexHigh || lo != marker.FileIndexLow {
 			return fmt.Errorf("ownership identity does not match %s", abs)
@@ -278,6 +295,8 @@ func uninstallDesktop(dir string, removeData bool) error {
 		if removeErr != nil {
 			return removeErr
 		}
+		windows.CloseHandle(dirHandle)
+		dirHandle = 0
 		if err := os.Remove(abs); err != nil && !os.IsNotExist(err) {
 			fmt.Printf("Kept %s because it contains unknown files\n", abs)
 		}

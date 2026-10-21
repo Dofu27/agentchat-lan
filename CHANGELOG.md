@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.26.1] - 2026-10-21
+
+### Security
+
+- Uninstall keeps the verified install-root handle open through file removal
+  (without `FILE_SHARE_DELETE`) so a junction cannot replace the verified root;
+  normal uninstall and real-junction refusal were both re-tested
+
 ## [0.26.0] - 2026-10-21
 
 ### Changed
