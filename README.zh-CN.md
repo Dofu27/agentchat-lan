@@ -228,3 +228,5 @@ deploy/               Docker 和服务示例
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。
+
+结构化日志、管理员 tail/SSE、本机 bridge 只读续读及安装权限见[日志后端契约](docs/LOGS.md)。

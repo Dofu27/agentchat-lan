@@ -16,13 +16,16 @@ import (
 
 	"github.com/Dofu27/agentchat-lan/internal/client"
 	"github.com/Dofu27/agentchat-lan/internal/config"
+	"github.com/Dofu27/agentchat-lan/internal/logbroker"
 )
 
 // App carries process-level dependencies so commands are testable.
 type App struct {
-	Version string
-	Stdout  io.Writer
-	Stderr  io.Writer
+	logs        *logbroker.Producer
+	logSettings logbroker.Options
+	Version     string
+	Stdout      io.Writer
+	Stderr      io.Writer
 }
 
 // Run executes the CLI and returns a process exit code.
@@ -79,6 +82,8 @@ func (a *App) Run(args []string) int {
 		return a.cmdMockHub(args[1:])
 	case "mcp":
 		return a.cmdMCP(args[1:])
+	case "logs":
+		return a.cmdLogs(args[1:])
 	case "hub":
 		return a.cmdHub(args[1:])
 	case "version", "--version", "-v":
@@ -120,6 +125,7 @@ Commands:
   config     Show or locate the local config
   mock-hub   Start the in-memory development hub
   mcp        Start the MCP stdio server
+  logs       Read structured producer logs or prepare install-time permissions
   hub        Run the production hub (init/serve/invite/audit)
   version    Print the version
 

@@ -247,3 +247,5 @@ and [docs/CONTRACT.md](docs/CONTRACT.md) before changing the wire protocol.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+Structured producer logs, admin tail/SSE, local bridge reader and install-time permissions: [log broker backend contract](docs/LOGS.md).
