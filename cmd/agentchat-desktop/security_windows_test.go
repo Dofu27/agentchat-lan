@@ -81,6 +81,19 @@ func TestProcessJobFailuresNeverResume(t *testing.T) {
 			case "resume":
 				api.resume = func(uint32) error { return injected }
 			}
+			// Retain a separate synchronization handle before the executor can
+			// terminate/reap the child. PID lookup after exit is subject to reuse.
+			var probe windows.Handle
+			open := api.open
+			api.open = func(pid uint32) (windows.Handle, error) {
+				var err error
+				probe, err = windows.OpenProcess(windows.SYNCHRONIZE, false, pid)
+				if err != nil {
+					return 0, err
+				}
+				t.Cleanup(func() { windows.CloseHandle(probe) })
+				return open(pid)
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			_, err := runBoundedWithJob(ctx, exe, args, 1024, api)
@@ -89,6 +102,19 @@ func TestProcessJobFailuresNeverResume(t *testing.T) {
 			}
 			if resumed {
 				t.Fatal("resumed after containment failure")
+			}
+			if stage == "create" || stage == "configure" {
+				if probe != 0 {
+					t.Fatal("process reached open stage before job configuration")
+				}
+			} else {
+				if probe == 0 {
+					t.Fatal("missing suspended-process exit probe")
+				}
+				state, err := windows.WaitForSingleObject(probe, 0)
+				if err != nil || state != windows.WAIT_OBJECT_0 {
+					t.Fatalf("suspended process was not reaped before return: state=%d err=%v", state, err)
+				}
 			}
 			if _, err := os.Stat(marker); !os.IsNotExist(err) {
 				t.Fatal("child code executed on failing path")
@@ -156,6 +182,15 @@ func TestServiceAccessCheckOrdinaryUser(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer token.Close()
+	groups, err := token.GetTokenGroups()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, group := range groups.AllGroups() {
+		if group.Sid.String() == "S-1-5-32-544" && (group.Attributes&windows.SE_GROUP_USE_FOR_DENY_ONLY == 0 || group.Attributes&windows.SE_GROUP_ENABLED != 0) {
+			t.Fatal("restricted token retains an enabled/non-deny-only Administrators group")
+		}
+	}
 	for _, tt := range []struct {
 		sddl     string
 		writable bool
