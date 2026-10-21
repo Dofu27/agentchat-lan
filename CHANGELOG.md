@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.23.0] - 2026-10-21
+
+### Added
+
+- Experimental multi-peer federation text fanout: per-peer secrets/TLS clients,
+  links, retries, and independent queues; attachments/DM/typing remain
+  single-peer for now
+
 ## [0.22.18] - 2026-10-21
 
 ### Security
