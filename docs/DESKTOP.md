@@ -60,7 +60,9 @@ Useful flags: `-install-dir`, `-no-startup`, `-no-launch`, `-uninstall`, and
 `.agentchat-install.json` ownership marker written by this installer; it removes
 only files listed there and refuses arbitrary directories. The marker records
 the directory's volume/file identity; a moved directory replaced by a junction
-is rejected (verified with a real junction) and its files are left intact. If a host policy blocks the
+is rejected (verified with a real junction) and its files are left intact.
+The verified root handle is held through file removal, without
+`FILE_SHARE_DELETE`, so the root cannot be swapped mid-uninstall. If a host policy blocks the
 user Startup folder, the installer tries an HKCU Run entry; if both are blocked
 it warns and still installs the binaries/config with exit code 0.
 
