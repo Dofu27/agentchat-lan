@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.24.3] - 2026-10-21
+
+### Fixed
+
+- Status/outbox/retry/service use short runtime snapshots and no longer hold the
+  runtime lock across hub HTTP, SCM, or request-body I/O
+
 ## [0.24.2] - 2026-10-21
 
 ### Fixed

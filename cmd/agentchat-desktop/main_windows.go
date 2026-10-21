@@ -931,8 +931,6 @@ func (a *app) handleChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleBridge(w http.ResponseWriter, r *http.Request) {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
 	action := "status"
 	if r.Method == http.MethodPost {
 		var req struct {
@@ -950,6 +948,8 @@ func (a *app) handleBridge(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unsupported bridge action"})
 		return
 	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	writeJSON(w, http.StatusOK, a.bridgeResult(action))
 }
 
@@ -1064,11 +1064,12 @@ func serviceAction(name, action, startup string) error {
 
 func (a *app) handleStatus(w http.ResponseWriter, r *http.Request) {
 	a.mu.RLock()
-	defer a.mu.RUnlock()
+	service, hubURL, hasToken := a.cfg.Service, a.cfg.HubURL, a.token != ""
+	a.mu.RUnlock()
 	out := map[string]any{
-		"service_name": a.cfg.Service, "hub_url": a.cfg.HubURL,
+		"service_name": service, "hub_url": hubURL,
 	}
-	if st, err := serviceStatus(a.cfg.Service); err == nil {
+	if st, err := serviceStatus(service); err == nil {
 		out["service"] = st
 	} else {
 		out["service_error"] = err.Error()
@@ -1078,7 +1079,7 @@ func (a *app) handleStatus(w http.ResponseWriter, r *http.Request) {
 	} else {
 		out["hub_ok"] = true
 	}
-	if a.token != "" {
+	if hasToken {
 		var status map[string]any
 		if err := a.hubGet("/v1/admin/federation", &status); err == nil {
 			out["federation"] = status
@@ -1092,8 +1093,6 @@ func (a *app) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleService(w http.ResponseWriter, r *http.Request) {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
 	var req struct {
 		Action  string `json:"action"`
 		Startup string `json:"startup"`
@@ -1102,7 +1101,10 @@ func (a *app) handleService(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
 		return
 	}
-	if err := serviceAction(a.cfg.Service, req.Action, req.Startup); err != nil {
+	a.mu.RLock()
+	service := a.cfg.Service
+	a.mu.RUnlock()
+	if err := serviceAction(service, req.Action, req.Startup); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 		return
 	}
@@ -1204,8 +1206,9 @@ func (a *app) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) handleOutbox(w http.ResponseWriter, r *http.Request) {
 	a.mu.RLock()
-	defer a.mu.RUnlock()
-	if a.token == "" {
+	hasToken := a.token != ""
+	a.mu.RUnlock()
+	if !hasToken {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "admin token file is not configured"})
 		return
 	}
@@ -1223,8 +1226,9 @@ func (a *app) handleOutbox(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) handleRetry(w http.ResponseWriter, r *http.Request) {
 	a.mu.RLock()
-	defer a.mu.RUnlock()
-	if a.token == "" {
+	hubURL, token, client := a.cfg.HubURL, a.token, a.http
+	a.mu.RUnlock()
+	if token == "" || client == nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "admin token file is not configured"})
 		return
 	}
@@ -1237,15 +1241,15 @@ func (a *app) handleRetry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	body, _ := json.Marshal(map[string]any{})
-	httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, a.cfg.HubURL+"/v1/admin/federation/outbox/"+req.ID+"/retry", strings.NewReader(string(body)))
+	httpReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, hubURL+"/v1/admin/federation/outbox/"+req.ID+"/retry", strings.NewReader(string(body)))
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
 		return
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+a.token)
+	httpReq.Header.Set("Authorization", "Bearer "+token)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Idempotency-Key", req.Key)
-	resp, err := a.http.Do(httpReq)
+	resp, err := client.Do(httpReq)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
 		return
@@ -1258,14 +1262,20 @@ func (a *app) handleRetry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) hubGet(path string, dst any) error {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, a.cfg.HubURL+path, nil)
+	a.mu.RLock()
+	hubURL, token, client := a.cfg.HubURL, a.token, a.http
+	a.mu.RUnlock()
+	if client == nil {
+		return errors.New("hub client is not configured")
+	}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, hubURL+path, nil)
 	if err != nil {
 		return err
 	}
 	if strings.HasPrefix(path, "/v1/admin/") {
-		req.Header.Set("Authorization", "Bearer "+a.token)
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
-	resp, err := a.http.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
