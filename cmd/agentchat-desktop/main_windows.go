@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -518,6 +519,43 @@ func tailFile(path string, maxLines int, maxBytes int64) ([]string, error) {
 	return lines, nil
 }
 
+func tailLogPath(path, component string, maxLines int) ([]string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return tailFile(path, maxLines, 1<<20)
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.Type().IsRegular() && strings.HasPrefix(name, component+"-") && strings.HasSuffix(name, ".jsonl") {
+			names = append(names, name)
+		}
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+	lines := []string{}
+	for _, name := range names {
+		part, err := tailFile(filepath.Join(path, name), maxLines, 1<<20)
+		if err != nil {
+			return nil, err
+		}
+		lines = append(part, lines...)
+		if len(lines) >= maxLines {
+			break
+		}
+	}
+	if len(lines) > maxLines {
+		lines = lines[len(lines)-maxLines:]
+	}
+	return lines, nil
+}
+
 func (a *app) handleLogs(w http.ResponseWriter, r *http.Request) {
 	source := strings.TrimSpace(r.URL.Query().Get("source"))
 	if source == "" {
@@ -528,7 +566,7 @@ func (a *app) handleLogs(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unknown log source"})
 		return
 	}
-	lines, err := tailFile(path, 1000, 1<<20)
+	lines, err := tailLogPath(path, source, 1000)
 	if os.IsNotExist(err) {
 		writeJSON(w, http.StatusOK, map[string]any{"source": source, "lines": []string{}, "available": false})
 		return
