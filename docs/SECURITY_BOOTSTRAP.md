@@ -97,6 +97,9 @@ Before reading the credential, Windows also rechecks that same handle's owner
 ACEs, and absence of allow grants to any other account. New files explicitly
 set the initiating user as owner. ACL widening after creation therefore blocks
 resume; fix permissions through an authorized local recovery procedure first.
+Here initiating user means the creating process token's TokenUser SID, not an
+interactive user inferred from another session. A SYSTEM process uses SYSTEM;
+this API does not assign ownership to an arbitrary other user.
 Current ACL validation cannot prove historical secrecy. If the credential may
 already have been disclosed, repairing its ACL alone does not revoke leaked
 copies; use an authorized credential-rotation procedure.

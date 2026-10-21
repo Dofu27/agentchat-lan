@@ -4,6 +4,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"golang.org/x/sys/windows"
 	"os"
 	"path/filepath"
@@ -26,7 +27,7 @@ func createBootstrapFile(path string) (*os.File, error) {
 	}
 	sd, err := windows.SecurityDescriptorFromString("O:" + user.User.Sid.String() + "D:P(A;;FA;;;SY)(A;;FA;;;" + user.User.Sid.String() + ")")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build credential initiating-process owner and private DACL: %w", err)
 	}
 	sa := windows.SecurityAttributes{Length: uint32(unsafe.Sizeof(windows.SecurityAttributes{})), SecurityDescriptor: sd}
 	p, err := windows.UTF16PtrFromString(path)
@@ -37,7 +38,10 @@ func createBootstrapFile(path string) (*os.File, error) {
 	// Apply the protected DACL at creation, not through a path-based reopen.
 	runtime.KeepAlive(sd)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, windows.ERROR_INVALID_OWNER) || errors.Is(err, windows.ERROR_PRIVILEGE_NOT_HELD) {
+			return nil, fmt.Errorf("cannot create credential file with initiating-process owner and private DACL: %w", err)
+		}
+		return nil, fmt.Errorf("create exclusive private credential file: %w", err)
 	}
 	return os.NewFile(uintptr(h), path), nil
 }
