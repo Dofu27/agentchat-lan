@@ -19,6 +19,8 @@ v1.0.
   full WebView console.
 - Desktop Join saves a new agent config with `O_EXCL`; concurrent joins can no
   longer overwrite the first successful config.
+- The self-contained Windows installer embeds the release version in its CLI
+  (`agentchat v0.29.0`) instead of `dev`.
 
 ## [0.28.1] - 2026-10-22
 
