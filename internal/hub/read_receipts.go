@@ -3,6 +3,10 @@ package hub
 import "net/http"
 
 func (s *Server) handleMarkRead(w http.ResponseWriter, r *http.Request) {
+	if !s.opts.ReadReceipts {
+		writeError(w, http.StatusNotFound, "not_found", "read receipts are disabled", nil)
+		return
+	}
 	var req struct {
 		Seq *int64 `json:"seq"`
 	}
