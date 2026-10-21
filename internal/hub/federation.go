@@ -101,8 +101,8 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 	if len(peers) == 0 {
 		return nil, errors.New("federation requires at least one peer")
 	}
-	if len(peers) > 1 && (len(opts.DMConversations) > 0 || len(opts.TypingLinks) > 0) {
-		return nil, errors.New("multi-peer federation supports text and attachments only")
+	if len(peers) > 1 && len(opts.TypingLinks) > 0 {
+		return nil, errors.New("multi-peer federation supports text, attachments, and DM; typing remains single-peer")
 	}
 	peerRows := make([]store.FederationPeer, 0, len(peers))
 	clients := make(map[string]*http.Client, len(peers))
@@ -150,9 +150,17 @@ func NewFederation(ctx context.Context, st *store.Store, opts FederationOptions)
 		cleanup()
 		return nil, err
 	}
-	if err = st.ConfigureFederationDM(ctx, peers[0].NodeID, opts.DMConversations); err != nil {
-		cleanup()
-		return nil, err
+	for _, p := range peers {
+		convs := make([]store.FederationDMConversation, 0)
+		for _, c := range opts.DMConversations {
+			if c.PeerID == "" && p.NodeID == peers[0].NodeID || c.PeerID == p.NodeID {
+				convs = append(convs, c)
+			}
+		}
+		if err = st.ConfigureFederationDM(ctx, p.NodeID, convs); err != nil {
+			cleanup()
+			return nil, err
+		}
 	}
 	opts.Peer = peers[0]
 	opts.Peers = peers
