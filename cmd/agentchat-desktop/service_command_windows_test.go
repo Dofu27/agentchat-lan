@@ -6,10 +6,23 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"golang.org/x/sys/windows"
 )
+
+func TestServiceCommandRejectsIncompleteTLSBeforeGuard(t *testing.T) {
+	for _, cfg := range []config{
+		{HubData: "data", HubListen: "127.0.0.1:8443", HubCert: "certificate.pem"},
+		{HubData: "data", HubListen: "127.0.0.1:8443", HubKey: "private-key.pem"},
+	} {
+		command, err := hubServiceBinPath(cfg, nil)
+		if command != "" || err == nil || !strings.Contains(err.Error(), "TLS certificate and key must be configured together") {
+			t.Fatal("incomplete TLS configuration was not rejected before command generation")
+		}
+	}
+}
 
 func TestServiceCommandUsesPinnedExecutableAndRoundTripsArguments(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "pinned fixture.exe")
