@@ -258,7 +258,27 @@ func captureRoomCutoffs(ctx context.Context, c *client.Client) (map[string]int64
 	}
 	cutoffs := make(map[string]int64, len(rooms))
 	for _, room := range rooms {
-		cutoffs[room.ID] = room.LatestSeq
+		if room.LatestSeq > 0 {
+			cutoffs[room.ID] = room.LatestSeq
+			continue
+		}
+		// Older hubs do not expose latest_seq. Walk history once to find the
+		// room's current high-water mark.
+		var after int64
+		for {
+			page, err := c.History(ctx, room.ID, after, 200)
+			if err != nil {
+				return nil, err
+			}
+			if len(page.Messages) == 0 {
+				break
+			}
+			after = page.Messages[len(page.Messages)-1].Seq
+			if !page.HasMore {
+				break
+			}
+		}
+		cutoffs[room.ID] = after
 	}
 	return cutoffs, nil
 }
