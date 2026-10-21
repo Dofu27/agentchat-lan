@@ -119,8 +119,8 @@ func validateResumeCredentialSecurity(sd *windows.SECURITY_DESCRIPTOR) error {
 		if err := windows.GetAce(acl, i, &ace); err != nil {
 			return err
 		}
-		if ace.Header.AceFlags&windows.INHERITED_ACE != 0 {
-			return errors.New("resume credential contains inherited permissions")
+		if ace.Header.AceFlags&(windows.INHERITED_ACE|windows.INHERIT_ONLY_ACE) != 0 {
+			return errors.New("resume credential contains inherited or inherit-only permissions")
 		}
 		if ace.Header.AceType == windows.ACCESS_DENIED_ACE_TYPE {
 			continue
