@@ -30,6 +30,10 @@ Messages above the cutoff remain for normal hook processing. A local state file
 in the config directory makes this one-time and resumable; later restarts keep
 unprocessed messages.
 
+Hubs before v0.21.9 do not expose `latest_seq`. For those, pass an explicit
+fixed cutoff, for example `--start-cutoffs general=330`; the command fails
+closed instead of guessing with an unbounded history scan.
+
 On Windows this is a Task Scheduler entry at logon. On Linux it is a systemd
 user service with `Restart=on-failure`.
 

@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.21.11] - 2026-10-21
+
+### Fixed
+
+- start-now distinguishes an absent `latest_seq` from a real zero high-water
+  mark; legacy hubs require an explicit `--start-cutoffs room=seq` instead of
+  scanning unbounded history
+- start-now initialization takes a cross-process OS lock per hub/agent, loads
+  state under the lock, and cannot overwrite an existing fixed cutoff
+- Windows bridge uninstall reports launcher/Startup deletion failures instead of
+  claiming a successful removal
+
 ## [0.21.10] - 2026-10-21
 
 ### Fixed

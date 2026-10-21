@@ -41,6 +41,7 @@ func (a *App) serviceInstall(args []string) int {
 	mentionOnly := fs.Bool("mention-only", false, "only invoke the hook for @me, @all, and DM messages")
 	typing := fs.Bool("typing", false, "publish typing while the hook runs")
 	startNow := fs.Bool("start-now", false, "ack the existing inbox before serving new messages")
+	startCutoffs := fs.String("start-cutoffs", "", "legacy hub cutoff as room=seq,room=seq")
 	if codeExit, ok := a.parse(fs, args); !ok {
 		return codeExit
 	}
@@ -90,6 +91,9 @@ func (a *App) serviceInstall(args []string) int {
 	}
 	if *startNow {
 		agentArgs = append(agentArgs, "--start-now")
+	}
+	if strings.TrimSpace(*startCutoffs) != "" {
+		agentArgs = append(agentArgs, "--start-cutoffs", *startCutoffs)
 	}
 
 	if runtime.GOOS == "windows" {
@@ -158,14 +162,22 @@ func (a *App) serviceUninstall(args []string) int {
 	}
 	if runtime.GOOS == "windows" {
 		out, err := exec.Command("schtasks", "/Delete", "/TN", *name, "/F").CombinedOutput()
+		removeErrs := []string{}
 		if launcher, pathErr := windowsLauncherPath(*name); pathErr == nil {
-			_ = os.Remove(launcher)
+			if err := os.Remove(launcher); err != nil && !os.IsNotExist(err) {
+				removeErrs = append(removeErrs, fmt.Sprintf("launcher: %v", err))
+			}
 		}
 		if startup, startupErr := windowsStartupPath(*name); startupErr == nil {
-			_ = os.Remove(startup)
+			if err := os.Remove(startup); err != nil && !os.IsNotExist(err) {
+				removeErrs = append(removeErrs, fmt.Sprintf("startup: %v", err))
+			}
 		}
 		if err != nil && !scheduledTaskMissing(string(out)) {
 			return a.fail(fmt.Errorf("delete scheduled task: %w: %s", err, strings.TrimSpace(string(out))))
+		}
+		if len(removeErrs) > 0 {
+			return a.fail(fmt.Errorf("remove bridge files: %s", strings.Join(removeErrs, "; ")))
 		}
 		fmt.Fprintf(a.Stdout, "removed scheduled task/startup entry %s\n", *name)
 		return 0

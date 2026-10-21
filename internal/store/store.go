@@ -521,10 +521,12 @@ func roomsForAgent(ctx context.Context, q interface {
 	for rows.Next() {
 		var r protocol.Room
 		var created string
-		if err = rows.Scan(&r.ID, &r.Name, &r.Topic, &r.Kind, &created, &r.LatestSeq); err != nil {
+		var latest int64
+		if err = rows.Scan(&r.ID, &r.Name, &r.Topic, &r.Kind, &created, &latest); err != nil {
 			return nil, err
 		}
 		r.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+		r.LatestSeq = &latest
 		out = append(out, r)
 	}
 	return out, rows.Err()
