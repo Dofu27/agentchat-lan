@@ -41,3 +41,12 @@ DSH 已经验证：
 
 完成后回报：改了什么、怎么验证、还有哪些契约未决、下一步建议。
 ```
+
+## Screenshot handoff (quota restored)
+
+The exact post-quota screenshot steps are in
+[SCREENSHOTS.md](SCREENSHOTS.md#codex-handoff-after-quota-returns).
+
+Short version: open AgentChat Console, capture Overview in English and 中文,
+then Chat and Admin, and send the six PNGs back; do not expose tokens or private
+addresses.
