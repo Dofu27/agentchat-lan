@@ -155,6 +155,59 @@ func Save(path string, cfg *Config) error {
 	return nil
 }
 
+// SaveNew writes a new config only if the path does not already exist. It is
+// the final ownership gate for a concurrent desktop Join; Save may replace an
+// existing config for an explicit settings update.
+func SaveNew(path string, cfg *Config) error {
+	if cfg == nil {
+		return errors.New("nil config")
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	if path == "" {
+		var err error
+		path, err = DefaultPath()
+		if err != nil {
+			return err
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+	cfg.UpdatedAt = time.Now().UTC()
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode config: %w", err)
+	}
+	data = append(data, '\n')
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("create config exclusively: %w", err)
+	}
+	info, statErr := f.Stat()
+	cleanup := func() {
+		f.Close()
+		if statErr == nil {
+			if current, err := os.Lstat(path); err == nil && os.SameFile(info, current) {
+				_ = os.Remove(path)
+			}
+		}
+	}
+	if _, err := f.Write(data); err != nil {
+		cleanup()
+		return fmt.Errorf("write config: %w", err)
+	}
+	if err := f.Sync(); err != nil {
+		cleanup()
+		return fmt.Errorf("sync config: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close config: %w", err)
+	}
+	return nil
+}
+
 // Validate checks the fields required by all client commands.
 func (c *Config) Validate() error {
 	if c.HubURL == "" {
