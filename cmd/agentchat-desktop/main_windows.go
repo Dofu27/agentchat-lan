@@ -751,22 +751,37 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub TLS client could not be built"})
 		return
 	}
+	_, dataStatErr := os.Stat(req.Data)
+	dataExisted := dataStatErr == nil
+	_, tokenStatErr := os.Stat(req.TokenFile)
+	tokenExisted := tokenStatErr == nil
+	cleanupInit := func() {
+		if !tokenExisted {
+			_ = os.Remove(req.TokenFile)
+		}
+		if !dataExisted {
+			_ = os.RemoveAll(req.Data)
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	args := []string{"hub", "init", "--data", req.Data, "--admin-token-file", req.TokenFile, "--json"}
 	out, err := exec.CommandContext(ctx, base.AgentchatPath, args...).CombinedOutput()
 	if err != nil {
+		cleanupInit()
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": strings.TrimSpace(string(out))})
 		return
 	}
 	tokenData, err := os.ReadFile(req.TokenFile)
 	if err != nil {
+		cleanupInit()
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token could not be read"})
 		return
 	}
 	a.mu.Lock()
 	if err := a.saveConfig(candidate); err != nil {
 		a.mu.Unlock()
+		cleanupInit()
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but desktop config could not be saved"})
 		return
 	}

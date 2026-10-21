@@ -165,7 +165,9 @@ func installDesktop(dir, role, hub string, startup bool) error {
 			}
 		}
 	}
-	createStartMenu(absDir, cfgPath)
+	if err := createStartMenu(absDir, cfgPath); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: cannot create Start Menu shortcut: %v\n", err)
+	}
 	fmt.Printf("Installed AgentChat Console to %s\n", absDir)
 	return nil
 }
@@ -178,16 +180,16 @@ func createShortcut(link, target, args, workdir string) error {
 	return exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).Run()
 }
 
-func createStartMenu(dir, cfgPath string) {
+func createStartMenu(dir, cfgPath string) error {
 	programs := os.Getenv("APPDATA")
 	if programs == "" {
-		return
+		return errors.New("APPDATA is not set")
 	}
 	folder := filepath.Join(programs, "Microsoft", "Windows", "Start Menu", "Programs", "AgentChat")
 	if err := os.MkdirAll(folder, 0o700); err != nil {
-		return
+		return err
 	}
-	_ = createShortcut(filepath.Join(folder, "AgentChat Console.lnk"),
+	return createShortcut(filepath.Join(folder, "AgentChat Console.lnk"),
 		filepath.Join(dir, "AgentChatConsole.exe"), "--config \""+cfgPath+"\"", dir)
 }
 
