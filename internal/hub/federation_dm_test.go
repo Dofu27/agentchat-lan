@@ -21,7 +21,7 @@ import (
 	"github.com/Dofu27/agentchat-lan/internal/store"
 )
 
-func startDMNodes(t *testing.T) (*federationNode, *federationNode, *client.Client, *client.Client, protocol.Room, protocol.Room) {
+func startDMNodes(t *testing.T, typing ...bool) (*federationNode, *federationNode, *client.Client, *client.Client, protocol.Room, protocol.Room) {
 	t.Helper()
 	a, b := newFederationNode(t), newFederationNode(t)
 	ctx := context.Background()
@@ -40,7 +40,7 @@ func startDMNodes(t *testing.T) (*federationNode, *federationNode, *client.Clien
 		n, peer       *federationNode
 		local, remote string
 	}{{a, b, "person-a", "person-b"}, {b, a, "person-b", "person-a"}} {
-		pair.n.opts = hub.FederationOptions{Peer: hub.FederationPeerOptions{NodeID: pair.peer.id, BaseURL: pair.peer.url, Secret: federationTestSecret}, DMConversations: []store.FederationDMConversation{{ConversationID: "private-chat", LinkID: "private-link", Epoch: 1, LocalAgentID: pair.local, RemoteAgentID: pair.remote}}, MaxOutbox: 100, MaxAttempts: 5, RetryBase: 50 * time.Millisecond, PollInterval: 20 * time.Millisecond, RequestTimeout: 300 * time.Millisecond, LeaseDuration: time.Second}
+		pair.n.opts = hub.FederationOptions{Peer: hub.FederationPeerOptions{NodeID: pair.peer.id, BaseURL: pair.peer.url, Secret: federationTestSecret}, DMConversations: []store.FederationDMConversation{{Typing: len(typing) > 0 && typing[0], ConversationID: "private-chat", LinkID: "private-link", Epoch: 1, LocalAgentID: pair.local, RemoteAgentID: pair.remote}}, MaxOutbox: 100, MaxAttempts: 5, RetryBase: 50 * time.Millisecond, PollInterval: 20 * time.Millisecond, RequestTimeout: 300 * time.Millisecond, LeaseDuration: time.Second}
 		pair.n.startWithOptions(t)
 	}
 	roomA, err := a.st.OpenFederatedDM(ctx, "person-a", "private-chat", 1)

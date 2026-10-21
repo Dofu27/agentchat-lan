@@ -17,6 +17,7 @@ import (
 // Configuration is approval of a stable two-end identity pair, not a directory
 // lookup by display name and not permission to export an existing local DM.
 type FederationDMConversation struct {
+	Typing         bool   `json:"typing,omitempty"`
 	ConversationID string `json:"conversation_id"`
 	LinkID         string `json:"link_id"`
 	Epoch          int64  `json:"epoch"`

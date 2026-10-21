@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -39,15 +38,28 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 
 	lastTyping := ""
-	sendTyping := func() {
+	sendTyping := func() bool {
 		names := s.typingSnapshot(roomID)
-		signature := strings.Join(names, "\x00")
+		remote := s.opts.Federation.remoteTyping(r.Context(), roomID)
+		signatureAgents := append([]remoteTypingAgent(nil), remote...)
+		for i := range signatureAgents {
+			signatureAgents[i].TTL = 0
+		}
+		sig, _ := json.Marshal([]any{names, signatureAgents})
+		signature := string(sig)
+		if _, _, err := s.store.History(r.Context(), agentID, roomID, int64(after), 0, 1); err != nil {
+			return false
+		}
+		if _, err := s.store.AgentByTokenReadOnly(r.Context(), token); err != nil {
+			return false
+		}
 		if signature == lastTyping {
-			return
+			return true
 		}
 		lastTyping = signature
-		data, _ := json.Marshal(map[string]any{"agents": names})
+		data, _ := json.Marshal(map[string]any{"agents": names, "remote_agents": remote})
 		fmt.Fprintf(w, "event: typing\ndata: %s\n\n", data)
+		return true
 	}
 
 	last := int64(after)
@@ -56,7 +68,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		for {
 			// agentAuth validates only at connection time. Re-check the token
 			// on every wakeup/heartbeat so a revocation closes an existing stream.
-			if _, err := s.store.AgentByToken(r.Context(), token); err != nil {
+			if _, err := s.store.AgentByTokenReadOnly(r.Context(), token); err != nil {
 				return
 			}
 			messages, more, err := s.store.History(r.Context(), agentID, roomID, last, 0, 200)
@@ -65,7 +77,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			}
 			// Re-check after the history read: a revocation racing with the
 			// first check must not allow one more message to be emitted.
-			if _, err := s.store.AgentByToken(r.Context(), token); err != nil {
+			if _, err := s.store.AgentByTokenReadOnly(r.Context(), token); err != nil {
 				return
 			}
 			for _, message := range messages {
@@ -76,7 +88,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "id: %d\nevent: message\ndata: %s\n\n", message.Seq, data)
 				last = message.Seq
 			}
-			sendTyping()
+			if !sendTyping() {
+				return
+			}
 			flusher.Flush()
 			if !more {
 				break
@@ -93,7 +107,9 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case <-timer.C:
-			sendTyping()
+			if !sendTyping() {
+				return
+			}
 			fmt.Fprint(w, ": ping\n\n")
 			flusher.Flush()
 		case <-r.Context().Done():

@@ -270,6 +270,20 @@ func (s *Store) IsAdminToken(ctx context.Context, token string) bool {
 
 // AgentByToken authenticates an active agent and refreshes last_seen.
 func (s *Store) AgentByToken(ctx context.Context, token string) (protocol.Agent, error) {
+	a, err := s.AgentByTokenReadOnly(ctx, token)
+	if err != nil {
+		return a, err
+	}
+	a.Status = protocol.StatusOnline
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err = s.db.ExecContext(ctx, `UPDATE agents SET last_seen=?,status=? WHERE id=?`, now, protocol.StatusOnline, a.ID)
+	return a, err
+}
+
+// AgentByTokenReadOnly checks revocation without turning ephemeral wakes into writes.
+func (s *Store) AgentByTokenReadOnly(ctx context.Context, token string) (protocol.Agent, error) {
 	var a protocol.Agent
 	var created, seen string
 	err := s.db.QueryRowContext(ctx, `SELECT id,name,kind,status,created_at,last_seen FROM agents WHERE token_hash=? AND revoked_at IS NULL`, hashToken(token)).Scan(&a.ID, &a.Name, &a.Kind, &a.Status, &created, &seen)
@@ -280,12 +294,7 @@ func (s *Store) AgentByToken(ctx context.Context, token string) (protocol.Agent,
 		return a, err
 	}
 	a.LastSeen, _ = time.Parse(time.RFC3339Nano, seen)
-	a.Status = protocol.StatusOnline
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	_, err = s.db.ExecContext(ctx, `UPDATE agents SET last_seen=?,status=? WHERE id=?`, now, protocol.StatusOnline, a.ID)
-	return a, err
+	return a, nil
 }
 
 // Invite is a persisted, hashed, room-scoped one-time or limited-use code.

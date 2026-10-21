@@ -130,6 +130,10 @@ func (s *Server) Handler() http.Handler {
 		mux.Handle("POST /v1/admin/federation/outbox/{id}/retry", s.adminAuth(http.HandlerFunc(s.handleFederationOperatorRetry)))
 		mux.HandleFunc("POST /federation/v1/messages", s.handleFederation)
 		mux.HandleFunc("GET /federation/v2/capabilities", s.handleFederationCapabilities)
+		if s.opts.Federation.ephemeral != nil {
+			mux.HandleFunc("POST /federation/v2/ephemeral/session", s.handleTypingSession)
+			mux.HandleFunc("POST /federation/v2/ephemeral/events", s.handleRemoteTyping)
+		}
 		if len(s.opts.Federation.opts.DMConversations) > 0 {
 			mux.HandleFunc("POST /federation/v2/dm/messages", s.handleFederationDM)
 			for _, method := range []string{"GET", "POST", "DELETE"} {
@@ -155,9 +159,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /v1/me", s.agentAuth(http.HandlerFunc(s.handleMe)))
 	mux.Handle("GET /v1/rooms", s.agentAuth(http.HandlerFunc(s.handleRooms)))
 	mux.Handle("GET /v1/rooms/{room}/messages", s.agentAuth(http.HandlerFunc(s.handleHistory)))
-	mux.Handle("GET /v1/rooms/{room}/events", s.agentAuth(http.HandlerFunc(s.handleEvents)))
+	mux.Handle("GET /v1/rooms/{room}/events", s.ephemeralAgentAuth(http.HandlerFunc(s.handleEvents)))
 	mux.Handle("POST /v1/rooms/{room}/messages", s.agentAuth(http.HandlerFunc(s.handleSend)))
-	mux.Handle("POST /v1/rooms/{room}/typing", s.agentAuth(http.HandlerFunc(s.handleTyping)))
+	mux.Handle("POST /v1/rooms/{room}/typing", s.ephemeralAgentAuth(http.HandlerFunc(s.handleTyping)))
 	mux.Handle("GET /v1/rooms/{room}/receipts", s.agentAuth(http.HandlerFunc(s.handleReceipts)))
 	mux.Handle("GET /v1/rooms/{room}/search", s.agentAuth(http.HandlerFunc(s.handleSearch)))
 	mux.Handle("POST /v1/dm", s.agentAuth(http.HandlerFunc(s.handleCreateDM)))
@@ -188,7 +192,8 @@ func (s *Server) Handler() http.Handler {
 			dmRoute := r.URL.Path == "/v1/dm/remote" || strings.HasPrefix(r.URL.Path, "/v1/dm/remote/") || r.URL.Path == "/federation/v2/dm" || strings.HasPrefix(r.URL.Path, "/federation/v2/dm/")
 			fileRoute := r.URL.Path == "/federation/v2/messages" || strings.HasPrefix(r.URL.Path, "/federation/v2/blobs/")
 			federationRoute := strings.HasPrefix(r.URL.Path, "/federation/") || strings.HasPrefix(r.URL.Path, "/v1/admin/federation")
-			if disabled && federationRoute || dmRoute && (disabled || len(f.opts.DMConversations) == 0) || fileRoute && (disabled || len(f.opts.FileLinks) == 0) {
+			ephemeralRoute := strings.HasPrefix(r.URL.Path, "/federation/v2/ephemeral")
+			if ephemeralRoute && (disabled || f.ephemeral == nil || r.Method != "POST" || (r.URL.Path != "/federation/v2/ephemeral/session" && r.URL.Path != "/federation/v2/ephemeral/events")) || disabled && federationRoute || dmRoute && (disabled || len(f.opts.DMConversations) == 0) || fileRoute && (disabled || len(f.opts.FileLinks) == 0) {
 				http.NotFound(w, r)
 				return
 			}
@@ -301,6 +306,9 @@ func (s *Server) handleRooms(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.internalError(w, err)
 		return
+	}
+	for i := range rooms {
+		rooms[i].EphemeralTyping = s.opts.Federation.typingEnabled(r.Context(), rooms[i].ID)
 	}
 	writeJSON(w, http.StatusOK, protocol.RoomsResponse{Rooms: rooms})
 }
@@ -750,13 +758,19 @@ func (s *Server) handleArchiveRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) agentAuth(next http.Handler) http.Handler {
+	return s.agentAuthLookup(next, s.store.AgentByToken)
+}
+func (s *Server) ephemeralAgentAuth(next http.Handler) http.Handler {
+	return s.agentAuthLookup(next, s.store.AgentByTokenReadOnly)
+}
+func (s *Server) agentAuthLookup(next http.Handler, lookup func(context.Context, string) (protocol.Agent, error)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := bearer(r)
 		if token == "" {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "missing bearer token", nil)
 			return
 		}
-		a, err := s.store.AgentByToken(r.Context(), token)
+		a, err := lookup(r.Context(), token)
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "invalid or revoked token", nil)
 			return
