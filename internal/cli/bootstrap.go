@@ -40,19 +40,17 @@ func bootstrapHub(ctx context.Context, db, path string, resume bool, ops bootstr
 		if !before.Mode().IsRegular() {
 			return errors.New("resume credential must be a regular file")
 		}
-		f, err := os.Open(path)
+		f, err := openResumeBootstrapFile(path)
 		if err != nil {
 			return err
 		}
 		info, statErr := f.Stat()
+		if statErr != nil || !os.SameFile(before, info) {
+			_ = f.Close()
+			return errors.New("resume credential identity changed or unavailable")
+		}
 		data, readErr := io.ReadAll(io.LimitReader(f, 256))
 		closeErr := f.Close()
-		if statErr != nil {
-			return statErr
-		}
-		if !os.SameFile(before, info) {
-			return errors.New("resume credential identity changed")
-		}
 		if readErr != nil || closeErr != nil {
 			return errors.Join(readErr, closeErr)
 		}

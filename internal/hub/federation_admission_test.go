@@ -57,7 +57,7 @@ func TestFederationAdmissionPreservesLeases(t *testing.T) {
 	if maxActive.Load() > 8 {
 		t.Fatalf("global limit exceeded %d", maxActive.Load())
 	}
-	if st.Dead != 0 || st.Delivered != 32 {
+	if st.Dead != 0 || st.Delivered != 32 || st.Attempts != 32 {
 		t.Fatalf("successful peers must all be delivered, got %+v", st)
 	}
 	t.Logf("all peers delivered within lease after admission: %+v; max concurrent=%d", st, maxActive.Load())
