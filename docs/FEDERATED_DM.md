@@ -73,7 +73,8 @@ labels it Cross-hub DM/跨 hub 私聊, displays qualified identities/export scop
 and explains both operators can read stored messages (not E2EE). Text is built
 with DOM text APIs. New private rooms are text only: attachments, activities,
 explicit recipient lists and reply IDs are rejected. Mention completion,
-attachments, typing and read-receipt UI are disabled in this room kind. Local
+attachments and read-receipt UI are disabled in this room kind. Typing is
+disabled by default and can be independently opted in through [F3](FEDERATED_TYPING.md). Local
 `/v1/ack` remains a delivery cursor and is not federated read confirmation.
 
 ## Transport, persistence and ACL
@@ -151,9 +152,11 @@ auth and unknown fields, nonparticipants, scoped bridge restrictions, current
 ACL, private-file denial, SSE closure on leave, restart/unreachable recovery,
 queue rollback, config/readonly status, retry audit and unchanged local DM.
 
-Still separate work: DM attachments (require participant-level blob grants), F3
-ephemeral typing, F4 explicit read, multi-peer/group conversations, E2EE, online
+Still separate work: DM attachments (require participant-level blob grants),
+F4 explicit read, multi-peer/group conversations, E2EE, online
 coordinated blob snapshots, power-loss/disk-full injection and production load
 testing. Cross-compilation is not native execution or a race-detector result.
 The earlier F1 HEAD/rate-limit ordering P2 is not changed by this phase. No
 production hub, service, startup task, secret or machine restart is needed.
+
+F3 typing is an independent opt-in: see [ephemeral typing](FEDERATED_TYPING.md). Read receipts remain disabled.
