@@ -88,7 +88,11 @@ running container was not replaced.
 
 The maintenance upgrade must preserve A's current container mounts, ports,
 user, and TLS/federation flags. Record `docker inspect agentchat` before
-stopping it. B's runtime is not yet verified from this host.
+stopping it.
+
+B is a Windows LocalSystem service, not Docker; see
+[B_UPGRADE.md](B_UPGRADE.md). Its v0.29.0 CLI was staged and its fresh backup
+restored with v0.29.0 on loopback health/ready.
 No service was stopped or replaced. B staging was not possible from this host
 because the A→B SSH key is denied; use B's own console/SSH path during the
 maintenance window.
