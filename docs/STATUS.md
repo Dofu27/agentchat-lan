@@ -58,6 +58,8 @@ Updated: 2026-10-21
   `v0.25.0` adds a Linux/macOS loopback launcher; it is not yet a full native
   console.
 - `v0.28.1` is staged on A for the future window; no service was replaced.
+  A runs in Docker; staged image `agentchat:v0.28.1` was built and version-
+  checked without replacing the live container.
   A v0.14.1 backup was upgraded in temporary rehearsal directories; both
   v0.26.4 and the final v0.28.1 served healthy with federation state intact.
 - P1 preflight on 2026-10-21: A health/ready passed at `v0.14.1`; B
