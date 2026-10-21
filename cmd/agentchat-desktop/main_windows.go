@@ -21,16 +21,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
-	"unsafe"
 
 	agentconfig "github.com/Dofu27/agentchat-lan/internal/config"
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
@@ -539,80 +535,6 @@ func (b *cappedBuffer) String() string {
 	return b.buf.String()
 }
 
-func createKillJob() windows.Handle {
-	job, err := windows.CreateJobObject(nil, nil)
-	if err != nil {
-		return 0
-	}
-	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{}
-	info.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-	if _, err := windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation,
-		uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info))); err != nil {
-		windows.CloseHandle(job)
-		return 0
-	}
-	return job
-}
-
-func resumeProcessThreads(pid uint32) {
-	snap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
-	if err != nil {
-		return
-	}
-	defer windows.CloseHandle(snap)
-	var entry windows.ThreadEntry32
-	entry.Size = uint32(unsafe.Sizeof(entry))
-	for err = windows.Thread32First(snap, &entry); err == nil; err = windows.Thread32Next(snap, &entry) {
-		if entry.OwnerProcessID != pid {
-			continue
-		}
-		h, err := windows.OpenThread(windows.THREAD_SUSPEND_RESUME, false, entry.ThreadID)
-		if err != nil {
-			continue
-		}
-		_, _ = windows.ResumeThread(h)
-		windows.CloseHandle(h)
-	}
-}
-
-func runBoundedCommand(ctx context.Context, name string, args []string, limit int) (string, error) {
-	out := &cappedBuffer{limit: limit}
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdout = out
-	cmd.Stderr = out
-	cmd.WaitDelay = 2 * time.Second
-	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_SUSPENDED}
-	job := createKillJob()
-	if job != 0 {
-		defer windows.CloseHandle(job)
-	}
-	if err := cmd.Start(); err != nil {
-		return out.String(), err
-	}
-	if job != 0 {
-		proc, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE|windows.PROCESS_QUERY_INFORMATION, false, uint32(cmd.Process.Pid))
-		if err == nil {
-			_ = windows.AssignProcessToJobObject(job, proc)
-			windows.CloseHandle(proc)
-		}
-	}
-	resumeProcessThreads(uint32(cmd.Process.Pid))
-	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return nil
-		}
-		return exec.Command("taskkill.exe", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
-	}
-	err := cmd.Wait()
-	return out.String(), err
-}
-
-var credentialPattern = regexp.MustCompile(`(?i)(agentchat_token|authorization|bearer|token|secret|password|api[_-]?key)\s*[:=]\s*[^\s"']+|agt_[A-Za-z0-9_-]+|adm_[A-Za-z0-9_-]+|github_pat_[A-Za-z0-9_]+`)
-
-func redactOutput(s string) string {
-	return credentialPattern.ReplaceAllString(s, "[redacted]")
-}
-
 func bridgeResult(cfg config, action string) map[string]any {
 	result := map[string]any{
 		"action":       action,
@@ -931,7 +853,12 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		if req.TLSCert != "" {
 			binPath += " --tls-cert " + quoteWindowsArg(req.TLSCert) + " --tls-key " + quoteWindowsArg(req.TLSKey)
 		}
-		next = "sc.exe create AgentChatHub binPath= " + quoteWindowsArg(binPath) + " start= auto obj= LocalSystem"
+		systemDir, err := windows.GetSystemDirectory()
+		if err != nil {
+			serviceError = "cannot locate the Windows service controller"
+		} else {
+			next = quoteWindowsArg(filepath.Join(systemDir, "sc.exe")) + " create AgentChatHub binPath= " + quoteWindowsArg(binPath) + " start= auto obj= LocalSystem"
+		}
 	}
 	result := map[string]any{
 		"ok": true, "hub_url": hubURL, "data": req.Data,
@@ -977,28 +904,6 @@ func quoteWindowsArg(s string) string {
 	return b.String()
 }
 
-func trustedServiceBinary(path string) error {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	info, err := os.Lstat(abs)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("service binary must be a regular, non-reparse file")
-	}
-	lower := strings.ToLower(filepath.Clean(abs))
-	for _, root := range []string{os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)"), os.Getenv("WINDIR")} {
-		if root == "" {
-			continue
-		}
-		root = strings.ToLower(filepath.Clean(root))
-		if strings.HasPrefix(lower, root+string(os.PathSeparator)) {
-			return nil
-		}
-	}
-	return errors.New("service binary is in a user-writable directory")
-}
-
 func (a *app) hubServiceBinPath() (string, error) {
 	if a.cfg.AgentchatPath == "" || a.cfg.HubData == "" || a.cfg.HubListen == "" {
 		return "", errors.New("host setup is incomplete")
@@ -1028,14 +933,28 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	run := func(args ...string) (string, error) {
-		out, err := runBoundedCommand(ctx, "sc.exe", args, 16<<10)
+		systemDir, err := windows.GetSystemDirectory()
+		if err != nil {
+			return "", err
+		}
+		out, err := runBoundedCommand(ctx, filepath.Join(systemDir, "sc.exe"), args, 16<<10)
 		return strings.TrimSpace(out), err
 	}
 	result := map[string]any{"action": req.Action}
 	switch req.Action {
 	case "install":
+		guard, err := openTrustedServiceBinary(a.cfg.AgentchatPath)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		defer guard.Close()
 		bin, err := a.hubServiceBinPath()
 		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		if err := guard.Verify(); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
 		}

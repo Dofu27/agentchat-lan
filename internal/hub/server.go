@@ -89,6 +89,17 @@ func Init(ctx context.Context, dataPath string) (string, error) {
 	return token, nil
 }
 
+// InitWithToken commits only the hash of a caller credential that is already
+// durably delivered. A retry with the same credential is idempotent.
+func InitWithToken(ctx context.Context, dataPath, token string) error {
+	s, err := store.Open(ctx, dataPath)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+	return s.InitializeAdminToken(ctx, token)
+}
+
 // New constructs an HTTP server around an opened store.
 func New(st *store.Store, opts Options) *Server {
 	if opts.Version == "" {

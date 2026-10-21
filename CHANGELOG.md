@@ -8,12 +8,20 @@ v1.0.
 
 ### Security
 
-- Hub-init reserves the admin token file with `O_EXCL` before initializing the
-  database, so a concurrent token creation fails before DB initialization
+- Hub-init durably writes the caller-generated admin credential before committing
+  its DB hash; write/sync/close errors cannot initialize the DB. Failed attempts
+  retain the credential without path-based cleanup. `--resume-init` explicitly
+  resumes with that file, including an interrupted commit with the same token.
 - Bridge/Host-init/service commands run under a Windows Job Object with
   `KILL_ON_JOB_CLOSE`; bounded output follows `io.Writer` and redacts
   credential-shaped values
-- Host service creation refuses a binary outside Program Files/Windows
+- Job creation/configuration/process assignment/resume failures stop execution;
+  injected failure tests ensure suspended children never run on those paths.
+- Host service creation pins each ancestor and executable by handle, rejects
+  reparse points, and checks ordinary-user effective mutation rights with
+  AccessCheck before using the identity-bound executable for SCM installation.
+- Output redaction covers complete Authorization/Authentication/Bearer values,
+  JSON credentials, URL query secrets and private keys.
 - Federation acquires the global delivery slot before claiming a lease
 
 ## [0.27.3] - 2026-10-21
