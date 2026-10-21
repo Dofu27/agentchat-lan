@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.16.0] - 2026-10-21
+
+### Added (experimental, opt-in)
+
+- Explicit two-node `federated_dm` conversations with qualified identities
+  `(home_node, stable_agent_id)`
+- Separate immutable conversation approvals, per-conversation non-login bridge,
+  independent durable DM outbox and current-access SQL view
+- `GET/POST/DELETE /v1/dm/remote` for approved contacts only; normal `/v1/dm`
+  is unchanged
+- `POST /federation/v2/dm/messages` with strict peer auth, exact participant/
+  conversation/link/epoch binding, idempotent receipts and no text fallback
+- ACL enforcement across send, import, history, search, inbox, SSE, ack and file
+  access; retirement/leave/revocation fails closed
+- Text-only DM UI labels and Cross-hub DM identity/notice; attachments, typing
+  and explicit read receipts are disabled for this room kind
+
+### Fixed
+
+- Revocation race in SSE: re-check the agent token after `History` so a revoked
+  stream cannot emit one final message
+- Remote attachment display names are normalized to a portable basename
+
+Still opt-in and not deployed to the production A/B pair. Two nodes/one peer,
+text only, no E2EE, no DM attachments, no multi-peer/group, no HA.
+
 ## [0.15.0] - 2026-10-21
 
 ### Added (experimental, opt-in)
