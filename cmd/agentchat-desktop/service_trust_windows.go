@@ -38,6 +38,39 @@ func (g *serviceBinaryGuard) ExecutablePath() (string, error) {
 	return finalHandlePath(g.objects[len(g.objects)-1].handle)
 }
 
+// Bind the SCM command's parsed executable to the pinned executable by FileId,
+// not by a configuration string or by the protected-directory name alone.
+func (g *serviceBinaryGuard) VerifyExecutable(path string) error {
+	canonical, err := g.ExecutablePath()
+	if err != nil {
+		return err
+	}
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	h, err := windows.CreateFile(p, windows.GENERIC_READ|windows.READ_CONTROL, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseHandle(h)
+	id, attr, err := fileIdentity(h)
+	if err != nil {
+		return err
+	}
+	if id != g.objects[len(g.objects)-1].id || attr&(windows.FILE_ATTRIBUTE_REPARSE_POINT|windows.FILE_ATTRIBUTE_DIRECTORY) != 0 {
+		return errors.New("SCM executable differs from pinned file identity")
+	}
+	final, err := finalHandlePath(h)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(final, canonical) {
+		return errors.New("SCM executable differs from pinned final path")
+	}
+	return nil
+}
+
 func (g *serviceBinaryGuard) Close() {
 	for i := len(g.objects) - 1; i >= 0; i-- {
 		windows.CloseHandle(g.objects[i].handle)

@@ -8,6 +8,9 @@ v1.0.
 
 ### Security
 
+- Desktop service start/restart now validates the actual SCM-registered
+  executable, pins its ancestor chain through Start, and refuses unsafe legacy
+  user-writable paths, identity changes or binPath drift before starting.
 - Explicit resume now revalidates retained credential ownership and private
   permissions before reading it; Windows rejects unprotected/inherited or
   foreign-access DACLs and explicitly assigns new credentials to the initiator.
