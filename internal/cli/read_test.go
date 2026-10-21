@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Dofu27/agentchat-lan/internal/config"
@@ -14,15 +16,15 @@ import (
 )
 
 func TestCLIExplicitRead(t *testing.T) {
-	calls := 0
-	status := http.StatusOK
+	var calls, status atomic.Int64
+	status.Store(http.StatusOK)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls++
+		calls.Add(1)
 		if r.Method != "POST" || r.URL.Path != "/v1/rooms/test-room/read" || r.URL.RawQuery != "" || r.Header.Get("Authorization") != "Bearer fixture-token" {
 			t.Error("unexpected read request", r.Method, r.URL.Path)
 		}
-		if status != 200 {
-			w.WriteHeader(status)
+		if code := int(status.Load()); code != 200 {
+			w.WriteHeader(code)
 			json.NewEncoder(w).Encode(protocol.ErrorResponse{Error: protocol.ErrorBody{Code: "forbidden", Message: "fixture rejection"}})
 			return
 		}
@@ -46,15 +48,17 @@ func TestCLIExplicitRead(t *testing.T) {
 		t.Fatal("compact JSON response", got)
 	}
 	for _, args := range [][]string{{}, {"--seq", "-1"}, {"--seq", "0", "unexpected"}, {"--seq", "0", "--room", ""}} {
-		before := calls
-		if c := a.Run(append([]string{"read", "--config", path}, args...)); c == 0 || calls != before {
+		before := calls.Load()
+		if c := a.Run(append([]string{"read", "--config", path}, args...)); c == 0 || calls.Load() != before {
 			t.Fatal("invalid command reached hub", args, c)
 		}
 	}
-	status = http.StatusForbidden
-	stdout.Reset()
-	stderr.Reset()
-	if c := a.Run([]string{"read", "--config", path, "--room", "test-room", "--seq", "0"}); c == 0 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "HTTP 403") {
-		t.Fatal("hub failure must exit nonzero", c, stdout.String(), stderr.String())
+	for _, code := range []int64{400, 401, 403, 404} {
+		status.Store(code)
+		stdout.Reset()
+		stderr.Reset()
+		if c := a.Run([]string{"read", "--config", path, "--room", "test-room", "--seq", "0"}); c != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "HTTP "+strconv.FormatInt(code, 10)) {
+			t.Fatal("HTTP failures use the existing exit code 1", c, stdout.String(), stderr.String())
+		}
 	}
 }
