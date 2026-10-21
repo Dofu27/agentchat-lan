@@ -3,17 +3,21 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/Dofu27/agentchat-lan/internal/client"
+	"github.com/Dofu27/agentchat-lan/internal/config"
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
 )
 
@@ -67,8 +71,14 @@ func (a *App) cmdAgent(args []string) (exit int) {
 		if !*ack {
 			return a.fail(fmt.Errorf("--start-now requires --ack"))
 		}
-		if err := drainInbox(ctx, c, *limit); err != nil {
-			return a.fail(fmt.Errorf("start-now: %w", err))
+		marker := startNowMarker(*cfgPath, cfg)
+		if _, err := os.Stat(marker); os.IsNotExist(err) {
+			if err := drainInbox(ctx, c, *limit); err != nil {
+				return a.fail(fmt.Errorf("start-now: %w", err))
+			}
+			if err := writeStartNowMarker(marker); err != nil {
+				return a.fail(fmt.Errorf("record start-now: %w", err))
+			}
 		}
 	}
 
@@ -161,26 +171,34 @@ func (a *App) cmdAgent(args []string) (exit int) {
 	}
 }
 
-func drainInbox(ctx context.Context, c *client.Client, limit int) error {
-	for {
-		resp, err := c.Inbox(ctx, 0, limit)
-		if err != nil {
-			return err
-		}
-		if len(resp.Messages) == 0 {
-			return nil
-		}
-		acks := make(map[string]int64)
-		for _, msg := range resp.Messages {
-			advanceAck(acks, msg)
-		}
-		if err := c.Ack(ctx, acks); err != nil {
-			return err
-		}
-		if len(resp.Messages) < limit {
-			return nil
-		}
+func startNowMarker(cfgPath string, cfg *config.Config) string {
+	sum := sha256.Sum256([]byte(cfg.HubURL + "\x00" + cfg.AgentID))
+	base := filepath.Dir(configPathOrEmpty(cfgPath))
+	return filepath.Join(base, ".agentchat-start-now-"+hex.EncodeToString(sum[:8]))
+}
+
+func writeStartNowMarker(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
 	}
+	return os.WriteFile(path, []byte(time.Now().UTC().Format(time.RFC3339Nano)+"\n"), 0o600)
+}
+
+// drainInbox acknowledges exactly one inbox snapshot. It deliberately does not
+// loop: a message arriving after the snapshot must remain for normal handling.
+func drainInbox(ctx context.Context, c *client.Client, limit int) error {
+	resp, err := c.Inbox(ctx, 0, limit)
+	if err != nil {
+		return err
+	}
+	if len(resp.Messages) == 0 {
+		return nil
+	}
+	acks := make(map[string]int64)
+	for _, msg := range resp.Messages {
+		advanceAck(acks, msg)
+	}
+	return c.Ack(ctx, acks)
 }
 
 func advanceAck(acks map[string]int64, msg protocol.Message) {
