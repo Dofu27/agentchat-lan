@@ -503,6 +503,54 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
 }
 
+type cappedBuffer struct {
+	mu        sync.Mutex
+	buf       bytes.Buffer
+	limit     int
+	truncated bool
+}
+
+func (b *cappedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	remaining := b.limit - b.buf.Len()
+	if remaining <= 0 {
+		b.truncated = true
+		return len(p), nil
+	}
+	if len(p) > remaining {
+		b.truncated = true
+		p = p[:remaining]
+	}
+	_, _ = b.buf.Write(p)
+	return len(p), nil
+}
+
+func (b *cappedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.truncated {
+		return b.buf.String() + "\n[output truncated]"
+	}
+	return b.buf.String()
+}
+
+func runBoundedCommand(ctx context.Context, name string, args []string, limit int) (string, error) {
+	out := &cappedBuffer{limit: limit}
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Stdout = out
+	cmd.Stderr = out
+	cmd.WaitDelay = 2 * time.Second
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		return exec.Command("taskkill.exe", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
+	}
+	err := cmd.Run()
+	return out.String(), err
+}
+
 func bridgeResult(cfg config, action string) map[string]any {
 	result := map[string]any{
 		"action":       action,
@@ -530,12 +578,8 @@ func bridgeResult(cfg config, action string) map[string]any {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, cfg.AgentchatPath, args...)
-	out, err := cmd.CombinedOutput()
-	if len(out) > 16<<10 {
-		out = out[:16<<10]
-	}
-	result["output"] = strings.TrimSpace(string(out))
+	out, err := runBoundedCommand(ctx, cfg.AgentchatPath, args, 16<<10)
+	result["output"] = strings.TrimSpace(out)
 	result["ok"] = err == nil
 	if err != nil {
 		result["error"] = err.Error()
