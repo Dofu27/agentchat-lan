@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.26.3] - 2026-10-21
+
+### Fixed
+
+- Host init refuses an existing data directory/token file instead of relying on
+  cleanup of paths it may not own
+- Settings serializes with Host setup; uninstall aggregates startup/registry
+  removal errors instead of returning only the first
+
 ## [0.26.2] - 2026-10-21
 
 ### Security

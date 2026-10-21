@@ -314,29 +314,28 @@ func removeStartupEntries() error {
 	if appData == "" {
 		return nil
 	}
+	var errs error
 	startup := filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
 	for _, name := range []string{"AgentChat Console.lnk", "AgentChat Console.cmd"} {
 		if err := os.Remove(filepath.Join(startup, name)); err != nil && !os.IsNotExist(err) {
-			return err
+			errs = errors.Join(errs, err)
 		}
 	}
 	menu := filepath.Join(appData, "Microsoft", "Windows", "Start Menu", "Programs", "AgentChat", "AgentChat Console.lnk")
 	if err := os.Remove(menu); err != nil && !os.IsNotExist(err) {
-		return err
+		errs = errors.Join(errs, err)
 	}
 	runKey := `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 	queryErr := exec.Command("reg.exe", "query", runKey, "/v", "AgentChatConsole").Run()
 	if queryErr != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(queryErr, &exitErr) || exitErr.ExitCode() != 1 {
-			return fmt.Errorf("inspect HKCU startup entry: %w", queryErr)
+			errs = errors.Join(errs, fmt.Errorf("inspect HKCU startup entry: %w", queryErr))
 		}
-		return nil
+	} else if err := exec.Command("reg.exe", "delete", runKey, "/v", "AgentChatConsole", "/f").Run(); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("remove HKCU startup entry: %w", err))
 	}
-	if err := exec.Command("reg.exe", "delete", runKey, "/v", "AgentChatConsole", "/f").Run(); err != nil {
-		return fmt.Errorf("remove HKCU startup entry: %w", err)
-	}
-	return nil
+	return errs
 }
 
 func fatal(err error) {

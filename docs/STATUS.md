@@ -12,7 +12,8 @@ Updated: 2026-10-21
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- `v0.26.2` removes unsafe failed-init deletion and distinguishes missing vs
+- `v0.26.3` refuses an existing Host-init target, serializes Settings with setup,
+  and aggregates startup cleanup errors. `v0.26.2` removes unsafe failed-init deletion and distinguishes missing vs
   failed HKCU Run queries. `v0.26.1` holds the verified install-root handle through uninstall removal.
   `v0.26.0` uses one federation claim worker per peer, a config-generation check
   for Host init, and a single Status snapshot. `v0.24.6` serializes Host setup/Join and checks startup Run removal.

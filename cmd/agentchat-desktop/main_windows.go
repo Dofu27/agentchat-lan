@@ -759,6 +759,20 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub TLS client could not be built"})
 		return
 	}
+	if _, err := os.Stat(req.Data); err == nil {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": "data directory already exists; remove it to initialize"})
+		return
+	} else if !os.IsNotExist(err) {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot inspect data directory"})
+		return
+	}
+	if _, err := os.Stat(req.TokenFile); err == nil {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": "admin token file already exists; remove it to initialize"})
+		return
+	} else if !os.IsNotExist(err) {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot inspect admin token file"})
+		return
+	}
 	// Do not delete a failed init's data/token here: another process may have
 	// created those paths after our preflight stat. Leave them for the operator
 	// to inspect instead of risking removal of unowned files.
@@ -887,6 +901,8 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
+	a.setupMu.Lock()
+	defer a.setupMu.Unlock()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if r.Method == http.MethodPost {
