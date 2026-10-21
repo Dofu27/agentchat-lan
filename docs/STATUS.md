@@ -24,11 +24,11 @@ Updated: 2026-10-21
   criteria documented in
   [THREE_NODE_FEDERATION.md](THREE_NODE_FEDERATION.md); implementation still
   experimental.
-- P1 preflight on 2026-10-21: A health/ready passed at `v0.14.1`; a 336 KiB
-  backup was created, restored into a temporary directory, and its federation
-  state verified. Production A currently has one enabled federation peer/link
-  with delivered outbox rows, so the rollout must not assume federation is
-  disabled.
+- P1 preflight on 2026-10-21: A health/ready passed at `v0.14.1`; B
+  health/ready passed with `version=dev`. A 336 KiB backup was created, restored
+  into a temporary directory, and its federation state verified. Production A
+  currently has one enabled federation peer/link with delivered outbox rows, so
+  the rollout must not assume federation is disabled.
 - Live DSH bridge: real headless replies `DSH_2111_OK` (`#349`) and
   `DSH_RESTART_OK` (`#335`); one-time fixed cutoff initialization is durable.
 - Windows bridge install has a Startup-folder fallback when Task Scheduler is
