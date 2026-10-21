@@ -33,8 +33,9 @@ Updated: 2026-10-21
 - P4 topology, trust, per-peer queue, loop prevention, and three-node acceptance
   criteria documented in
   [THREE_NODE_FEDERATION.md](THREE_NODE_FEDERATION.md); `v0.23.3` adds
-  multi-peer text and attachment fanout. DM/typing remain single-peer, and
-  cross-platform desktop is not started.
+  multi-peer text and attachment fanout. DM/typing remain single-peer.
+  `v0.25.0` adds a Linux/macOS loopback launcher; it is not yet a full native
+  console.
 - P1 preflight on 2026-10-21: A health/ready passed at `v0.14.1`; B
   health/ready passed with `version=dev`. A 336 KiB backup was created, restored
   into a temporary directory, and its federation state verified. Production A

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.25.0] - 2026-10-21
+
+### Added
+
+- Linux/macOS `agentchat-desktop` loopback launcher (bilingual page, browser
+  open, no token exposure); GoReleaser archives for linux/darwin desktop
+
 ## [0.24.6] - 2026-10-21
 
 ### Fixed
