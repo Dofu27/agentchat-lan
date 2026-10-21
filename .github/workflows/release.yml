@@ -36,7 +36,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          sha256sum "dist/AgentChatConsole-${GITHUB_REF_NAME}-installer.exe" >> dist/checksums.txt
+          (cd dist && sha256sum "AgentChatConsole-${GITHUB_REF_NAME}-installer.exe") >> dist/checksums.txt
           gh release upload "${GITHUB_REF_NAME}" \
             "dist/AgentChatConsole-${GITHUB_REF_NAME}-installer.exe" \
             dist/checksums.txt --clobber
