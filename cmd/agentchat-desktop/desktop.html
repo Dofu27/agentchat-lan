@@ -9,7 +9,7 @@
   :root { --bg:#0d1117; --panel:#151b24; --line:#2b3545; --text:#e6edf3; --muted:#8b98a9; --accent:#5b9dff; --ok:#3fb950; --bad:#f85149; --warn:#d29922; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 "Segoe UI",system-ui,sans-serif; }
-  .titlebar { height:38px; display:flex; align-items:center; padding:0 10px 0 16px; background:#0a0f17; border-bottom:1px solid var(--line); -webkit-app-region:drag; user-select:none; }
+  .titlebar { position:sticky; top:0; z-index:100; height:38px; display:flex; align-items:center; padding:0 10px 0 16px; background:#0a0f17; border-bottom:1px solid var(--line); -webkit-app-region:drag; user-select:none; }
   .titlebar .brand { font-size:12px; font-weight:650; letter-spacing:.04em; color:var(--muted); }
   .titlebar .brand b { color:var(--accent); }
   .win-controls { margin-left:auto; display:flex; gap:4px; -webkit-app-region:no-drag; }
@@ -79,6 +79,7 @@
   <button id="tab-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
   <button id="tab-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
   <button id="tab-settings-btn" type="button" data-i18n="tab.settings">Settings</button>
+  <button id="tab-about-btn" type="button" data-i18n="tab.about">About</button>
 </nav>
 <main id="overview-view">
   <section class="wide" id="welcome">
@@ -277,6 +278,18 @@
     <div id="settings-error" class="small" style="margin-top:8px"></div>
   </section>
 </main>
+<main id="about-view" class="hidden">
+  <section class="wide">
+    <h2 data-i18n="about.title">About AgentChat LAN</h2>
+    <div class="kv">
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.29.2</span>
+      <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
+      <span class="k" data-i18n="about.feedback">Feedback</span>
+      <span class="v"><a href="https://github.com/Dofu27/agentchat-lan/issues" target="_blank" rel="noopener">GitHub Issues</a></span>
+    </div>
+    <p class="muted small" data-i18n="about.body">AgentChat LAN is a self-hosted LAN chat, durable inbox, and file relay for AI agents. It is designed for a trusted private network.</p>
+  </section>
+</main>
 <script>
 (() => {
   "use strict";
@@ -284,7 +297,9 @@
   const dict = {
     en: {
       "open.admin":"Open Web admin",
-      "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.logs":"Logs", "tab.settings":"Settings",
+      "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.logs":"Logs", "tab.settings":"Settings", "tab.about":"About",
+      "about.title":"About AgentChat LAN", "about.version":"Version", "about.license":"License",
+      "about.feedback":"Feedback", "about.body":"AgentChat LAN is a self-hosted LAN chat, durable inbox, and file relay for AI agents. It is designed for a trusted private network.",
       "logs.title":"Logs", "logs.desktop":"Desktop", "logs.hub":"Hub", "logs.bridge":"Bridge",
       "welcome.title":"Welcome to AgentChat LAN",
       "welcome.body":"Choose how this machine will participate. You can change the role later in Settings.",
@@ -322,7 +337,9 @@
     },
     zh: {
       "open.admin":"打开管理网页",
-      "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.logs":"日志", "tab.settings":"设置",
+      "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.logs":"日志", "tab.settings":"设置", "tab.about":"关于",
+      "about.title":"关于 AgentChat LAN", "about.version":"版本", "about.license":"许可证",
+      "about.feedback":"反馈", "about.body":"AgentChat LAN 是面向 AI Agent 的自托管局域网聊天、持久收件箱与文件中转站，面向可信私有网络。",
       "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
       "welcome.title":"欢迎使用 AgentChat LAN",
       "welcome.body":"选择这台机器的角色。之后可以在设置里更改。",
@@ -510,16 +527,16 @@
     } finally { logsBusy = false; }
   }
   const roleTabs = {
-    hub: ["overview", "chat", "bridge", "logs", "settings"],
-    client: ["chat", "logs", "settings"],
-    bridge: ["bridge", "logs", "settings"],
-    observer: ["chat", "logs", "settings"]
+    hub: ["overview", "chat", "bridge", "logs", "settings", "about"],
+    client: ["chat", "logs", "settings", "about"],
+    bridge: ["bridge", "logs", "settings", "about"],
+    observer: ["chat", "logs", "settings", "about"]
   };
   let currentRole = "hub";
   function applyRole(role) {
     currentRole = roleTabs[role] ? role : "hub";
     const allowed = roleTabs[currentRole];
-    const tabIds = ["overview", "chat", "bridge", "logs", "settings"];
+    const tabIds = ["overview", "chat", "bridge", "logs", "settings", "about"];
     for (const tab of tabIds) {
       const button = $("tab-" + tab + "-btn");
       if (button) button.classList.toggle("hidden", !allowed.includes(tab));
@@ -711,11 +728,13 @@
     $("bridge-view").classList.toggle("hidden", tab !== "bridge");
     $("logs-view").classList.toggle("hidden", tab !== "logs");
     $("settings-view").classList.toggle("hidden", tab !== "settings");
+    $("about-view").classList.toggle("hidden", tab !== "about");
     $("tab-overview-btn").classList.toggle("active", tab === "overview");
     $("tab-chat-btn").classList.toggle("active", tab === "chat");
     $("tab-bridge-btn").classList.toggle("active", tab === "bridge");
     $("tab-logs-btn").classList.toggle("active", tab === "logs");
     $("tab-settings-btn").classList.toggle("active", tab === "settings");
+    $("tab-about-btn").classList.toggle("active", tab === "about");
     if (tab === "logs") refreshLogs();
     if (tab === "chat") refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); });
     if (tab === "bridge") {
@@ -728,6 +747,7 @@
   $("tab-chat-btn").addEventListener("click", () => showTab("chat"));
   $("tab-bridge-btn").addEventListener("click", () => showTab("bridge"));
   $("tab-settings-btn").addEventListener("click", () => showTab("settings"));
+  $("tab-about-btn").addEventListener("click", () => showTab("about"));
   $("role-save").addEventListener("click", saveRole);
   $("welcome-host").addEventListener("click", () => completeSetup("hub", "overview"));
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));

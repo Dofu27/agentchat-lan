@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	agentconfig "github.com/Dofu27/agentchat-lan/internal/config"
 	"github.com/Dofu27/agentchat-lan/internal/protocol"
@@ -214,6 +215,7 @@ func main() {
 		select {}
 	}
 
+	fitWindowSize(&cfg)
 	w := webview2.NewWithOptions(webview2.WebViewOptions{
 		Debug: false,
 		WindowOptions: webview2.WindowOptions{
@@ -268,15 +270,47 @@ func main() {
 }
 
 var (
-	user32DLL          = windows.NewLazySystemDLL("user32.dll")
-	procReleaseCapture = user32DLL.NewProc("ReleaseCapture")
-	procSendMessageW   = user32DLL.NewProc("SendMessageW")
-	procShowWindow     = user32DLL.NewProc("ShowWindow")
-	procIsZoomed       = user32DLL.NewProc("IsZoomed")
-	procGetWindowLong  = user32DLL.NewProc("GetWindowLongPtrW")
-	procSetWindowLong  = user32DLL.NewProc("SetWindowLongPtrW")
-	procSetWindowPos   = user32DLL.NewProc("SetWindowPos")
+	user32DLL                = windows.NewLazySystemDLL("user32.dll")
+	procReleaseCapture       = user32DLL.NewProc("ReleaseCapture")
+	procSendMessageW         = user32DLL.NewProc("SendMessageW")
+	procShowWindow           = user32DLL.NewProc("ShowWindow")
+	procIsZoomed             = user32DLL.NewProc("IsZoomed")
+	procGetWindowLong        = user32DLL.NewProc("GetWindowLongPtrW")
+	procSetWindowLong        = user32DLL.NewProc("SetWindowLongPtrW")
+	procSetWindowPos         = user32DLL.NewProc("SetWindowPos")
+	procSystemParametersInfo = user32DLL.NewProc("SystemParametersInfoW")
 )
+
+type winRect struct {
+	Left, Top, Right, Bottom int32
+}
+
+func fitWindowSize(cfg *config) {
+	var r winRect
+	const spiGetWorkArea = 0x0030
+	if ok, _, _ := procSystemParametersInfo.Call(spiGetWorkArea, 0, uintptr(unsafe.Pointer(&r)), 0); ok == 0 {
+		return
+	}
+	workW := int(r.Right - r.Left)
+	workH := int(r.Bottom - r.Top)
+	if workW < 900 || workH < 600 {
+		return
+	}
+	maxW := workW * 92 / 100
+	maxH := workH * 88 / 100
+	if cfg.Width > maxW {
+		cfg.Width = maxW
+	}
+	if cfg.Height > maxH {
+		cfg.Height = maxH
+	}
+	if cfg.Width < 900 {
+		cfg.Width = 900
+	}
+	if cfg.Height < 600 {
+		cfg.Height = 600
+	}
+}
 
 func makeFrameless(hwnd uintptr) {
 	const (
@@ -293,8 +327,8 @@ func makeFrameless(hwnd uintptr) {
 		swpFrameChanged = 0x0020
 	)
 	style, _, _ := procGetWindowLong.Call(hwnd, uintptr(gwlStyle))
-	style &^= wsCaption | wsThickFrame
-	style |= wsPopup | wsMinimizeBox | wsMaximizeBox | wsSysMenu
+	style &^= wsCaption
+	style |= wsPopup | wsThickFrame | wsMinimizeBox | wsMaximizeBox | wsSysMenu
 	_, _, _ = procSetWindowLong.Call(hwnd, uintptr(gwlStyle), style)
 	_, _, _ = procSetWindowPos.Call(hwnd, 0, 0, 0, 0, 0, swpNoSize|swpNoMove|swpNoZOrder|swpFrameChanged)
 }
