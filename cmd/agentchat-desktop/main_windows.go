@@ -433,6 +433,29 @@ type agentConfigFile struct {
 	Token     string `json:"token"`
 }
 
+func (a *app) validateAgentConfigFile(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var cfg agentConfigFile
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return errors.New("agent config is not valid JSON")
+	}
+	if strings.TrimSpace(cfg.Token) == "" || strings.TrimSpace(cfg.AgentID) == "" {
+		return errors.New("agent config has no token or agent_id")
+	}
+	desktopOrigin, err := canonicalOrigin(a.cfg.HubURL)
+	if err != nil {
+		return err
+	}
+	agentOrigin, err := canonicalOrigin(cfg.HubURL)
+	if err != nil || agentOrigin != desktopOrigin {
+		return errors.New("agent config hub_url does not match the desktop hub")
+	}
+	return nil
+}
+
 func (a *app) loadAgentConfig() (agentConfigFile, error) {
 	if strings.TrimSpace(a.cfg.AgentConfig) == "" {
 		return agentConfigFile{}, errors.New("agent_config is not configured")
@@ -785,15 +808,43 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Connector string `json:"connector"`
-		Name      string `json:"name"`
-		Path      string `json:"path"`
-		Exec      string `json:"exec"`
-		DSHHome   string `json:"dsh_home"`
-		Workdir   string `json:"workdir"`
+		Action      string `json:"action"`
+		Connector   string `json:"connector"`
+		Name        string `json:"name"`
+		Path        string `json:"path"`
+		Exec        string `json:"exec"`
+		AgentConfig string `json:"agent_config"`
+		DSHHome     string `json:"dsh_home"`
+		Workdir     string `json:"workdir"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+		return
+	}
+	if strings.EqualFold(strings.TrimSpace(req.Action), "use-config") {
+		path := strings.TrimSpace(req.AgentConfig)
+		if path == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "agent_config path is required"})
+			return
+		}
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "agent_config path is invalid"})
+			return
+		}
+		if err := a.validateAgentConfigFile(abs); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
+			return
+		}
+		a.mu.Lock()
+		a.cfg.AgentConfig = abs
+		cfg := a.cfg
+		a.mu.Unlock()
+		if err := a.saveConfig(cfg); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "agent_config": abs})
 		return
 	}
 	connector := strings.ToLower(strings.TrimSpace(req.Connector))

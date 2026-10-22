@@ -206,6 +206,11 @@
       <input id="connector-name" type="text" autocomplete="off" placeholder="AgentChatBridge" style="min-width:180px">
     </div>
     <div class="row" style="margin-top:8px">
+      <input id="connector-agent-config" type="text" autocomplete="off" placeholder="Agent config (join first or use existing)" style="flex:1;min-width:260px">
+      <button id="connector-use" type="button" data-i18n="connector.use">Use this config</button>
+      <button id="connector-join" type="button" data-i18n="connector.join">Join a hub</button>
+    </div>
+    <div class="row" style="margin-top:8px">
       <input id="connector-path" type="text" autocomplete="off" placeholder="Detected path" style="flex:1;min-width:260px">
       <input id="connector-exec" type="text" autocomplete="off" placeholder="Command / hook" class="hidden" style="flex:1;min-width:260px">
     </div>
@@ -297,6 +302,7 @@
       "chat.join_failed":"Join failed", "chat.join_exists":"Agent config already exists.",
       "connector.title":"Connect an agent", "connector.detect":"Detect", "connector.configure":"Configure",
       "connector.hint":"Codex uses MCP; DSH uses the native bridge; Generic runs your command.",
+      "connector.use":"Use this config", "connector.join":"Join a hub", "connector.config_saved":"Agent config accepted.",
       "connector.failed":"Connector setup failed", "connector.done":"Connector configured.",
       "bridge.title":"Agent bridge", "bridge.install":"Install bridge", "bridge.uninstall":"Uninstall",
       "bridge.name":"Bridge name", "bridge.agent_config":"Agent config", "bridge.exec":"Hook command",
@@ -334,6 +340,7 @@
       "chat.join_failed":"加入失败", "chat.join_exists":"agent 配置已存在，未覆盖。",
       "connector.title":"连接 Agent", "connector.detect":"检测", "connector.configure":"配置",
       "connector.hint":"Codex 使用 MCP；DSH 使用原生 bridge；通用型运行你的命令。",
+      "connector.use":"使用这个配置", "connector.join":"加入 Hub", "connector.config_saved":"Agent 配置已接受。",
       "connector.failed":"连接器配置失败", "connector.done":"连接器已配置。",
       "bridge.title":"Agent 桥接", "bridge.install":"安装桥接", "bridge.uninstall":"卸载",
       "bridge.name":"桥接名称", "bridge.agent_config":"Agent 配置", "bridge.exec":"Hook 命令",
@@ -643,6 +650,7 @@
   }
   async function refreshConnectors() {
     connectorInfo = await api("/api/connectors");
+    $("connector-agent-config").value = connectorInfo.agent_config || "";
     const codex = connectorInfo.codex || {};
     const dsh = connectorInfo.dsh || {};
     const lines = [
@@ -654,6 +662,20 @@
     if (connectorInfo.mcp) lines.push("", connectorInfo.mcp);
     $("connector-output").textContent = lines.join("\n");
     syncConnectorFields();
+  }
+  async function useConnectorConfig() {
+    const path = $("connector-agent-config").value.trim();
+    $("connector-error").textContent = "";
+    if (!path) { $("connector-error").textContent = t("connector.failed"); return; }
+    try {
+      const body = await api("/api/connectors", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action:"use-config", agent_config:path }) });
+      $("connector-error").textContent = body.error || (body.ok ? t("connector.config_saved") : t("connector.failed"));
+      $("connector-error").style.color = body.ok ? "" : "var(--bad)";
+      await refreshConnectors();
+    } catch (err) {
+      $("connector-error").textContent = err.message || String(err);
+      $("connector-error").style.color = "var(--bad)";
+    }
   }
   async function applyConnector() {
     const type = connectorType();
@@ -720,6 +742,8 @@
   $("bridge-uninstall").addEventListener("click", () => bridgeAction("uninstall"));
   $("connector-type").addEventListener("change", syncConnectorFields);
   $("connector-detect").addEventListener("click", () => refreshConnectors().catch((err) => { $("connector-error").textContent = err.message || String(err); }));
+  $("connector-use").addEventListener("click", useConnectorConfig);
+  $("connector-join").addEventListener("click", () => showTab("chat"));
   $("connector-apply").addEventListener("click", applyConnector);
   $("log-source").addEventListener("change", refreshLogs);
   $("log-refresh").addEventListener("click", refreshLogs);
