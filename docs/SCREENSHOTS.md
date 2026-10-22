@@ -1,9 +1,9 @@
 # Screenshots
 
-Status: **captured.** Six isolated screenshots from the `3076529` snapshot are
-in `docs/screenshots/`. The console images are the native WebView2 overview;
-Chat/Admin are the public browser login pages (no token entered). They were
-checked for tokens, real messages, and private LAN addresses before commit.
+Status: **needs refresh for the local-UI build.** The six existing screenshots
+predate the single-window Chat/Admin tabs. Do not publish screenshots taken from
+a production hub: redact tokens, agent IDs, private LAN addresses, and real
+messages, or capture against a disposable local test hub.
 
 Captured set:
 

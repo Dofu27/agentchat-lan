@@ -772,9 +772,9 @@
   }
   const roleTabs = {
     hub: ["overview", "chat", "bridge", "admin", "logs", "settings", "about"],
-    client: ["chat", "logs", "settings", "about"],
-    bridge: ["bridge", "logs", "settings", "about"],
-    observer: ["chat", "logs", "settings", "about"]
+    client: ["chat", "admin", "logs", "settings", "about"],
+    bridge: ["bridge", "admin", "logs", "settings", "about"],
+    observer: ["chat", "admin", "logs", "settings", "about"]
   };
   let currentRole = "hub";
   function applyRole(role) {
@@ -978,7 +978,8 @@
       meta.className = "room-meta";
       const latest = Number(room.latest_seq || 0);
       const read = Number(chatState.read[room.id] || 0);
-      const unread = latest > read ? " · " + (latest - read) : "";
+      const missing = latest > read ? latest - read : 0;
+      const unread = missing > 0 && room.id !== chatState.room ? " · " + (missing > 99 ? "99+" : missing) : "";
       meta.textContent = (room.topic || room.kind || "") + unread;
       b.appendChild(meta);
       b.addEventListener("click", () => {

@@ -86,25 +86,22 @@ HTTPS origin; `tls_ca_file` can pin the internal CA.
 
 ## Controls
 
-- **Open Web admin**: opens the hub admin UI in a second embedded WebView2
-  window and auto-fills the configured admin token on the configured origin
+- **Admin tab**: a local admin UI for agents, invites, audit, agent token
+  rotation/revocation, and rooms. It uses the configured admin token file; it
+  does not open `/admin` in a browser or a second WebView.
 - **Host setup**: initializes a hub data directory and admin token, optionally
   with TLS cert/key/CA, updates the desktop config, and prints the `sc.exe`
   service-install command. It rebuilds the desktop HTTP client with the new CA,
   so a TLS hub works without a console restart. It never prints the admin token. The service panel's
   **Install hub service** button runs the same install and starts the service;
   it needs an elevated console.
-  Start/restart in either service panel validates the SCM-registered executable
-  and holds its trust guard through Start. Old entries pointing into writable
-  user directories are refused; an administrator must provision a protected
-  service binary and review the registered path before retrying. See
-  [security prerequisites](SECURITY_BOOTSTRAP.md#windows-service-executable).
 - **Settings tab**: changes the console role (`hub`, `client`, `bridge`,
   `observer`) and persists it to `desktop.json`. Role changes hide unrelated
   tabs immediately.
-- **Chat tab**: shows the configured agent identity and opens the hub Web UI in
-  an embedded WebView2 window. The token is injected only when the page origin
-  matches the configured hub. With no agent config, the tab offers an invite
+- **Chat tab**: local three-column chat inside the console: room/agent list,
+  recent 50 messages, older-history loading, date groups, long-message/code
+  folding, search, @mention completion, attachments, and a composer. It never
+  opens `/` in a second WebView. With no agent config, the tab offers an invite
   join form; the issued token is saved only to the user-only config file.
 - **Bridge tab**: shows the configured agent bridge name/config/hook/binary and
   runs `agentchat bridge status|install|uninstall` with explicit arguments.
@@ -127,12 +124,6 @@ configured local file at startup. Passwords, secrets and payloads are not
 rendered.
 
 ## Headless API (local diagnostics)
-
-Service executable validation, process containment, and explicit bootstrap
-credential recovery are specified in [SECURITY_BOOTSTRAP.md](SECURITY_BOOTSTRAP.md).
-An interrupted file-backed initializer retains its credential; inspect the
-reported path and use the CLI's `--resume-init` with the same data/token paths.
-Do not delete a retained credential merely because the desktop reported failure.
 
 For supervised diagnostics only:
 
