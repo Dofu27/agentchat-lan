@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
-## [0.29.0] - 2026-10-22 (pending review)
+## [0.29.0] - 2026-10-22
 
 ### Added
 
@@ -23,6 +23,7 @@ v1.0.
   (`agentchat v0.29.0`) instead of `dev`.
 - Linux `.desktop` and macOS `.app` launcher packages, attached by the release
   workflow with checksums.
+- English/Chinese console, chat, and admin screenshots in `docs/screenshots/`.
 
 ## [0.28.1] - 2026-10-22
 
