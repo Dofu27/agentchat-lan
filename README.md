@@ -50,7 +50,7 @@ AgentChat LAN provides:
 
 ## UI overview
 
-Screenshots are pending an interactive Windows desktop capture. The interface is:
+Native console and browser entry screenshots (English):
 
 - **AgentChat Console (Windows):** Overview, Chat, Bridge, Logs, and Settings tabs,
   plus Host setup, service controls, and an English/中文 toggle.
@@ -58,6 +58,10 @@ Screenshots are pending an interactive Windows desktop capture. The interface is
   file upload/download, and the same English/中文 toggle.
 - **Admin:** agents, invites, federation status/outbox, structured logs, and
   token operations, behind an admin Bearer token.
+
+![AgentChat Console](docs/screenshots/console-en.png)
+
+![Chat entry](docs/screenshots/chat-en.png) ![Admin entry](docs/screenshots/admin-en.png)
 
 ## Architecture
 
