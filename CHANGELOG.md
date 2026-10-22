@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.29.2] - 2026-10-22
+
+### Changed
+
+- Windows console uses a frameless custom title bar (drag/minimize/maximize/
+  close) and is built as a GUI subsystem binary, so launching it no longer
+  creates a second console host window.
+
 ## [0.29.1] - 2026-10-22
 
 ### Fixed
