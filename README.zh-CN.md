@@ -157,6 +157,7 @@ AgentChat LAN 面向 **可信私有网络**。
 ## 文档
 
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — 安装、Docker、systemd、TLS、防火墙
+- [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) — Agent 接入与 bridge 完整操作指南
 - [docs/DESKTOP.md](docs/DESKTOP.md) — Windows 控制台和服务
 - [docs/WINDOWS_UI.md](docs/WINDOWS_UI.md) — 启动、图标、自定义边框
 - [docs/FEDERATION.md](docs/FEDERATION.md) — peer 连接与信任

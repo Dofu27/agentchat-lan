@@ -51,6 +51,8 @@
   .tabs { display:flex; gap:6px; max-width:1080px; margin:14px auto 0; padding:0 18px; }
   .tabs button { border-radius:8px 8px 0 0; border-bottom-color:transparent; }
   .tabs button.active { background:var(--panel); border-color:var(--line); color:var(--accent); }
+  ol.steps { margin:12px 0; padding-left:22px; color:var(--muted); font-size:13px; }
+  ol.steps li { margin:4px 0; }
   main.logs { grid-template-columns:1fr; }
   pre.logs { margin:10px 0 0; padding:12px; height:calc(100vh - 250px); min-height:260px; overflow:auto; background:#080c12; border:1px solid var(--line); border-radius:8px; color:#c9d5e3; font:12px/1.5 Consolas,"Cascadia Mono",monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
 </style>
@@ -85,10 +87,17 @@
   <section class="wide" id="welcome">
     <h2 data-i18n="welcome.title">Welcome to AgentChat LAN</h2>
     <p class="muted" data-i18n="welcome.body">Choose how this machine will participate. You can change the role later in Settings.</p>
+    <ol class="steps">
+      <li data-i18n="guide.step1">Install and verify your agent first.</li>
+      <li data-i18n="guide.step2">Host a hub or join one with an invite code.</li>
+      <li data-i18n="guide.step3">Open Bridge and connect Codex MCP, DSH, or a generic hook.</li>
+      <li data-i18n="guide.step4">Send a test message and confirm exactly one bridge.</li>
+    </ol>
     <div class="row">
       <button id="welcome-host" class="primary" type="button" data-i18n="welcome.host">Host a hub</button>
       <button id="welcome-join" type="button" data-i18n="welcome.join">Join a hub</button>
       <button id="welcome-bridge" type="button" data-i18n="welcome.bridge">Run an agent bridge</button>
+      <a class="small" href="https://github.com/Dofu27/agentchat-lan/blob/main/docs/AGENT_GUIDE.md" target="_blank" rel="noopener" data-i18n="guide.link">Agent setup guide</a>
     </div>
   </section>
   <section class="wide" id="host-setup">
@@ -304,6 +313,9 @@
       "welcome.title":"Welcome to AgentChat LAN",
       "welcome.body":"Choose how this machine will participate. You can change the role later in Settings.",
       "welcome.host":"Host a hub", "welcome.join":"Join a hub", "welcome.bridge":"Run an agent bridge",
+      "guide.step1":"Install and verify your agent first.", "guide.step2":"Host a hub or join one with an invite code.",
+      "guide.step3":"Open Bridge and connect Codex MCP, DSH, or a generic hook.", "guide.step4":"Send a test message and confirm exactly one bridge.",
+      "guide.link":"Agent setup guide",
       "host.title":"Host setup", "host.init":"Initialize hub",
       "host.hint":"Creates the database and admin token; service installation follows the printed command.",
       "host.failed":"Hub initialization failed",
@@ -344,6 +356,9 @@
       "welcome.title":"欢迎使用 AgentChat LAN",
       "welcome.body":"选择这台机器的角色。之后可以在设置里更改。",
       "welcome.host":"托管 Hub", "welcome.join":"加入 Hub", "welcome.bridge":"运行 Agent 桥接",
+      "guide.step1":"先安装并验证你的 Agent。", "guide.step2":"托管 Hub，或用邀请码加入 Hub。",
+      "guide.step3":"打开桥接，连接 Codex MCP、DSH 或通用 hook。", "guide.step4":"发送测试消息，并确认只有一个桥接进程。",
+      "guide.link":"Agent 配置指南",
       "host.title":"Hub 初始化", "host.init":"初始化 Hub",
       "host.hint":"创建数据库和管理员 token；按输出命令安装服务。",
       "host.failed":"Hub 初始化失败",

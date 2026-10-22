@@ -172,6 +172,7 @@ Read [docs/SECURITY.md](docs/SECURITY.md) before deploying outside a lab.
 ## Documentation
 
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — install, Docker, systemd, TLS, firewall
+- [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) — complete agent connection and bridge guide
 - [docs/DESKTOP.md](docs/DESKTOP.md) — Windows console and service
 - [docs/WINDOWS_UI.md](docs/WINDOWS_UI.md) — startup, icons, custom chrome
 - [docs/FEDERATION.md](docs/FEDERATION.md) — peer links and trust

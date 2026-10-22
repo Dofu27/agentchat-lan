@@ -436,6 +436,66 @@ func (a *app) api(next http.Handler) http.Handler {
 	})
 }
 
+func fitWebViewOptions(width, height int) (int, int) {
+	cfg := config{Width: width, Height: height}
+	fitWindowSize(&cfg)
+	return cfg.Width, cfg.Height
+}
+
+func bindWindowControls(w webview2.WebView) {
+	hwnd := uintptr(w.Window())
+	_ = w.Bind("__winDrag", func() {
+		releaseCapture()
+		sendMessage(hwnd, 0x00A1, 2, 0)
+	})
+	_ = w.Bind("__winMin", func() { showWindow(hwnd, 6) })
+	_ = w.Bind("__winMax", func() {
+		if isZoomed(hwnd) {
+			showWindow(hwnd, 9)
+		} else {
+			showWindow(hwnd, 3)
+		}
+	})
+	_ = w.Bind("__winClose", func() { sendMessage(hwnd, 0x0010, 0, 0) })
+}
+
+func windowChromeScript(title string) string {
+	return `(function(){
+  function add(){
+    if (document.getElementById("__ac_window_chrome")) return;
+    var bar=document.createElement("div");
+    bar.id="__ac_window_chrome";
+    bar.style.cssText="position:fixed;top:0;left:0;right:0;height:38px;z-index:2147483647;display:flex;align-items:center;padding:0 10px 0 16px;background:#0a0f17;border-bottom:1px solid #2b3545;color:#8b98a9;font:12px/1.4 'Segoe UI',system-ui,sans-serif;user-select:none;";
+    var brand=document.createElement("span");
+    brand.textContent="AC · "+` + strconv.Quote(title) + `;
+    bar.appendChild(brand);
+    var controls=document.createElement("div");
+    controls.style.cssText="margin-left:auto;display:flex;gap:4px;";
+    function button(label, fn, close){
+      var b=document.createElement("button");
+      b.type="button"; b.textContent=label;
+      b.style.cssText="width:32px;height:26px;border:0;border-radius:6px;background:transparent;color:#8b98a9;font:15px/1 'Segoe UI',sans-serif;cursor:pointer;";
+      if(close){b.onmouseover=function(){b.style.background="#a3262f";b.style.color="#fff";};b.onmouseout=function(){b.style.background="transparent";b.style.color="#8b98a9";};}
+      b.onclick=fn; controls.appendChild(b); return b;
+    }
+    button("—",function(){window.__winMin&&window.__winMin();},false);
+    button("□",function(){window.__winMax&&window.__winMax();},false);
+    button("✕",function(){window.__winClose&&window.__winClose();},true);
+    bar.appendChild(controls);
+    bar.addEventListener("mousedown",function(e){if(e.target.closest("button"))return;window.__winDrag&&window.__winDrag();});
+    document.documentElement.appendChild(bar);
+    if(document.body) document.body.style.paddingTop="38px";
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",add); else add();
+})();`
+}
+
+func applyFramelessWindow(w webview2.WebView, title string) {
+	makeFrameless(uintptr(w.Window()))
+	bindWindowControls(w)
+	w.Init(windowChromeScript(title))
+}
+
 func (a *app) openAdminWindow() error {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -443,15 +503,17 @@ func (a *app) openAdminWindow() error {
 		adminWindow.Navigate(a.cfg.HubURL + "/admin")
 		return nil
 	}
+	aw, ah := fitWebViewOptions(1280, 860)
 	adminWindow = webview2.NewWithOptions(webview2.WebViewOptions{
 		Debug: false,
 		WindowOptions: webview2.WindowOptions{
-			Title: "AgentChat Admin", Width: 1280, Height: 860, Center: true,
+			Title: "AgentChat Admin", Width: uint(aw), Height: uint(ah), Center: true,
 		},
 	})
 	if adminWindow == nil {
 		return errors.New("could not create the admin WebView2 window")
 	}
+	applyFramelessWindow(adminWindow, "AgentChat Admin")
 	origin, err := canonicalOrigin(a.cfg.HubURL)
 	if err != nil {
 		return err
@@ -528,15 +590,17 @@ func (a *app) openChatWindow() error {
 	if err != nil {
 		return err
 	}
+	cw, ch := fitWebViewOptions(1280, 860)
 	chatWindow = webview2.NewWithOptions(webview2.WebViewOptions{
 		Debug: false,
 		WindowOptions: webview2.WindowOptions{
-			Title: "AgentChat", Width: 1280, Height: 860, Center: true,
+			Title: "AgentChat", Width: uint(cw), Height: uint(ch), Center: true,
 		},
 	})
 	if chatWindow == nil {
 		return errors.New("could not create the chat WebView2 window")
 	}
+	applyFramelessWindow(chatWindow, "AgentChat")
 	origin, err := canonicalOrigin(a.cfg.HubURL)
 	if err != nil {
 		return err
