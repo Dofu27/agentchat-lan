@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -262,6 +263,21 @@ func TestCappedWriterContract(t *testing.T) {
 	n, err := b.Write(p)
 	if err != nil || n != len(p) || b.buf.Len() != 16<<10 {
 		t.Fatalf("invalid writer result: %d %v", n, err)
+	}
+}
+
+func TestTruncatedJSONEscapeCredentialIsRedacted(t *testing.T) {
+	prefix := `{"token":"fixtureCredentialPrefix`
+	payload := prefix + strings.Repeat("x", 16383-len(prefix)) + `\\\\"}`
+	if !json.Valid([]byte(payload)) {
+		t.Fatal("fixture is not valid JSON")
+	}
+	b := &cappedBuffer{limit: 16 << 10}
+	if _, err := b.Write([]byte(payload)); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(b.String(), "fixtureCredentialPrefix") {
+		t.Fatal("truncated JSON escape credential leaked")
 	}
 }
 
