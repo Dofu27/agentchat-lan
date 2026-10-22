@@ -172,7 +172,23 @@ B federation: delivered=2, dead=0
 ```
 
 Both hubs returned `version=0.29.0` and `ready`; B's old v0100 service process
-was replaced, and its old binary remains available for rollback. The first
+was replaced, and its old binary remains available for rollback.
+
+## Host reboot acceptance
+
+B (creative-pc) was rebooted on 2026-10-22 13:31:40 Asia/Hong_Kong:
+
+```text
+service AgentChatFedB: Auto, Running
+binary: C:\Program Files\AgentChat\agentchat.exe
+health: {"status":"ok","version":"0.29.0"}
+ready: ready
+listener: one hub process on :8788
+federation: delivered=2, dead=0
+```
+
+A remained healthy at `0.29.0` during the B reboot. A host reboot is still
+pending. The first
 start used an earlier staging build; it was immediately refreshed from the
 tagged v0.29.0 code so production matches the reviewed/released SHA.
 
