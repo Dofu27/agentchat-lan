@@ -42,9 +42,9 @@ boring, observable transport:
 The Windows console and the hub web UI share the same data and the same
 English/中文 toggle:
 
-![AgentChat Console](docs/screenshots/console-en.png)
+![AgentChat Console](docs/screenshots/console-local.png)
 
-![Local chat](docs/screenshots/chat-local.png)
+![Local chat](docs/screenshots/chat-local.png) ![Local admin](docs/screenshots/admin-local.png)
 
 ## Quick start
 

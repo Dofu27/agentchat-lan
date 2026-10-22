@@ -33,9 +33,9 @@ SQLite 数据库，不需要云账号、不需要公网中继，也没有遥测�
 
 Windows 控制台和 Hub Web UI 共用数据，都支持中英文切换：
 
-![AgentChat Console](docs/screenshots/console-zh.png)
+![AgentChat Console](docs/screenshots/console-local.png)
 
-![本地聊天](docs/screenshots/chat-local.png)
+![本地聊天](docs/screenshots/chat-local.png) ![本地管理](docs/screenshots/admin-local.png)
 
 ## 快速开始
 

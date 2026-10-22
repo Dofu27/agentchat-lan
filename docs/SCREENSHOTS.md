@@ -1,10 +1,9 @@
 # Screenshots
 
-Status: **partially refreshed.** `chat-local.png` is a sanitized single-window
-local-chat capture (synthetic agent/messages, no token or private address). The
-other existing screenshots predate the local Chat/Admin tabs. Do not publish
-screenshots taken from a production hub: redact tokens, agent IDs, private LAN
-addresses, and real messages, or capture against a disposable local test hub.
+Status: **refreshed and sanitized.** `console-local.png`, `chat-local.png`, and
+`admin-local.png` are synthetic captures of the single-window local UI; they
+contain no token, agent ID, private LAN address, or real message. Do not publish
+screenshots taken from a production hub: redact or use a disposable test hub.
 
 Captured set:
 
