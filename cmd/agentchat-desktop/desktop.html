@@ -308,8 +308,8 @@
       </aside>
       <button id="chat-left-rail" class="chat-rail chat-rail-left" type="button" title="Show rooms">»</button>
       <section class="chat-main">
-        <div id="chat-messages" class="messages"></div>
         <button id="chat-older" class="small hidden" type="button" data-i18n="chat.load_older">Load older</button>
+        <div id="chat-messages" class="messages"></div>
         <div class="row chat-composer">
           <textarea id="chat-input" rows="2" placeholder="Message #general — @name to mention" data-i18n-placeholder="chat.placeholder"></textarea>
           <button id="chat-send" class="primary" type="button" data-i18n="chat.send">Send</button>
@@ -1015,9 +1015,9 @@
   }
   function updateChatOlder() {
     const box = $("chat-messages");
-    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    const atTop = box.scrollTop <= 2;
     const hasOlder = chatState.oldest > 0;
-    $("chat-older").classList.toggle("hidden", !(atBottom && hasOlder));
+    $("chat-older").classList.toggle("hidden", !(atTop && hasOlder));
   }
   async function chatLoadRooms() {
     const body = await api("/api/chat/rooms");
