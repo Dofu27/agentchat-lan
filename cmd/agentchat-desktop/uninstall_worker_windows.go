@@ -33,12 +33,7 @@ type fileDispositionInfo struct {
 }
 
 type pinnedFile struct {
-	path      string
-	handle    windows.Handle
-	canDelete bool
-	volume    uint32
-	indexHigh uint32
-	indexLow  uint32
+	handle windows.Handle
 }
 
 func pinFile(path string) (pinnedFile, error) {
@@ -46,70 +41,44 @@ func pinFile(path string) (pinnedFile, error) {
 	if err != nil {
 		return pinnedFile{}, err
 	}
-	// Keep the exact file object pinned while the parent exits. A handle that
-	// denies FILE_SHARE_DELETE prevents a same-path replacement until removal.
+	// Open with DELETE up front and hold this exact handle until disposal.
+	// Sharing only READ also removes the same-path replacement window. If the
+	// object cannot be opened for DELETE, fail closed instead of falling back
+	// to a read-only pin that our own delete path could not reopen.
 	h, err := windows.CreateFile(ptr, windows.GENERIC_READ|windows.DELETE,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
+		windows.FILE_SHARE_READ,
 		nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
-	canDelete := err == nil
 	if err != nil {
-		h, err = windows.CreateFile(ptr, windows.GENERIC_READ,
-			windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
-			nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
-		if err != nil {
-			return pinnedFile{}, err
-		}
+		return pinnedFile{}, err
 	}
 	var info windows.ByHandleFileInformation
 	if err := windows.GetFileInformationByHandle(h, &info); err != nil {
 		windows.CloseHandle(h)
 		return pinnedFile{}, err
 	}
-	return pinnedFile{
-		path: path, handle: h, canDelete: canDelete,
-		volume: info.VolumeSerialNumber, indexHigh: info.FileIndexHigh, indexLow: info.FileIndexLow,
-	}, nil
+	if info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+		windows.CloseHandle(h)
+		return pinnedFile{}, errors.New("file is a reparse point")
+	}
+	return pinnedFile{handle: h}, nil
+}
+
+func (p pinnedFile) close() {
+	if p.handle != 0 {
+		windows.CloseHandle(p.handle)
+	}
 }
 
 func (p pinnedFile) delete() error {
-	if p.handle != 0 {
-		defer windows.CloseHandle(p.handle)
+	if p.handle == 0 {
+		return errors.New("file is not pinned")
 	}
-	if p.canDelete {
-		info := fileDispositionInfo{DeleteFile: 1}
-		r, _, err := procSetFileInformationByHandle.Call(
-			uintptr(p.handle), 4, uintptr(unsafe.Pointer(&info)), unsafe.Sizeof(info))
-		if r == 0 {
-			return err
-		}
-		return nil
-	}
-	// The running executable cannot be opened for DELETE while the parent is
-	// alive. It was pinned without FILE_SHARE_DELETE; reopen and verify FileId
-	// before deleting the exact object.
-	ptr, err := windows.UTF16PtrFromString(p.path)
-	if err != nil {
-		return err
-	}
-	h, err := windows.CreateFile(ptr, windows.DELETE,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
-		nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
-	if err != nil {
-		return err
-	}
-	defer windows.CloseHandle(h)
-	var info windows.ByHandleFileInformation
-	if err := windows.GetFileInformationByHandle(h, &info); err != nil {
-		return err
-	}
-	if info.VolumeSerialNumber != p.volume || info.FileIndexHigh != p.indexHigh || info.FileIndexLow != p.indexLow {
-		return errors.New("file identity changed before deletion")
-	}
-	disp := fileDispositionInfo{DeleteFile: 1}
-	r, _, callErr := procSetFileInformationByHandle.Call(
-		uintptr(h), 4, uintptr(unsafe.Pointer(&disp)), unsafe.Sizeof(disp))
+	defer windows.CloseHandle(p.handle)
+	info := fileDispositionInfo{DeleteFile: 1}
+	r, _, err := procSetFileInformationByHandle.Call(
+		uintptr(p.handle), 4, uintptr(unsafe.Pointer(&info)), unsafe.Sizeof(info))
 	if r == 0 {
-		return callErr
+		return err
 	}
 	return nil
 }
@@ -232,21 +201,26 @@ func runUninstallWorker(args []string) int {
 			if os.IsNotExist(err) {
 				continue
 			}
-			// Leave an object we could not pin untouched and fail closed.
+			// A DELETE preflight failure means zero deletion, including marker.
 			pinFailed = true
 			continue
 		}
 		pinned = append(pinned, p)
 	}
-	waitForParent(pid)
-	hadErr := pinFailed
-	for _, p := range pinned {
-		if err := p.delete(); err != nil {
-			hadErr = true
+	if pinFailed {
+		for _, p := range pinned {
+			p.close()
 		}
-	}
-	if hadErr {
 		return 1
+	}
+	waitForParent(pid)
+	for i, p := range pinned {
+		if err := p.delete(); err != nil {
+			for _, rest := range pinned[i+1:] {
+				rest.close()
+			}
+			return 1
+		}
 	}
 	// The worker is a temporary copy; schedule its own removal after reboot.
 	if self, err := os.Executable(); err == nil {
