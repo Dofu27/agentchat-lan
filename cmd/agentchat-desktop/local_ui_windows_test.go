@@ -79,6 +79,47 @@ func TestUninstallRequiresInstallMarker(t *testing.T) {
 	}
 }
 
+func TestLocalSearchProxy(t *testing.T) {
+	var gotPath, gotAuth string
+	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotAuth = r.URL.RequestURI(), r.Header.Get("Authorization")
+		_, _ = io.WriteString(w, `{"messages":[]}`)
+	}))
+	defer hub.Close()
+	app := &app{http: hub.Client(), cfg: config{HubURL: hub.URL, AgentConfig: testAgentConfig(t, hub.URL)}}
+	rec := httptest.NewRecorder()
+	app.handleChatSearch(rec, httptest.NewRequest(http.MethodGet, "/api/chat/search?room=general&q=hello%20world", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if gotAuth != "Bearer agent-token" || gotPath != "/v1/rooms/general/search?q=hello+world&limit=50" {
+		t.Fatalf("auth=%q path=%q", gotAuth, gotPath)
+	}
+}
+
+func TestLocalAdminAgentMutations(t *testing.T) {
+	var seen []string
+	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = append(seen, r.Method+" "+r.URL.Path)
+		_, _ = io.WriteString(w, `{"ok":true}`)
+	}))
+	defer hub.Close()
+	app := &app{http: hub.Client(), cfg: config{HubURL: hub.URL}, token: "admin-token"}
+	create := httptest.NewRequest(http.MethodPost, "/api/admin/agents", strings.NewReader(`{"name":"new"}`))
+	create.Header.Set("Content-Type", "application/json")
+	app.handleAdminCreateAgent(httptest.NewRecorder(), create)
+	rotate := httptest.NewRequest(http.MethodPost, "/api/admin/agents/agt_1/token", nil)
+	rotate.SetPathValue("id", "agt_1")
+	app.handleAdminRotateAgent(httptest.NewRecorder(), rotate)
+	revoke := httptest.NewRequest(http.MethodDelete, "/api/admin/agents/agt_1", nil)
+	revoke.SetPathValue("id", "agt_1")
+	app.handleAdminRevokeAgent(httptest.NewRecorder(), revoke)
+	want := []string{"POST /v1/admin/agents", "POST /v1/admin/agents/agt_1/token", "DELETE /v1/admin/agents/agt_1"}
+	if strings.Join(seen, "|") != strings.Join(want, "|") {
+		t.Fatalf("seen=%v want=%v", seen, want)
+	}
+}
+
 func TestLocalAdminProxy(t *testing.T) {
 	var gotAuth, gotPath string
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

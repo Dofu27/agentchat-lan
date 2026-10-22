@@ -80,12 +80,22 @@
   .date-group > summary::-webkit-details-marker { display:none; }
   .date-group > summary::before { content:"▸ "; }
   .date-group[open] > summary::before { content:"▾ "; }
+  .chat-composer { position:relative; }
   .chat-composer textarea { flex:1; min-height:48px; resize:vertical; background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; }
-  .admin-grid { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr); gap:14px; margin-top:14px; }
+  .mention-menu { position:absolute; left:0; bottom:58px; z-index:20; min-width:180px; max-height:180px; overflow:auto; background:#101a26; border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
+  .mention-menu button { display:block; width:100%; text-align:left; background:transparent; border:0; padding:5px 7px; font-size:12px; color:var(--text); }
+  .mention-menu button:hover { background:#1b2a3a; }
+  .chat-tools { margin-top:10px; gap:8px; }
+  .chat-tools input { flex:1; max-width:340px; }
+  .chat-attach { margin-top:6px; gap:8px; align-items:center; }
+  .chat-attach input[type=file] { color:var(--muted); font-size:11px; max-width:260px; }
+  .admin-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:14px; }
   .admin-grid h3 { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin:0 0 8px; }
   .admin-list { max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:8px; background:#0a1018; font-size:12px; }
   .admin-row { padding:5px 4px; border-bottom:1px solid rgba(43,53,69,.55); overflow-wrap:anywhere; }
   .admin-row:last-child { border-bottom:0; }
+  .admin-actions { display:inline-flex; gap:4px; margin-left:8px; }
+  .admin-actions button { padding:2px 6px; font-size:11px; }
   @media (max-width: 900px) { .admin-grid { grid-template-columns:1fr; } }
   .field { display:flex; flex-direction:column; flex:1; min-width:230px; gap:4px; }
   .field label { color:var(--muted); font-size:12px; }
@@ -252,6 +262,11 @@
       <span class="k" data-i18n="chat.hub">Hub</span><span class="v" id="chat-hub"></span>
     </div>
     <div id="chat-error" class="small" style="margin-top:8px"></div>
+    <div class="row chat-tools">
+      <input id="chat-search" type="text" placeholder="Search this room" data-i18n-placeholder="chat.search_placeholder">
+      <button id="chat-search-btn" type="button" data-i18n="chat.search">Search</button>
+    </div>
+    <div id="chat-search-results" class="admin-list hidden" style="margin-top:8px;max-height:180px"></div>
     <div class="chat-grid" id="chat-grid">
       <aside class="chat-side">
         <h3 data-i18n="chat.rooms">Rooms</h3>
@@ -265,6 +280,12 @@
         <div class="row chat-composer">
           <textarea id="chat-input" rows="2" placeholder="Message #general — @name to mention" data-i18n-placeholder="chat.placeholder"></textarea>
           <button id="chat-send" class="primary" type="button" data-i18n="chat.send">Send</button>
+          <div id="chat-mentions" class="mention-menu hidden"></div>
+        </div>
+        <div class="row chat-attach">
+          <label class="small muted" for="chat-file" data-i18n="chat.attach">Attach</label>
+          <input id="chat-file" type="file">
+          <span id="chat-file-label" class="small muted"></span>
         </div>
       </section>
     </div>
@@ -272,9 +293,9 @@
   <section class="wide" id="chat-join">
     <h2 data-i18n="chat.join_title">Join a hub</h2>
     <div class="row">
-      <input id="join-invite" type="password" autocomplete="off" placeholder="Invite code">
-      <input id="join-name" type="text" autocomplete="off" placeholder="Agent name">
-      <input id="join-kind" type="text" autocomplete="off" placeholder="human" value="human">
+      <input id="join-invite" type="password" autocomplete="off" placeholder="Invite code" data-i18n-placeholder="chat.invite_placeholder">
+      <input id="join-name" type="text" autocomplete="off" placeholder="Agent name" data-i18n-placeholder="chat.name_placeholder">
+      <input id="join-kind" type="text" autocomplete="off" placeholder="human" value="human" data-i18n-placeholder="chat.kind_placeholder">
       <button id="join-submit" class="primary" type="button" data-i18n="chat.join">Join</button>
     </div>
     <div id="join-error" class="small" style="margin-top:8px"></div>
@@ -343,6 +364,16 @@
     <div class="admin-grid">
       <section>
         <h3 data-i18n="admin.agents">Agents</h3>
+        <div class="row" style="margin-bottom:8px">
+          <input id="admin-agent-name" type="text" placeholder="Agent name">
+          <input id="admin-agent-kind" type="text" value="codex" style="max-width:90px">
+          <input id="admin-agent-room" type="text" value="general" style="max-width:100px">
+          <button id="admin-agent-create" type="button" data-i18n="admin.create_agent">Create agent</button>
+        </div>
+        <div id="admin-agent-token" class="notice hidden">
+          <span id="admin-agent-token-text"></span>
+          <button id="admin-agent-token-close" type="button" class="notice-close" aria-label="Close">×</button>
+        </div>
         <div id="admin-agents" class="admin-list"></div>
       </section>
       <section>
@@ -358,6 +389,19 @@
       <section>
         <h3 data-i18n="admin.audit">Audit</h3>
         <div id="admin-audit" class="admin-list"></div>
+      </section>
+      <section>
+        <h3 data-i18n="admin.rooms">Rooms</h3>
+        <div class="row" style="margin-bottom:8px">
+          <input id="admin-room-id" type="text" placeholder="room-id">
+          <input id="admin-room-topic" type="text" placeholder="Topic (optional)">
+          <button id="admin-room-create" type="button" data-i18n="admin.create_room">Create room</button>
+        </div>
+        <div class="row">
+          <input id="admin-room-archive" type="text" placeholder="room-id to archive">
+          <button id="admin-room-archive-btn" class="danger" type="button" data-i18n="admin.archive_room">Archive</button>
+        </div>
+        <div id="admin-rooms-result" class="small" style="margin-top:6px"></div>
       </section>
     </div>
   </section>
@@ -442,6 +486,10 @@
       "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.admin":"Admin", "tab.logs":"Logs", "tab.settings":"Settings", "tab.about":"About",
       "admin.title":"Administration", "admin.agents":"Agents", "admin.invites":"Invites", "admin.audit":"Audit",
       "admin.create_invite":"Create invite", "admin.invite_created":"Invite created", "admin.no_data":"No data",
+      "admin.create_agent":"Create agent", "admin.agent_created":"Agent created", "admin.rotate":"Rotate token",
+      "admin.revoke":"Revoke", "admin.revoke_confirm":"Revoke this agent?", "admin.token_confirm":"Rotate this agent token?",
+      "admin.rooms":"Rooms", "admin.create_room":"Create room", "admin.archive_room":"Archive",
+      "admin.room_created":"Room created", "admin.room_archived":"Room archived",
       "about.title":"About AgentChat LAN", "about.version":"Version", "about.license":"License",
       "about.feedback":"Feedback", "about.body":"AgentChat LAN is a self-hosted LAN chat, durable inbox, and file relay for AI agents. It is designed for a trusted private network.",
       "logs.title":"Logs", "logs.desktop":"Desktop", "logs.hub":"Hub", "logs.bridge":"Bridge",
@@ -473,6 +521,8 @@
       "chat.rooms":"Rooms", "chat.agents":"Agents", "chat.load_older":"Load older", "chat.send":"Send",
       "chat.placeholder":"Message #general — @name to mention", "chat.no_messages":"No messages yet.",
       "chat.fold":"Show more", "chat.unfold":"Show less", "chat.sent":"Sent", "chat.history_loaded":"Older messages loaded",
+      "chat.attach":"Attach", "chat.search":"Search", "chat.search_placeholder":"Search this room", "chat.search_empty":"No matches",
+      "chat.invite_placeholder":"Invite code", "chat.name_placeholder":"Agent name", "chat.kind_placeholder":"Kind (codex/dsh/human)",
       "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
       "chat.join_title":"Join a hub", "chat.join":"Join", "chat.joined":"Joined. Agent config saved.",
       "chat.join_failed":"Join failed", "chat.join_exists":"Agent config already exists.",
@@ -501,6 +551,10 @@
       "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.admin":"管理", "tab.logs":"日志", "tab.settings":"设置", "tab.about":"关于",
       "admin.title":"管理", "admin.agents":"Agent", "admin.invites":"邀请码", "admin.audit":"审计",
       "admin.create_invite":"生成邀请码", "admin.invite_created":"邀请码已生成", "admin.no_data":"暂无数据",
+      "admin.create_agent":"创建 Agent", "admin.agent_created":"Agent 已创建", "admin.rotate":"轮换 token",
+      "admin.revoke":"撤销", "admin.revoke_confirm":"撤销这个 Agent？", "admin.token_confirm":"轮换这个 Agent 的 token？",
+      "admin.rooms":"房间", "admin.create_room":"创建房间", "admin.archive_room":"归档",
+      "admin.room_created":"房间已创建", "admin.room_archived":"房间已归档",
       "about.title":"关于 AgentChat LAN", "about.version":"版本", "about.license":"许可证",
       "about.feedback":"反馈", "about.body":"AgentChat LAN 是面向 AI Agent 的自托管局域网聊天、持久收件箱与文件中转站，面向可信私有网络。",
       "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
@@ -532,6 +586,8 @@
       "chat.rooms":"房间", "chat.agents":"Agent", "chat.load_older":"加载更早消息", "chat.send":"发送",
       "chat.placeholder":"输入消息，@名字 提及 Agent", "chat.no_messages":"还没有消息。",
       "chat.fold":"展开", "chat.unfold":"收起", "chat.sent":"已发送", "chat.history_loaded":"已加载更早消息",
+      "chat.attach":"附件", "chat.search":"搜索", "chat.search_placeholder":"搜索当前房间", "chat.search_empty":"没有匹配",
+      "chat.invite_placeholder":"邀请码", "chat.name_placeholder":"Agent 名称", "chat.kind_placeholder":"类型（codex/dsh/human）",
       "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
       "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存。",
       "chat.join_failed":"加入失败", "chat.join_exists":"agent 配置已存在，未覆盖。",
@@ -696,7 +752,9 @@
   let activeTab = "overview";
   let logsPaused = false;
   let logsBusy = false;
-  const chatState = { room: "general", rooms: [], agents: [], messages: [], oldest: 0, last: 0, loading: false, timer: null };
+  let chatRead = {};
+  try { chatRead = JSON.parse(localStorage.getItem("agentchat_read") || "{}") || {}; } catch (_) { chatRead = {}; }
+  const chatState = { room: "general", rooms: [], agents: [], messages: [], oldest: 0, last: 0, loading: false, timer: null, read: chatRead };
   async function refreshLogs() {
     if (logsBusy) return;
     logsBusy = true;
@@ -854,12 +912,28 @@
       article.appendChild(fold);
     }
     for (const file of m.files || []) {
-      const line = document.createElement("div");
-      line.className = "small muted";
+      const line = document.createElement("button");
+      line.type = "button";
+      line.className = "small";
       line.textContent = "📎 " + (file.name || file.id || "file");
+      line.addEventListener("click", () => downloadChatFile(file));
       article.appendChild(line);
     }
     return article;
+  }
+  async function downloadChatFile(file) {
+    try {
+      const headers = {};
+      if (window.__agentchatDesktopCapability) headers["X-AgentChat-Desktop-Capability"] = window.__agentchatDesktopCapability;
+      const res = await fetch("/api/chat/files/" + encodeURIComponent(file.id), { headers });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = file.name || file.id || "download.bin";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) { chatError(err); }
   }
   function chatRenderMessages(keepPosition) {
     const box = $("chat-messages");
@@ -902,9 +976,18 @@
       b.textContent = "#" + room.id;
       const meta = document.createElement("div");
       meta.className = "room-meta";
-      meta.textContent = room.topic || room.kind || "";
+      const latest = Number(room.latest_seq || 0);
+      const read = Number(chatState.read[room.id] || 0);
+      const unread = latest > read ? " · " + (latest - read) : "";
+      meta.textContent = (room.topic || room.kind || "") + unread;
       b.appendChild(meta);
-      b.addEventListener("click", () => { chatState.room = room.id; $("chat-room-title").textContent = "#" + room.id; chatLoadLatest().catch(chatError); });
+      b.addEventListener("click", () => {
+        chatState.room = room.id;
+        chatState.read[room.id] = latest;
+        localStorage.setItem("agentchat_read", JSON.stringify(chatState.read));
+        $("chat-room-title").textContent = "#" + room.id;
+        chatLoadLatest().catch(chatError);
+      });
       box.appendChild(b);
     }
   }
@@ -935,6 +1018,8 @@
       chatState.messages = body.messages || [];
       chatState.oldest = chatState.messages.length ? chatState.messages[0].seq : 0;
       chatState.last = chatState.messages.length ? chatState.messages[chatState.messages.length - 1].seq : 0;
+      chatState.read[chatState.room] = chatState.last;
+      localStorage.setItem("agentchat_read", JSON.stringify(chatState.read));
       chatRenderMessages(false);
     } finally { chatState.loading = false; }
   }
@@ -971,14 +1056,92 @@
       if (!nearBottom) $("chat-messages").scrollTop = $("chat-messages").scrollHeight;
     } catch (_) {}
   }
+  function chatMentionContext() {
+    const input = $("chat-input");
+    const before = input.value.slice(0, input.selectionStart);
+    const match = before.match(/(^|[\s(])@([A-Za-z0-9_.-]*)$/);
+    return match ? { start: input.selectionStart - match[2].length - 1, query: match[2] } : null;
+  }
+  function closeChatMentions() {
+    $("chat-mentions").classList.add("hidden");
+    $("chat-mentions").replaceChildren();
+  }
+  function updateChatMentions() {
+    const ctx = chatMentionContext();
+    if (!ctx) { closeChatMentions(); return; }
+    const query = ctx.query.toLowerCase();
+    const matches = chatState.agents
+      .filter((a) => a.name && a.name.toLowerCase().includes(query))
+      .slice(0, 8);
+    const box = $("chat-mentions");
+    box.replaceChildren();
+    if (!matches.length) { box.classList.add("hidden"); return; }
+    for (const agent of matches) {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = "@" + agent.name;
+      b.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        insertChatMention(agent.name);
+      });
+      box.appendChild(b);
+    }
+    box.classList.remove("hidden");
+  }
+  function insertChatMention(name) {
+    const input = $("chat-input");
+    const ctx = chatMentionContext();
+    if (!ctx) return;
+    const before = input.value.slice(0, ctx.start);
+    const after = input.value.slice(input.selectionStart);
+    input.value = before + "@" + name + " " + after;
+    const pos = before.length + name.length + 2;
+    input.setSelectionRange(pos, pos);
+    input.focus();
+    closeChatMentions();
+  }
+  async function chatSearch() {
+    const q = $("chat-search").value.trim();
+    const box = $("chat-search-results");
+    if (!q) { box.classList.add("hidden"); box.replaceChildren(); return; }
+    try {
+      const body = await api("/api/chat/search?room=" + encodeURIComponent(chatState.room) + "&q=" + encodeURIComponent(q));
+      const messages = body.messages || [];
+      box.replaceChildren();
+      if (!messages.length) {
+        const empty = document.createElement("div");
+        empty.className = "admin-row muted"; empty.textContent = t("chat.search_empty");
+        box.appendChild(empty);
+      } else {
+        for (const m of messages) {
+          const row = document.createElement("div");
+          row.className = "admin-row";
+          row.textContent = (m.from && m.from.name ? m.from.name + ": " : "") + (m.text || "").slice(0, 240);
+          box.appendChild(row);
+        }
+      }
+      box.classList.remove("hidden");
+    } catch (err) { chatError(err); }
+  }
   async function chatSend() {
     const input = $("chat-input");
     const text = input.value.trim();
     if (!text) return;
     $("chat-send").disabled = true;
     try {
-      await api("/api/chat/send", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ room: chatState.room, text }) });
+      let fileID = "";
+      const file = $("chat-file").files[0];
+      if (file) {
+        const form = new FormData();
+        form.append("file", file);
+        const uploaded = await api("/api/chat/upload", { method:"POST", body: form });
+        fileID = uploaded.id || (uploaded.file && uploaded.file.id) || "";
+      }
+      const payload = { room: chatState.room, text };
+      if (fileID) payload.files = [fileID];
+      await api("/api/chat/send", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload) });
       input.value = "";
+      $("chat-file").value = "";
+      $("chat-file-label").textContent = "";
       if (chatState.last) await chatPoll(); else await chatLoadLatest();
     } catch (err) { chatError(err); }
     finally { $("chat-send").disabled = false; }
@@ -1032,13 +1195,46 @@
       container.appendChild(el);
     }
   }
+  function adminShowToken(token) {
+    $("admin-agent-token-text").textContent = token || "";
+    $("admin-agent-token").classList.toggle("hidden", !token);
+  }
+  function adminAgentRows(agents) {
+    const box = $("admin-agents"); box.replaceChildren();
+    if (!agents.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted"; empty.textContent = t("admin.no_data");
+      box.appendChild(empty); return;
+    }
+    for (const agent of agents) {
+      const row = document.createElement("div");
+      row.className = "admin-row";
+      const label = document.createElement("span");
+      label.textContent = (agent.name || "?") + " · " + (agent.kind || "") + " · " + (agent.status || "");
+      row.appendChild(label);
+      const actions = document.createElement("span");
+      actions.className = "admin-actions";
+      if (agent.kind !== "federation" && agent.kind !== "system" && agent.kind !== "bridge") {
+        const rotate = document.createElement("button");
+        rotate.type = "button"; rotate.className = "small"; rotate.textContent = t("admin.rotate");
+        rotate.addEventListener("click", () => adminRotateAgent(agent));
+        actions.appendChild(rotate);
+      }
+      const revoke = document.createElement("button");
+      revoke.type = "button"; revoke.className = "small danger"; revoke.textContent = t("admin.revoke");
+      revoke.addEventListener("click", () => adminRevokeAgent(agent));
+      actions.appendChild(revoke);
+      row.appendChild(actions);
+      box.appendChild(row);
+    }
+  }
   async function refreshAdmin() {
     $("admin-error").textContent = "";
     try {
       const [agents, invites, audit] = await Promise.all([
         api("/api/admin/agents"), api("/api/admin/invites"), api("/api/admin/audit")
       ]);
-      adminRows($("admin-agents"), (agents.agents || []).map((a) => (a.name || "?") + " · " + (a.kind || "") + " · " + (a.status || "")));
+      adminAgentRows(agents.agents || []);
       const inv = Array.isArray(invites) ? invites : (invites.invites || []);
       adminRows($("admin-invites"), inv.map((i) => (i.room || i.room_id || "") + " · " + (i.code || "") + " · uses " + String(i.uses_left ?? i.uses ?? "")));
       const events = Array.isArray(audit) ? audit : (audit.events || audit.audit || []);
@@ -1046,6 +1242,57 @@
     } catch (err) {
       $("admin-error").textContent = err.message || String(err);
     }
+  }
+  async function adminCreateAgent() {
+    const name = $("admin-agent-name").value.trim();
+    if (!name) return;
+    try {
+      const body = await api("/api/admin/agents", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ name, kind: $("admin-agent-kind").value.trim() || "codex", room: $("admin-agent-room").value.trim() || "general" })
+      });
+      $("admin-agent-name").value = "";
+      adminShowToken(body.token || "");
+      await refreshAdmin();
+    } catch (err) { $("admin-error").textContent = err.message || String(err); }
+  }
+  async function adminRotateAgent(agent) {
+    if (!confirm(t("admin.token_confirm"))) return;
+    try {
+      const body = await api("/api/admin/agents/" + encodeURIComponent(agent.id) + "/token", { method:"POST" });
+      adminShowToken(body.token || "");
+      await refreshAdmin();
+    } catch (err) { $("admin-error").textContent = err.message || String(err); }
+  }
+  async function adminRevokeAgent(agent) {
+    if (!confirm(t("admin.revoke_confirm"))) return;
+    try {
+      await api("/api/admin/agents/" + encodeURIComponent(agent.id), { method:"DELETE" });
+      await refreshAdmin();
+    } catch (err) { $("admin-error").textContent = err.message || String(err); }
+  }
+  async function adminCreateRoom() {
+    const id = $("admin-room-id").value.trim();
+    if (!id) return;
+    try {
+      await api("/api/admin/rooms", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ id, name: id, topic: $("admin-room-topic").value.trim(), kind: "public" })
+      });
+      $("admin-room-id").value = ""; $("admin-room-topic").value = "";
+      $("admin-rooms-result").textContent = t("admin.room_created");
+      await refreshAdmin();
+    } catch (err) { $("admin-error").textContent = err.message || String(err); }
+  }
+  async function adminArchiveRoom() {
+    const id = $("admin-room-archive").value.trim();
+    if (!id) return;
+    try {
+      await api("/api/admin/rooms/" + encodeURIComponent(id), { method:"DELETE" });
+      $("admin-room-archive").value = "";
+      $("admin-rooms-result").textContent = t("admin.room_archived");
+      await refreshAdmin();
+    } catch (err) { $("admin-error").textContent = err.message || String(err); }
   }
   async function createAdminInvite() {
     $("admin-invite-result").textContent = "";
@@ -1207,7 +1454,22 @@
   $("chat-older").addEventListener("click", () => chatLoadOlder().catch(chatError));
   $("chat-send").addEventListener("click", chatSend);
   $("chat-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); chatSend(); }
+    const menu = $("chat-mentions");
+    if ((e.key === "Tab" || e.key === "Enter") && !menu.classList.contains("hidden")) {
+      const first = menu.querySelector("button");
+      if (first) { e.preventDefault(); first.dispatchEvent(new MouseEvent("mousedown", { bubbles:true })); return; }
+    }
+    if (e.key === "Escape") { closeChatMentions(); return; }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); closeChatMentions(); chatSend(); }
+  });
+  $("chat-input").addEventListener("input", updateChatMentions);
+  $("chat-input").addEventListener("click", updateChatMentions);
+  $("chat-input").addEventListener("blur", () => setTimeout(closeChatMentions, 120));
+  $("chat-search-btn").addEventListener("click", chatSearch);
+  $("chat-search").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); chatSearch(); } });
+  $("chat-file").addEventListener("change", () => {
+    const file = $("chat-file").files[0];
+    $("chat-file-label").textContent = file ? file.name : "";
   });
   $("tab-logs-btn").addEventListener("click", () => showTab("logs"));
   $("bridge-refresh").addEventListener("click", () => refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); }));
@@ -1241,6 +1503,10 @@
   });
   $("admin-refresh").addEventListener("click", refreshAdmin);
   $("admin-invite-create").addEventListener("click", createAdminInvite);
+  $("admin-agent-create").addEventListener("click", adminCreateAgent);
+  $("admin-agent-token-close").addEventListener("click", () => adminShowToken(""));
+  $("admin-room-create").addEventListener("click", adminCreateRoom);
+  $("admin-room-archive-btn").addEventListener("click", adminArchiveRoom);
   $("lang-toggle").addEventListener("click", () => { lang = lang === "zh" ? "en" : "zh"; applyLang(); if (last) renderFederation(last.federation, last.federation_error); refresh(); });
   applyLang();
   refreshSettings().catch((err) => { $("settings-error").textContent = err.message || String(err); });

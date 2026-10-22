@@ -582,8 +582,16 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/chat/rooms", a.api(http.HandlerFunc(a.handleChatRooms)))
 	mux.Handle("GET /api/chat/messages", a.api(http.HandlerFunc(a.handleChatMessages)))
 	mux.Handle("GET /api/chat/agents", a.api(http.HandlerFunc(a.handleChatAgents)))
+	mux.Handle("GET /api/chat/search", a.api(http.HandlerFunc(a.handleChatSearch)))
 	mux.Handle("POST /api/chat/send", a.api(http.HandlerFunc(a.handleChatSend)))
+	mux.Handle("POST /api/chat/upload", a.api(http.HandlerFunc(a.handleChatUpload)))
+	mux.Handle("GET /api/chat/files/{id}", a.api(http.HandlerFunc(a.handleChatFile)))
 	mux.Handle("GET /api/admin/agents", a.api(http.HandlerFunc(a.handleAdminAgents)))
+	mux.Handle("POST /api/admin/agents", a.api(http.HandlerFunc(a.handleAdminCreateAgent)))
+	mux.Handle("DELETE /api/admin/agents/{id}", a.api(http.HandlerFunc(a.handleAdminRevokeAgent)))
+	mux.Handle("POST /api/admin/agents/{id}/token", a.api(http.HandlerFunc(a.handleAdminRotateAgent)))
+	mux.Handle("POST /api/admin/rooms", a.api(http.HandlerFunc(a.handleAdminCreateRoom)))
+	mux.Handle("DELETE /api/admin/rooms/{id}", a.api(http.HandlerFunc(a.handleAdminArchiveRoom)))
 	mux.Handle("GET /api/admin/invites", a.api(http.HandlerFunc(a.handleAdminInvites)))
 	mux.Handle("POST /api/admin/invites", a.api(http.HandlerFunc(a.handleAdminInvites)))
 	mux.Handle("GET /api/admin/audit", a.api(http.HandlerFunc(a.handleAdminAudit)))
@@ -1650,6 +1658,26 @@ func (a *app) handleChatAgents(w http.ResponseWriter, r *http.Request) {
 	writeHubData(w, data, status, err)
 }
 
+func (a *app) handleChatSearch(w http.ResponseWriter, r *http.Request) {
+	room := strings.TrimSpace(r.URL.Query().Get("room"))
+	if room == "" {
+		room = "general"
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "search query is required"})
+		return
+	}
+	token, err := a.agentToken()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+		return
+	}
+	path := "/v1/rooms/" + url.PathEscape(room) + "/search?q=" + url.QueryEscape(q) + "&limit=50"
+	data, status, err := a.hubRaw(http.MethodGet, path, token, nil)
+	writeHubData(w, data, status, err)
+}
+
 func (a *app) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 	room := strings.TrimSpace(r.URL.Query().Get("room"))
 	if room == "" {
@@ -1698,6 +1726,78 @@ func (a *app) handleChatSend(w http.ResponseWriter, r *http.Request) {
 	writeHubData(w, data, status, err)
 }
 
+func (a *app) handleChatUpload(w http.ResponseWriter, r *http.Request) {
+	token, err := a.agentToken()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+		return
+	}
+	a.mu.RLock()
+	client, hubURL := a.http, a.cfg.HubURL
+	a.mu.RUnlock()
+	if client == nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "hub client is not configured"})
+		return
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, hubURL+"/v1/files", r.Body)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "cannot create upload request"})
+		return
+	}
+	req.ContentLength = r.ContentLength
+	req.Header.Set("Content-Type", r.Header.Get("Content-Type"))
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := client.Do(req)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "upload failed"})
+		return
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = w.Write(data)
+}
+
+func (a *app) handleChatFile(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "file id is required"})
+		return
+	}
+	token, err := a.agentToken()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+		return
+	}
+	a.mu.RLock()
+	client, hubURL := a.http, a.cfg.HubURL
+	a.mu.RUnlock()
+	if client == nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "hub client is not configured"})
+		return
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, hubURL+"/v1/files/"+url.PathEscape(id), nil)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "cannot create download request"})
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := client.Do(req)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "download failed"})
+		return
+	}
+	defer resp.Body.Close()
+	for _, header := range []string{"Content-Type", "Content-Disposition", "Content-Length"} {
+		if v := resp.Header.Get(header); v != "" {
+			w.Header().Set(header, v)
+		}
+	}
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+
 func (a *app) handleAdminAgents(w http.ResponseWriter, r *http.Request) {
 	a.mu.RLock()
 	token := a.token
@@ -1708,6 +1808,57 @@ func (a *app) handleAdminAgents(w http.ResponseWriter, r *http.Request) {
 	}
 	data, status, err := a.hubRaw(http.MethodGet, "/v1/admin/agents", token, nil)
 	writeHubData(w, data, status, err)
+}
+
+func (a *app) adminProxy(w http.ResponseWriter, r *http.Request, method, path string) {
+	a.mu.RLock()
+	token := a.token
+	a.mu.RUnlock()
+	if token == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "admin token is not configured"})
+		return
+	}
+	var body []byte
+	if r.Body != nil && method != http.MethodGet {
+		body, _ = io.ReadAll(io.LimitReader(r.Body, 64<<10))
+	}
+	data, status, err := a.hubRaw(method, path, token, body)
+	writeHubData(w, data, status, err)
+}
+
+func (a *app) handleAdminCreateAgent(w http.ResponseWriter, r *http.Request) {
+	a.adminProxy(w, r, http.MethodPost, "/v1/admin/agents")
+}
+
+func (a *app) handleAdminRevokeAgent(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "agent id is required"})
+		return
+	}
+	a.adminProxy(w, r, http.MethodDelete, "/v1/admin/agents/"+url.PathEscape(id))
+}
+
+func (a *app) handleAdminRotateAgent(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "agent id is required"})
+		return
+	}
+	a.adminProxy(w, r, http.MethodPost, "/v1/admin/agents/"+url.PathEscape(id)+"/token")
+}
+
+func (a *app) handleAdminCreateRoom(w http.ResponseWriter, r *http.Request) {
+	a.adminProxy(w, r, http.MethodPost, "/v1/admin/rooms")
+}
+
+func (a *app) handleAdminArchiveRoom(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "room id is required"})
+		return
+	}
+	a.adminProxy(w, r, http.MethodDelete, "/v1/admin/rooms/"+url.PathEscape(id))
 }
 
 func (a *app) handleAdminInvites(w http.ResponseWriter, r *http.Request) {
