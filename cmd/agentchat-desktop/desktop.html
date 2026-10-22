@@ -91,7 +91,7 @@
   .agent-item { display:block; width:100%; text-align:left; margin:2px 0; padding:5px 7px; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--text); font-size:12px; }
   .agent-item:hover { background:#1b2430; border-color:var(--line); color:var(--accent); }
   .chat-main { min-width:0; min-height:0; display:flex; flex-direction:column; }
-  #chat-older { align-self:flex-start; margin:0; }
+  #chat-older { align-self:center; margin:4px 0 2px; }
   .messages { flex:1; height:auto; min-height:220px; max-height:none; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:0 8px 8px; background:#0a1018; margin:0; }
   .message { padding:7px 6px; border-bottom:1px solid rgba(43,53,69,.55); }
   .message:last-child { border-bottom:0; }
@@ -308,8 +308,8 @@
       </aside>
       <button id="chat-left-rail" class="chat-rail chat-rail-left" type="button" title="Show rooms">»</button>
       <section class="chat-main">
-        <button id="chat-older" class="small" type="button" data-i18n="chat.load_older">Load older</button>
         <div id="chat-messages" class="messages"></div>
+        <button id="chat-older" class="small hidden" type="button" data-i18n="chat.load_older">Load older</button>
         <div class="row chat-composer">
           <textarea id="chat-input" rows="2" placeholder="Message #general — @name to mention" data-i18n-placeholder="chat.placeholder"></textarea>
           <button id="chat-send" class="primary" type="button" data-i18n="chat.send">Send</button>
@@ -1011,6 +1011,13 @@
     }
     if (keepPosition) box.scrollTop = box.scrollHeight - oldHeight + oldTop;
     else box.scrollTop = box.scrollHeight;
+    updateChatOlder();
+  }
+  function updateChatOlder() {
+    const box = $("chat-messages");
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    const hasOlder = chatState.oldest > 0;
+    $("chat-older").classList.toggle("hidden", !(atBottom && hasOlder));
   }
   async function chatLoadRooms() {
     const body = await api("/api/chat/rooms");
@@ -1540,6 +1547,7 @@
   });
   $("join-submit").addEventListener("click", joinHub);
   $("chat-older").addEventListener("click", () => chatLoadOlder().catch(chatError));
+  $("chat-messages").addEventListener("scroll", updateChatOlder);
   $("chat-send").addEventListener("click", chatSend);
   $("chat-input").addEventListener("keydown", (e) => {
     const menu = $("chat-mentions");
