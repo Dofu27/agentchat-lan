@@ -53,6 +53,9 @@
   .tabs button.active { background:var(--panel); border-color:var(--line); color:var(--accent); }
   ol.steps { margin:12px 0; padding-left:22px; color:var(--muted); font-size:13px; }
   ol.steps li { margin:4px 0; }
+  .field { display:flex; flex-direction:column; flex:1; min-width:230px; gap:4px; }
+  .field label { color:var(--muted); font-size:12px; }
+  .field .hint { color:var(--muted); font-size:11px; line-height:1.3; }
   main.logs { grid-template-columns:1fr; }
   pre.logs { margin:10px 0 0; padding:12px; height:calc(100vh - 250px); min-height:260px; overflow:auto; background:#080c12; border:1px solid var(--line); border-radius:8px; color:#c9d5e3; font:12px/1.5 Consolas,"Cascadia Mono",monospace; white-space:pre-wrap; overflow-wrap:anywhere; }
 </style>
@@ -103,17 +106,45 @@
   <section class="wide" id="host-setup">
     <h2 data-i18n="host.title">Host setup</h2>
     <div class="row">
-      <input id="host-data" type="text" autocomplete="off" placeholder="Data directory">
-      <input id="host-token" type="text" autocomplete="off" placeholder="Admin token file">
+      <div class="field">
+        <label for="host-data" data-i18n="host.data">Data directory</label>
+        <input id="host-data" type="text" autocomplete="off" placeholder="C:\Users\...\AgentChat\hub-data">
+        <span class="hint" data-i18n="host.data_hint">Where the database and uploaded files are stored.</span>
+      </div>
+      <div class="field">
+        <label for="host-token" data-i18n="host.token">Admin token file</label>
+        <input id="host-token" type="text" autocomplete="off" placeholder="C:\Users\...\AgentChat\admin.token">
+        <span class="hint" data-i18n="host.token_hint">The admin token is written here once. Keep it private.</span>
+      </div>
     </div>
     <div class="row" style="margin-top:8px">
-      <input id="host-listen" type="text" autocomplete="off" value="127.0.0.1:8787" placeholder="Listen host:port">
-      <input id="host-url" type="text" autocomplete="off" placeholder="Hub URL (optional)">
+      <div class="field">
+        <label for="host-listen" data-i18n="host.listen">Listen address</label>
+        <input id="host-listen" type="text" autocomplete="off" value="127.0.0.1:8787">
+        <span class="hint" data-i18n="host.listen_hint">Use 127.0.0.1 for this machine only; 0.0.0.0:8787 for LAN.</span>
+      </div>
+      <div class="field">
+        <label for="host-url" data-i18n="host.url">Hub URL</label>
+        <input id="host-url" type="text" autocomplete="off" placeholder="https://192.168.1.10:8787">
+        <span class="hint" data-i18n="host.url_hint">URL agents use to reach this hub; include https if TLS is enabled.</span>
+      </div>
     </div>
     <div class="row" style="margin-top:8px">
-      <input id="host-cert" type="text" autocomplete="off" placeholder="TLS cert (optional)">
-      <input id="host-key" type="text" autocomplete="off" placeholder="TLS key (optional)">
-      <input id="host-ca" type="text" autocomplete="off" placeholder="Client CA (optional)">
+      <div class="field">
+        <label for="host-cert" data-i18n="host.cert">TLS certificate</label>
+        <input id="host-cert" type="text" autocomplete="off" placeholder="server.crt (optional)">
+        <span class="hint" data-i18n="host.optional">Optional</span>
+      </div>
+      <div class="field">
+        <label for="host-key" data-i18n="host.key">TLS private key</label>
+        <input id="host-key" type="text" autocomplete="off" placeholder="server.key (optional)">
+        <span class="hint" data-i18n="host.optional">Optional</span>
+      </div>
+      <div class="field">
+        <label for="host-ca" data-i18n="host.ca">Client CA</label>
+        <input id="host-ca" type="text" autocomplete="off" placeholder="ca.crt (optional)">
+        <span class="hint" data-i18n="host.optional">Optional</span>
+      </div>
     </div>
     <div class="row" style="margin-top:10px">
       <button id="host-init" class="primary" type="button" data-i18n="host.init">Initialize hub</button>
@@ -327,6 +358,11 @@
       "guide.link":"Agent setup guide",
       "host.title":"Host setup", "host.init":"Initialize hub",
       "host.hint":"Creates the database and admin token; service installation follows the printed command.",
+      "host.data":"Data directory", "host.data_hint":"Where the database and uploaded files are stored.",
+      "host.token":"Admin token file", "host.token_hint":"The admin token is written here once. Keep it private.",
+      "host.listen":"Listen address", "host.listen_hint":"Use 127.0.0.1 for this machine only; 0.0.0.0:8787 for LAN.",
+      "host.url":"Hub URL", "host.url_hint":"URL agents use to reach this hub; include https if TLS is enabled.",
+      "host.cert":"TLS certificate", "host.key":"TLS private key", "host.ca":"Client CA", "host.optional":"Optional",
       "host.failed":"Hub initialization failed",
       "settings.title":"Console role", "settings.save":"Save role", "settings.config":"Desktop config",
       "settings.agent":"Agent config", "settings.hub":"Hub",
@@ -373,6 +409,11 @@
       "guide.link":"Agent 配置指南",
       "host.title":"Hub 初始化", "host.init":"初始化 Hub",
       "host.hint":"创建数据库和管理员 token；按输出命令安装服务。",
+      "host.data":"数据目录", "host.data_hint":"数据库和上传文件存放的位置。",
+      "host.token":"管理员 token 文件", "host.token_hint":"管理员 token 只写入一次，请妥善保管。",
+      "host.listen":"监听地址", "host.listen_hint":"127.0.0.1 只允许本机；局域网用 0.0.0.0:8787。",
+      "host.url":"Hub URL", "host.url_hint":"Agent 访问此 Hub 的地址；启用 TLS 时写 https。",
+      "host.cert":"TLS 证书", "host.key":"TLS 私钥", "host.ca":"客户端 CA", "host.optional":"可选",
       "host.failed":"Hub 初始化失败",
       "settings.title":"控制台角色", "settings.save":"保存角色", "settings.config":"桌面配置",
       "settings.agent":"Agent 配置", "settings.hub":"Hub",
