@@ -107,6 +107,7 @@ func main() {
 	}
 	if cfgPath != "" {
 		if data, err := os.ReadFile(cfgPath); err == nil {
+			data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
 			if err := json.Unmarshal(data, &cfg); err != nil {
 				log.Fatalf("desktop config: %v", err)
 			}
