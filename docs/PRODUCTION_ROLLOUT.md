@@ -159,9 +159,12 @@ when data integrity is uncertain.
 ## Executed cutover
 
 ```text
-B: AgentChatFedB → C:\Program Files\AgentChat\agentchat.exe (0.29.0)  13:05
-A: agentchat → agentchat:v0.29.0 container                          13:07
-old A: agentchat-v0141-rollback (stopped, retained)
+B: AgentChatFedB → C:\Program Files\AgentChat\agentchat.exe (tag caa7444)
+A: agentchat → agentchat:v0.29.0-final (tag caa7444)
+B SHA-256: 2433557196994b666dc741814e242f18dd1dbadeb0a28904d2fcec0262869f83
+old A: agentchat-v0141-rollback (v0.14.1, stopped, retained)
+pre-final A: agentchat-v0290-prefinal (stopped, retained)
+B pre-final binary: %USERPROFILE%\Documents\Codex\agentchat-v0290-prefinal.exe
 A backup: cutover-A-20261022-1304.tar.gz  685,874 bytes
 B backup: cutover-B-20261022-1304.tar.gz  469,797 bytes
 A federation: delivered=100, dead=0
@@ -169,7 +172,9 @@ B federation: delivered=2, dead=0
 ```
 
 Both hubs returned `version=0.29.0` and `ready`; B's old v0100 service process
-was replaced, and its old binary remains available for rollback.
+was replaced, and its old binary remains available for rollback. The first
+start used an earlier staging build; it was immediately refreshed from the
+tagged v0.29.0 code so production matches the reviewed/released SHA.
 
 ## Acceptance
 

@@ -35,11 +35,16 @@ A read-only SSH session is elevated (`net session` succeeds).
 
 ```text
 service:  AgentChatFedB (LocalSystem, auto, Running)
-binary:   C:\Program Files\AgentChat\agentchat.exe  (0.29.0)
+binary:   C:\Program Files\AgentChat\agentchat.exe  (0.29.0, tag caa7444)
+SHA-256:  2433557196994b666dc741814e242f18dd1dbadeb0a28904d2fcec0262869f83
 health:   {"status":"ok","version":"0.29.0"} / ready
 fresh backup: cutover-B-20261022-1304.tar.gz (469,797 bytes)
+pre-final rollback: %USERPROFILE%\Documents\Codex\agentchat-v0290-prefinal.exe
 federation: delivered=2, dead=0
 ```
+
+The first B start used the earlier staging build; it was immediately replaced
+with the tag-built binary so production matches the reviewed/released code.
 
 ## Window sequence
 
