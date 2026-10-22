@@ -1,4 +1,4 @@
-﻿version: 2
+version: 2
 
 project_name: agentchat
 
@@ -35,7 +35,7 @@ builds:
     goarch:
       - amd64
     ldflags:
-      - -s -w
+      - -s -w -H windowsgui
 
   - id: agentchat-desktop-linux
     main: ./cmd/agentchat-desktop
