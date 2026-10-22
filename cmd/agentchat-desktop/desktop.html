@@ -71,7 +71,11 @@
   .message-text { white-space:pre-wrap; overflow-wrap:anywhere; margin-top:3px; font-size:13px; }
   .message-text.folded { max-height:8.5em; overflow:hidden; mask-image:linear-gradient(#000 60%,transparent); }
   .message-fold { margin-top:2px; padding:2px 6px; font-size:11px; }
-  .date-sep { position:sticky; top:0; z-index:2; text-align:center; padding:4px 0; margin:6px 0; background:#0a1018; color:var(--muted); font-size:11px; }
+  .date-group { margin:4px 0 8px; }
+  .date-group > summary { cursor:pointer; list-style:none; position:sticky; top:0; z-index:2; text-align:center; padding:4px 0; background:#0a1018; color:var(--muted); font-size:11px; }
+  .date-group > summary::-webkit-details-marker { display:none; }
+  .date-group > summary::before { content:"▸ "; }
+  .date-group[open] > summary::before { content:"▾ "; }
   .chat-composer textarea { flex:1; min-height:48px; resize:vertical; background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; }
   .admin-grid { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr); gap:14px; margin-top:14px; }
   .admin-grid h3 { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin:0 0 8px; }
@@ -840,16 +844,20 @@
     const oldTop = box.scrollTop;
     box.replaceChildren();
     let day = "";
+    let group = null;
     for (const m of chatState.messages) {
       const key = chatDay(m.ts);
       if (key !== day) {
         day = key;
-        const sep = document.createElement("div");
-        sep.className = "date-sep";
-        sep.textContent = new Date(m.ts).toLocaleDateString();
-        box.appendChild(sep);
+        group = document.createElement("details");
+        group.className = "date-group";
+        group.open = true;
+        const summary = document.createElement("summary");
+        summary.textContent = new Date(m.ts).toLocaleDateString();
+        group.appendChild(summary);
+        box.appendChild(group);
       }
-      box.appendChild(chatMessageElement(m));
+      group.appendChild(chatMessageElement(m));
     }
     if (chatState.messages.length === 0) {
       const empty = document.createElement("div");
@@ -948,7 +956,7 @@
     try {
       await api("/api/chat/send", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ room: chatState.room, text }) });
       input.value = "";
-      await chatPoll();
+      if (chatState.last) await chatPoll(); else await chatLoadLatest();
     } catch (err) { chatError(err); }
     finally { $("chat-send").disabled = false; }
   }
