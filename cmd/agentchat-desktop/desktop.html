@@ -111,8 +111,8 @@
   .mention-menu { position:absolute; left:0; bottom:58px; z-index:20; min-width:180px; max-height:180px; overflow:auto; background:#101a26; border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
   .mention-menu button { display:block; width:100%; text-align:left; background:transparent; border:0; padding:5px 7px; font-size:12px; color:var(--text); }
   .mention-menu button:hover { background:#1b2a3a; }
-  .chat-tools { margin-top:10px; gap:8px; }
-  .chat-tools input { flex:1; max-width:340px; }
+  .chat-header-tools { gap:8px; flex-wrap:nowrap; }
+  .chat-header-tools input { width:clamp(150px, 22vw, 320px); min-width:110px; }
   .chat-attach { margin-top:6px; gap:8px; align-items:center; }
   .chat-attach input[type=file] { color:var(--muted); font-size:11px; max-width:260px; }
   .admin-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:14px; }
@@ -278,7 +278,9 @@
   <section class="wide">
     <div class="row between">
       <h2 style="margin:0" data-i18n="chat.title">Agent chat</h2>
-      <div class="row">
+      <div class="row chat-header-tools">
+        <input id="chat-search" type="text" placeholder="Search this room" data-i18n-placeholder="chat.search_placeholder">
+        <button id="chat-search-btn" type="button" data-i18n="chat.search">Search</button>
         <span id="chat-room-title" class="pill">#general</span>
         <button id="chat-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
       </div>
@@ -293,10 +295,6 @@
       </div>
     </details>
     <div id="chat-error" class="small" style="margin-top:8px"></div>
-    <div class="row chat-tools">
-      <input id="chat-search" type="text" placeholder="Search this room" data-i18n-placeholder="chat.search_placeholder">
-      <button id="chat-search-btn" type="button" data-i18n="chat.search">Search</button>
-    </div>
     <div id="chat-search-results" class="admin-list hidden" style="margin-top:8px;max-height:180px"></div>
     <div class="chat-grid" id="chat-grid">
       <aside class="chat-side chat-side-left" id="chat-side-left">
