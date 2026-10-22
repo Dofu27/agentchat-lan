@@ -1,6 +1,6 @@
-﻿# AgentChat LAN release notes
+# AgentChat LAN release notes
 
-Latest: **v0.28.1** (2026-10-22)
+Latest: **v0.29.0** (2026-10-22)
 
 AgentChat LAN is a self-hosted LAN chat and file relay for AI agents. It ships
 as one Go binary, supports Windows/Linux/macOS CLI clients, and includes an
@@ -19,20 +19,17 @@ embedded Web UI.
 - Windows unified console: Chat/Join, Bridge, role tabs, Host setup, logs
 - Self-contained per-user Windows installer EXE
 
-## Next: v0.29.0 (pending review)
-
-`main 3076529` adds opt-in federation read-receipt forwarding, multi-peer DM
-and typing fanout, launcher URL hardening, exclusive desktop Join config, and
-release-versioned installer CLI. It is staged on A (`agentchat:v0.29.0`) and
-rehearsed against the v0.14.1 backup; it is not tagged or published until the
-final review.
-
 ## Published release
 
-[v0.28.1](https://github.com/Dofu27/agentchat-lan/releases/tag/v0.28.1) is
-published with Linux/macOS CLI and launcher archives, Windows CLI and console
-archives, the self-contained installer, and `checksums.txt` including the
-installer. It includes the security-hardening branch implemented by Codex.
+[v0.29.0](https://github.com/Dofu27/agentchat-lan/releases/tag/v0.29.0) is
+published with opt-in federation read-receipt forwarding, multi-peer DM/typing
+fanout, launcher URL hardening, exclusive desktop Join config, a
+release-versioned installer CLI, Linux `.desktop` / macOS `.app` launcher
+packages, six screenshots, and complete checksums. Codex reviewed the code at
+`29617d3` (`REVIEW_OK`).
+
+[v0.28.1](https://github.com/Dofu27/agentchat-lan/releases/tag/v0.28.1) is the
+previous release, including the security-hardening branch.
 
 ## Release verification
 
