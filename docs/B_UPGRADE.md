@@ -1,12 +1,11 @@
-# B (windows-host-b) upgrade plan
+# B (windows-host-b) upgrade record
 
-B is Windows 10, reached from operator-workstation as `operator@windows-host-b` (key-only). It runs
-the hub as an auto-start **LocalSystem** service `AgentChatFedB` from a
-user-writable directory. The v0.29.0 service trust check therefore requires the
-new binary to move to `C:\Program Files\AgentChat\agentchat.exe` before the
-service is reconfigured.
+B is Windows 10, reached from operator-workstation as `operator@windows-host-b` (key-only). On
+2026-10-22 13:05 Asia/Hong_Kong the service was moved from the user-writable
+`agentchat-v0100-svc.exe` to the protected
+`C:\Program Files\AgentChat\agentchat.exe` and restarted as v0.29.0.
 
-## Current production shape
+## Original production shape (pre-cutover)
 
 ```text
 service:  AgentChatFedB (LocalSystem, auto)
@@ -25,13 +24,22 @@ A read-only SSH session is elevated (`net session` succeeds).
 - v0.29.0 Windows CLI staged as `agentchat-v0290-stage.exe`; `version` prints
   `agentchat 0.29.0`; `hub backup` on B data succeeded (463,394 bytes).
 - The same binary is staged at `C:\Program Files\AgentChat\agentchat.exe`
-  (SHA-256 `b1321000804e53ebbe22f39164656cf47c94f78d8947d2d16fbb4a1944949fa6`);
-  the running service still uses the old `agentchat-v0100-svc.exe`.
+  (SHA-256 `b1321000804e53ebbe22f39164656cf47c94f78d8947d2d16fbb4a1944949fa6`).
 - Backup copied to the operator backup directory with SHA-256
   `09696b6870a1beaa445ef60f1c6d63b7f1e1c07d2da560903812ee22365a1caf`.
 - Restored that backup with v0.29.0 on a loopback test hub: health
   `{"status":"ok","version":"0.29.0"}`, ready.
 - A v0.29.0 image was also run against copied A data/TLS: health/ready.
+
+## Post-cutover
+
+```text
+service:  AgentChatFedB (LocalSystem, auto, Running)
+binary:   C:\Program Files\AgentChat\agentchat.exe  (0.29.0)
+health:   {"status":"ok","version":"0.29.0"} / ready
+fresh backup: cutover-B-20261022-1304.tar.gz (469,797 bytes)
+federation: delivered=2, dead=0
+```
 
 ## Window sequence
 

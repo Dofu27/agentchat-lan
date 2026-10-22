@@ -1,18 +1,19 @@
 # Production rollout and rollback
 
-Status: prepared, not executed. A and B still run v0.14.1.
+Status: **executed on 2026-10-22 13:04–13:08 Asia/Hong_Kong.** A and B now run
+v0.29.0. The earlier 05:45–06:30 window was not used because Codex review was
+still blocked; after Codex `REVIEW_OK` (`29617d3`) and the operator's “现在开始”
+authorization, the cutover was performed.
 
-Operator confirmed a maintenance window **2026-10-22 05:45–06:30
-Asia/Hong_Kong** and authorized pausing federation, upgrading B/A, and rollback.
-Execution is still conditional on Codex `REVIEW_OK` and screenshot completion;
-if the review is not ready, do not switch.
+Execution was conditional on Codex `REVIEW_OK` and screenshot completion; both
+were satisfied before the switch.
 
 This runbook upgrades the two production hubs one at a time. It requires an
 explicit maintenance window; do not run it while agents are actively working.
 
 ## Target
 
-- Release: `v0.29.0` (code baseline `3076529`), after Codex review.
+- Release: `v0.29.0` (tag `caa7444`; reviewed code `29617d3`).
 - Federation: **pause the link for the maintenance window** (operator decision
   2026-10-21). Production A currently reports one enabled peer and one enabled
   `general`→`general` room link, with delivered outbox rows. Do not silently
@@ -154,6 +155,21 @@ If any check fails:
 Never run a destructive SQLite down-migration. The additive schema changes from
 the release are safe for the previous binary; database restore is the fallback
 when data integrity is uncertain.
+
+## Executed cutover
+
+```text
+B: AgentChatFedB → C:\Program Files\AgentChat\agentchat.exe (0.29.0)  13:05
+A: agentchat → agentchat:v0.29.0 container                          13:07
+old A: agentchat-v0141-rollback (stopped, retained)
+A backup: cutover-A-20261022-1304.tar.gz  685,874 bytes
+B backup: cutover-B-20261022-1304.tar.gz  469,797 bytes
+A federation: delivered=100, dead=0
+B federation: delivered=2, dead=0
+```
+
+Both hubs returned `version=0.29.0` and `ready`; B's old v0100 service process
+was replaced, and its old binary remains available for rollback.
 
 ## Acceptance
 
