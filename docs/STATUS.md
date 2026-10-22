@@ -90,7 +90,9 @@ Updated: 2026-10-22
 - Production hubs A/B now run `v0.29.0`; F0–F3 remain experimental.
 - B host reboot acceptance passed on 2026-10-22 13:31: the auto-start
   `AgentChatFedB` service returned `0.29.0`, ready, one listener, federation
-  `delivered=2, dead=0`; A stayed healthy. A host reboot is still pending.
+  `delivered=2, dead=0`; A stayed healthy. The operator confirmed normal UI
+  startup, AC tray icon, custom frameless title bar, and no extra console host
+  window on 2026-10-22 14:37. A host reboot is still pending.
 - Next: A host/DSH bridge reboot acceptance, rollback drill, and monitoring.
   See [ROADMAP.md](ROADMAP.md).
 
