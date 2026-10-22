@@ -19,7 +19,7 @@
   header { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); }
   h1 { font-size:16px; margin:0; font-weight:650; }
   h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 12px; }
-  main { max-width:1080px; margin:0 auto; padding:18px; display:grid; gap:14px; grid-template-columns:1fr 1fr; }
+  main { width:100%; max-width:none; margin:0 auto; padding:18px clamp(16px,2vw,32px); display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
   section { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; min-width:0; }
   section.wide { grid-column:1 / -1; }
   .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -51,21 +51,23 @@
   #toast.bad { color:var(--bad); }
   @media (max-width:800px) { main { grid-template-columns:1fr; } }
   .hidden { display:none !important; }
-  .tabs { display:flex; gap:6px; max-width:1080px; margin:14px auto 0; padding:0 18px; }
+  .tabs { display:flex; gap:6px; width:100%; max-width:none; margin:14px auto 0; padding:0 clamp(16px,2vw,32px); }
   .tabs button { border-radius:8px 8px 0 0; border-bottom-color:transparent; }
   .tabs button.active { background:var(--panel); border-color:var(--line); color:var(--accent); }
   ol.steps { margin:12px 0; padding-left:22px; color:var(--muted); font-size:13px; }
   ol.steps li { margin:4px 0; }
-  .chat-grid { display:grid; grid-template-columns:200px minmax(0,1fr); gap:12px; margin-top:12px; }
-  .chat-side { min-width:0; }
+  .chat-grid { display:grid; grid-template-columns:230px minmax(0,1fr); gap:12px; margin-top:12px; min-height:520px; height:calc(100vh - 270px); max-height:calc(100vh - 270px); }
+  .chat-grid.side-collapsed { grid-template-columns:0 minmax(0,1fr); }
+  .chat-grid.side-collapsed .chat-side { display:none; }
+  .chat-side { min-width:0; overflow:auto; }
   .chat-side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 6px; }
   .chat-side h3 + div { margin-bottom:14px; }
   .room-item { display:block; width:100%; text-align:left; margin:2px 0; padding:6px 8px; border-radius:6px; background:transparent; border:1px solid transparent; color:var(--text); }
   .room-item:hover { background:#1b2430; }
   .room-item.active { background:#1d2b3d; border-color:var(--line); color:var(--accent); }
   .room-meta { color:var(--muted); font-size:11px; }
-  .chat-main { min-width:0; }
-  .messages { height:min(52vh,520px); min-height:260px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:10px; background:#0a1018; margin:8px 0; }
+  .chat-main { min-width:0; min-height:0; display:flex; flex-direction:column; }
+  .messages { flex:1; height:auto; min-height:220px; max-height:none; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:10px; background:#0a1018; margin:8px 0; }
   .message { padding:7px 6px; border-bottom:1px solid rgba(43,53,69,.55); }
   .message:last-child { border-bottom:0; }
   .message-head { display:flex; gap:8px; align-items:baseline; }
@@ -81,7 +83,7 @@
   .date-group > summary::before { content:"▸ "; }
   .date-group[open] > summary::before { content:"▾ "; }
   .chat-composer { position:relative; }
-  .chat-composer textarea { flex:1; min-height:48px; resize:vertical; background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; }
+  .chat-composer textarea { flex:1; min-height:104px; max-height:34vh; resize:vertical; background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 11px; font:inherit; }
   .mention-menu { position:absolute; left:0; bottom:58px; z-index:20; min-width:180px; max-height:180px; overflow:auto; background:#101a26; border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
   .mention-menu button { display:block; width:100%; text-align:left; background:transparent; border:0; padding:5px 7px; font-size:12px; color:var(--text); }
   .mention-menu button:hover { background:#1b2a3a; }
@@ -252,6 +254,7 @@
       <h2 style="margin:0" data-i18n="chat.title">Agent chat</h2>
       <div class="row">
         <span id="chat-room-title" class="pill">#general</span>
+        <button id="chat-side-toggle" type="button" title="Toggle rooms and agents">≪</button>
         <button id="chat-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
       </div>
     </div>
@@ -1473,6 +1476,10 @@
   $("chat-input").addEventListener("input", updateChatMentions);
   $("chat-input").addEventListener("click", updateChatMentions);
   $("chat-input").addEventListener("blur", () => setTimeout(closeChatMentions, 120));
+  $("chat-side-toggle").addEventListener("click", () => {
+    const collapsed = $("chat-grid").classList.toggle("side-collapsed");
+    $("chat-side-toggle").textContent = collapsed ? "≫" : "≪";
+  });
   $("chat-search-btn").addEventListener("click", chatSearch);
   $("chat-search").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); chatSearch(); } });
   $("chat-file").addEventListener("change", () => {
