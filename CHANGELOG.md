@@ -6,6 +6,11 @@ v1.0.
 
 ## [Unreleased]
 
+### Release candidate
+
+- Candidate desktop installer: `AgentChatConsole-v0.30.0-dev-installer.exe`.
+  No tag or release has been created; the operator must approve the version.
+
 ### Added
 
 - Windows console agent connector wizard: Codex MCP config generation with
