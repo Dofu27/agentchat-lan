@@ -571,7 +571,11 @@
     const res = await fetch(path, opts);
     let body = null;
     try { body = await res.json(); } catch (_) {}
-    if (!res.ok) throw new Error((body && body.error) || ("HTTP " + res.status));
+    if (!res.ok) {
+      const errBody = body && body.error;
+      const message = errBody && errBody.message ? errBody.message : (errBody || ("HTTP " + res.status));
+      throw new Error(typeof message === "string" ? message : ("HTTP " + res.status));
+    }
     return body;
   }
   function pill(id, text, ok) {
