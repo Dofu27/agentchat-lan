@@ -32,6 +32,88 @@ type fileDispositionInfo struct {
 	DeleteFile uint8
 }
 
+type pinnedFile struct {
+	path      string
+	handle    windows.Handle
+	canDelete bool
+	volume    uint32
+	indexHigh uint32
+	indexLow  uint32
+}
+
+func pinFile(path string) (pinnedFile, error) {
+	ptr, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return pinnedFile{}, err
+	}
+	// Keep the exact file object pinned while the parent exits. A handle that
+	// denies FILE_SHARE_DELETE prevents a same-path replacement until removal.
+	h, err := windows.CreateFile(ptr, windows.GENERIC_READ|windows.DELETE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
+		nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	canDelete := err == nil
+	if err != nil {
+		h, err = windows.CreateFile(ptr, windows.GENERIC_READ,
+			windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
+			nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+		if err != nil {
+			return pinnedFile{}, err
+		}
+	}
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(h, &info); err != nil {
+		windows.CloseHandle(h)
+		return pinnedFile{}, err
+	}
+	return pinnedFile{
+		path: path, handle: h, canDelete: canDelete,
+		volume: info.VolumeSerialNumber, indexHigh: info.FileIndexHigh, indexLow: info.FileIndexLow,
+	}, nil
+}
+
+func (p pinnedFile) delete() error {
+	if p.handle != 0 {
+		defer windows.CloseHandle(p.handle)
+	}
+	if p.canDelete {
+		info := fileDispositionInfo{DeleteFile: 1}
+		r, _, err := procSetFileInformationByHandle.Call(
+			uintptr(p.handle), 4, uintptr(unsafe.Pointer(&info)), unsafe.Sizeof(info))
+		if r == 0 {
+			return err
+		}
+		return nil
+	}
+	// The running executable cannot be opened for DELETE while the parent is
+	// alive. It was pinned without FILE_SHARE_DELETE; reopen and verify FileId
+	// before deleting the exact object.
+	ptr, err := windows.UTF16PtrFromString(p.path)
+	if err != nil {
+		return err
+	}
+	h, err := windows.CreateFile(ptr, windows.DELETE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
+		nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseHandle(h)
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(h, &info); err != nil {
+		return err
+	}
+	if info.VolumeSerialNumber != p.volume || info.FileIndexHigh != p.indexHigh || info.FileIndexLow != p.indexLow {
+		return errors.New("file identity changed before deletion")
+	}
+	disp := fileDispositionInfo{DeleteFile: 1}
+	r, _, callErr := procSetFileInformationByHandle.Call(
+		uintptr(h), 4, uintptr(unsafe.Pointer(&disp)), unsafe.Sizeof(disp))
+	if r == 0 {
+		return callErr
+	}
+	return nil
+}
+
 var (
 	kernel32DLL                    = windows.NewLazySystemDLL("kernel32.dll")
 	procSetFileInformationByHandle = kernel32DLL.NewProc("SetFileInformationByHandle")
@@ -60,30 +142,6 @@ func openPinnedDirectory(path string) (windows.Handle, windows.ByHandleFileInfor
 		return 0, info, errors.New("install path is a reparse point")
 	}
 	return h, info, nil
-}
-
-func deleteByHandle(path string) error {
-	ptr, err := windows.UTF16PtrFromString(path)
-	if err != nil {
-		return err
-	}
-	h, err := windows.CreateFile(ptr, windows.DELETE,
-		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE,
-		nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
-	if err != nil {
-		if errors.Is(err, windows.ERROR_FILE_NOT_FOUND) || errors.Is(err, windows.ERROR_PATH_NOT_FOUND) {
-			return nil
-		}
-		return err
-	}
-	defer windows.CloseHandle(h)
-	info := fileDispositionInfo{DeleteFile: 1}
-	r, _, callErr := procSetFileInformationByHandle.Call(
-		uintptr(h), 4, uintptr(unsafe.Pointer(&info)), unsafe.Sizeof(info))
-	if r == 0 {
-		return callErr
-	}
-	return nil
 }
 
 func managedUninstallFiles(marker uninstallMarker, root string, removeData bool) []string {
@@ -166,10 +224,23 @@ func runUninstallWorker(args []string) int {
 	if len(files) == 0 {
 		return 2
 	}
+	pinned := make([]pinnedFile, 0, len(files))
+	for _, path := range files {
+		p, err := pinFile(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			// A locked file is still pinned read-only by pinFile; other failures
+			// leave the unknown object untouched.
+			continue
+		}
+		pinned = append(pinned, p)
+	}
 	waitForParent(pid)
 	hadErr := false
-	for _, path := range files {
-		if err := deleteByHandle(path); err != nil {
+	for _, p := range pinned {
+		if err := p.delete(); err != nil {
 			hadErr = true
 		}
 	}
