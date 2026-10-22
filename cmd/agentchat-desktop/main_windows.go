@@ -278,6 +278,7 @@ var (
 	procGetWindowLong        = user32DLL.NewProc("GetWindowLongPtrW")
 	procSetWindowLong        = user32DLL.NewProc("SetWindowLongPtrW")
 	procSetWindowPos         = user32DLL.NewProc("SetWindowPos")
+	procGetWindowRect        = user32DLL.NewProc("GetWindowRect")
 	procSystemParametersInfo = user32DLL.NewProc("SystemParametersInfoW")
 	dwmapiDLL                = windows.NewLazySystemDLL("dwmapi.dll")
 	procDwmSetAttribute      = dwmapiDLL.NewProc("DwmSetWindowAttribute")
@@ -316,6 +317,37 @@ func fitWindowSize(cfg *config) {
 	}
 }
 
+func enforceMinSize(hwnd uintptr) {
+	const (
+		swpNoMove     = 0x0002
+		swpNoZOrder   = 0x0004
+		swpNoActivate = 0x0010
+	)
+	for {
+		time.Sleep(150 * time.Millisecond)
+		var r winRect
+		ok, _, _ := procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))
+		if ok == 0 {
+			return
+		}
+		w := int(r.Right - r.Left)
+		h := int(r.Bottom - r.Top)
+		if w <= 0 || h <= 0 {
+			continue
+		}
+		if w < 900 || h < 600 {
+			nw, nh := w, h
+			if nw < 900 {
+				nw = 900
+			}
+			if nh < 600 {
+				nh = 600
+			}
+			_, _, _ = procSetWindowPos.Call(hwnd, 0, 0, 0, uintptr(nw), uintptr(nh), swpNoMove|swpNoZOrder|swpNoActivate)
+		}
+	}
+}
+
 func makeFrameless(hwnd uintptr) {
 	const (
 		gwlStyle        = 0xFFFFFFFFFFFFFFF0
@@ -341,6 +373,7 @@ func makeFrameless(hwnd uintptr) {
 	_, _, _ = procDwmSetAttribute.Call(hwnd, 34, uintptr(unsafe.Pointer(&border)), 4) // DWMWA_BORDER_COLOR
 	theme, _ := windows.UTF16PtrFromString("DarkMode_Explorer")
 	_, _, _ = procSetWindowTheme.Call(hwnd, uintptr(unsafe.Pointer(theme)), 0)
+	go enforceMinSize(hwnd)
 }
 
 func releaseCapture() { _, _, _ = procReleaseCapture.Call() }
