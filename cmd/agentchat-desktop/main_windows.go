@@ -324,7 +324,7 @@ func enforceMinSize(hwnd uintptr) {
 		swpNoActivate = 0x0010
 	)
 	for {
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 		var r winRect
 		ok, _, _ := procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))
 		if ok == 0 {
