@@ -18,8 +18,9 @@ v1.0.
   connector.
 - Single-window local Chat and Admin tabs: no separate `/` or `/admin` WebView
   windows. Chat includes rooms, 50-message pages, older-history loading, date
-  groups, long-message folding, and a composer. Admin includes agents, invites,
-  and audit.
+  groups, long-message folding, search, mentions, attachments, unread markers,
+  a larger responsive composer, and a collapsible room/agent sidebar. Admin
+  includes agents, invites, rooms, audit, and federation status.
 - Screen-aware console sizing, a 900x600 minimum, fixed title-bar controls, an
   About tab with version/GitHub feedback, and a data-preserving uninstall
   action.
