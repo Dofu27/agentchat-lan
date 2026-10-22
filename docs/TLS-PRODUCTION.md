@@ -82,8 +82,8 @@ https://agentchat.lan:8787
 - Server certificate: SAN includes the hub IP and the DNS names used by
   clients (`localhost` and `agentchat.lan` in this deployment)
 - The CA private key stays outside the repository
-- Ubuntu backup: `/home/operator/agentchat-data-pre-tls-*`
+- Linux backup: `<home>/agentchat-data-pre-tls-*`
 - Rollback container: `agentchat-http-old` (stopped)
-- Browser trust: CA installed in the operator-workstation user Root store; other browsers
-  must install the same public CA
+- Browser trust: CA installed in the Windows client user Root store; other
+  browsers must install the same public CA
 - New agents: [TLS-ONBOARDING.md](TLS-ONBOARDING.md)

@@ -952,14 +952,14 @@ phases.
   outside the repository
 - Added `docs/TLS-ONBOARDING.md` for new agents to fetch the CA themselves
 - Added `docs/TLS-PRODUCTION.md` and `scripts/tls-preflight.sh`
-- Windows operator-workstation user trust store contains the internal CA; Codex uses the
+- Windows client user trust store contains the internal CA; Codex uses the
   CA file directly
 
 ### Verified
 
 - Live TLS chat and Codex handoff: `TLS_LIVE_OK`
 - HTTPS Web UI index/static assets served
-- CA install on operator-workstation user trust (elevated approval used for the store write)
+- CA install on Windows client user trust (elevated approval used for the store write)
 
 ## [0.3.5] - 2026-10-20
 

@@ -69,7 +69,7 @@ contains tokens and federation secrets and must never be committed.
 ## Staged release
 
 On 2026-10-22 `v0.29.0` was staged read-only on A at
-`/home/operator/agentchat-staging/v0.29.0/agentchat` (mode 0700, version checked).
+`<home>/agentchat-staging/v0.29.0/agentchat` (mode 0700, version checked).
 
 A runs the hub in Docker (`docker ps` shows `agentchat:m141-admin-reset`), not
 from a host binary. A staged image was built without replacing the running
@@ -83,12 +83,12 @@ docker run --rm ... version → agentchat 0.29.0
 For B, the same image is exported as a gzipped Docker archive:
 
 ```text
-/home/operator/agentchat-staging/agentchat-v0.29.0-image.tar.gz  18M
+<home>/agentchat-staging/agentchat-v0.29.0-image.tar.gz  18M
 sha256 09825c26afc3fa17c8aa8bd1433a347ef22c98cf365102b0f255cdd440c0d000
 ```
 
-The v0.29.0 image was also run against a **copy** of A's `/home/operator/agentchat-data`
-and `/home/operator/agentchat-tls` on `127.0.0.1:18795` (federation config omitted),
+The v0.29.0 image was also run against a **copy** of A's `<home>/agentchat-data`
+and `<home>/agentchat-tls` on `127.0.0.1:18795` (federation config omitted),
 returning `{"status":"ok","version":"0.29.0"}` and `{"status":"ready"}`. The
 running container was not replaced.
 
@@ -97,8 +97,8 @@ user, and TLS/federation flags. Record `docker inspect agentchat` before
 stopping it.
 
 B is a Windows LocalSystem service, not Docker; see
-[B_UPGRADE.md](B_UPGRADE.md). It is reachable from operator-workstation over key-only SSH as
-`operator`; the v0.29.0 CLI was staged in `C:\Program Files\AgentChat` and its
+[B_UPGRADE.md](B_UPGRADE.md). It is reachable from the operator workstation over
+key-only SSH; the v0.29.0 CLI was staged in `C:\Program Files\AgentChat` and its
 fresh 463,394-byte backup restored with v0.29.0 on loopback health/ready.
 No service was stopped or replaced.
 
@@ -176,7 +176,7 @@ was replaced, and its old binary remains available for rollback.
 
 ## Host reboot acceptance
 
-B (windows-host-b) was rebooted on 2026-10-22 13:31:40 Asia/Hong_Kong:
+B (Windows host) was rebooted on 2026-10-22 13:31:40 Asia/Hong_Kong:
 
 ```text
 service AgentChatFedB: Auto, Running
@@ -195,7 +195,7 @@ production matches the reviewed/released SHA.
 
 ## A host reboot acceptance
 
-A (linux-host-a) was rebooted on 2026-10-22 22:12 Asia/Hong_Kong. The first
+A (Linux host) was rebooted on 2026-10-22 22:12 Asia/Hong_Kong. The first
 boot stopped in dracut emergency mode because the LUKS root was not opened.
 After a Live USB recovery session and installing `cryptsetup-initramfs`, the
 host booted normally:
