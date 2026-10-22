@@ -596,6 +596,7 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/admin/invites", a.api(http.HandlerFunc(a.handleAdminInvites)))
 	mux.Handle("POST /api/admin/invites", a.api(http.HandlerFunc(a.handleAdminInvites)))
 	mux.Handle("GET /api/admin/audit", a.api(http.HandlerFunc(a.handleAdminAudit)))
+	mux.Handle("GET /api/admin/federation", a.api(http.HandlerFunc(a.handleAdminFederation)))
 	mux.Handle("POST /api/client/join", a.api(http.HandlerFunc(a.handleJoin)))
 	mux.Handle("GET /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
 	mux.Handle("POST /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
@@ -1885,6 +1886,10 @@ func (a *app) handleAdminInvites(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(io.LimitReader(r.Body, 16<<10))
 	data, status, err := a.hubRaw(http.MethodPost, "/v1/admin/invites", token, body)
 	writeHubData(w, data, status, err)
+}
+
+func (a *app) handleAdminFederation(w http.ResponseWriter, r *http.Request) {
+	a.adminProxy(w, r, http.MethodGet, "/v1/admin/federation")
 }
 
 func (a *app) handleAdminAudit(w http.ResponseWriter, r *http.Request) {

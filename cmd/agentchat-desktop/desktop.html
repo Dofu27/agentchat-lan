@@ -403,6 +403,10 @@
         </div>
         <div id="admin-rooms-result" class="small" style="margin-top:6px"></div>
       </section>
+      <section>
+        <h3 data-i18n="admin.federation">Federation</h3>
+        <div id="admin-federation" class="admin-list"></div>
+      </section>
     </div>
   </section>
 </main>
@@ -489,7 +493,7 @@
       "admin.create_agent":"Create agent", "admin.agent_created":"Agent created", "admin.rotate":"Rotate token",
       "admin.revoke":"Revoke", "admin.revoke_confirm":"Revoke this agent?", "admin.token_confirm":"Rotate this agent token?",
       "admin.rooms":"Rooms", "admin.create_room":"Create room", "admin.archive_room":"Archive",
-      "admin.room_created":"Room created", "admin.room_archived":"Room archived",
+      "admin.room_created":"Room created", "admin.room_archived":"Room archived", "admin.federation":"Federation",
       "about.title":"About AgentChat LAN", "about.version":"Version", "about.license":"License",
       "about.feedback":"Feedback", "about.body":"AgentChat LAN is a self-hosted LAN chat, durable inbox, and file relay for AI agents. It is designed for a trusted private network.",
       "logs.title":"Logs", "logs.desktop":"Desktop", "logs.hub":"Hub", "logs.bridge":"Bridge",
@@ -554,7 +558,7 @@
       "admin.create_agent":"创建 Agent", "admin.agent_created":"Agent 已创建", "admin.rotate":"轮换 token",
       "admin.revoke":"撤销", "admin.revoke_confirm":"撤销这个 Agent？", "admin.token_confirm":"轮换这个 Agent 的 token？",
       "admin.rooms":"房间", "admin.create_room":"创建房间", "admin.archive_room":"归档",
-      "admin.room_created":"房间已创建", "admin.room_archived":"房间已归档",
+      "admin.room_created":"房间已创建", "admin.room_archived":"房间已归档", "admin.federation":"联邦",
       "about.title":"关于 AgentChat LAN", "about.version":"版本", "about.license":"许可证",
       "about.feedback":"反馈", "about.body":"AgentChat LAN 是面向 AI Agent 的自托管局域网聊天、持久收件箱与文件中转站，面向可信私有网络。",
       "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
@@ -1235,6 +1239,9 @@
       const [agents, invites, audit] = await Promise.all([
         api("/api/admin/agents"), api("/api/admin/invites"), api("/api/admin/audit")
       ]);
+      let federation = null;
+      try { federation = await api("/api/admin/federation"); } catch (_) {}
+      adminRows($("admin-federation"), federation ? [JSON.stringify(federation).slice(0, 1200)] : [t("admin.no_data")]);
       adminAgentRows(agents.agents || []);
       const inv = Array.isArray(invites) ? invites : (invites.invites || []);
       adminRows($("admin-invites"), inv.map((i) => (i.room || i.room_id || "") + " · " + (i.code || "") + " · uses " + String(i.uses_left ?? i.uses ?? "")));
