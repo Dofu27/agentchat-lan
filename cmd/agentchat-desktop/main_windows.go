@@ -852,9 +852,17 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "DSH Desktop.exe not found; set the path manually"})
 			return
 		}
+		if info, err := os.Stat(dsh); err != nil || info.IsDir() {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "DSH Desktop.exe path is not a file"})
+			return
+		}
 		script := probe.Script
 		if script == "" {
 			script = filepath.Join(filepath.Dir(dsh), "resources", "app", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
+		}
+		if info, err := os.Stat(script); err != nil || info.IsDir() {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "DSH lib/bin.js not found; set a valid DSH install"})
+			return
 		}
 		home := strings.TrimSpace(req.DSHHome)
 		if home == "" {
