@@ -97,6 +97,26 @@ func TestLocalSearchProxy(t *testing.T) {
 	}
 }
 
+func TestLocalUploadProxy(t *testing.T) {
+	var gotPath, gotAuth, gotType, gotBody string
+	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotAuth = r.URL.Path, r.Header.Get("Authorization")
+		gotType = r.Header.Get("Content-Type")
+		data, _ := io.ReadAll(r.Body)
+		gotBody = string(data)
+		_, _ = io.WriteString(w, `{"id":"fil_1"}`)
+	}))
+	defer hub.Close()
+	app := &app{http: hub.Client(), cfg: config{HubURL: hub.URL, AgentConfig: testAgentConfig(t, hub.URL)}}
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/upload", strings.NewReader("file-bytes"))
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=x")
+	rec := httptest.NewRecorder()
+	app.handleChatUpload(rec, req)
+	if rec.Code != http.StatusOK || gotPath != "/v1/files" || gotAuth != "Bearer agent-token" || gotType != "multipart/form-data; boundary=x" || gotBody != "file-bytes" {
+		t.Fatalf("status=%d path=%q auth=%q type=%q body=%q resp=%s", rec.Code, gotPath, gotAuth, gotType, gotBody, rec.Body.String())
+	}
+}
+
 func TestLocalAdminAgentMutations(t *testing.T) {
 	var seen []string
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
