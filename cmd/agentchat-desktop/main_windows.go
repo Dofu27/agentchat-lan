@@ -220,6 +220,7 @@ func main() {
 		log.Fatal("WebView2 runtime is not available; install Microsoft Edge WebView2 Runtime")
 	}
 	defer w.Destroy()
+	makeFrameless(uintptr(w.Window()))
 	origin := "http://" + ln.Addr().String()
 	w.Init("if (window.top === window && location.origin === " + strconv.Quote(origin) +
 		") { window.__agentchatDesktopCapability = " + strconv.Quote(a.cap) + "; }")
@@ -245,8 +246,65 @@ func main() {
 		})
 		return nil
 	})
+	_ = w.Bind("__winDrag", func() {
+		releaseCapture()
+		sendMessage(uintptr(w.Window()), 0x00A1, 2, 0) // WM_NCLBUTTONDOWN, HTCAPTION
+	})
+	_ = w.Bind("__winMin", func() { showWindow(uintptr(w.Window()), 6) })
+	_ = w.Bind("__winMax", func() {
+		if isZoomed(uintptr(w.Window())) {
+			showWindow(uintptr(w.Window()), 9)
+		} else {
+			showWindow(uintptr(w.Window()), 3)
+		}
+	})
+	_ = w.Bind("__winClose", func() { sendMessage(uintptr(w.Window()), 0x0010, 0, 0) })
 	w.Navigate(origin + "/")
 	w.Run()
+}
+
+var (
+	user32DLL          = windows.NewLazySystemDLL("user32.dll")
+	procReleaseCapture = user32DLL.NewProc("ReleaseCapture")
+	procSendMessageW   = user32DLL.NewProc("SendMessageW")
+	procShowWindow     = user32DLL.NewProc("ShowWindow")
+	procIsZoomed       = user32DLL.NewProc("IsZoomed")
+	procGetWindowLong  = user32DLL.NewProc("GetWindowLongPtrW")
+	procSetWindowLong  = user32DLL.NewProc("SetWindowLongPtrW")
+	procSetWindowPos   = user32DLL.NewProc("SetWindowPos")
+)
+
+func makeFrameless(hwnd uintptr) {
+	const (
+		gwlStyle        = 0xFFFFFFFFFFFFFFF0
+		wsCaption       = 0x00C00000
+		wsThickFrame    = 0x00040000
+		wsPopup         = 0x80000000
+		wsMinimizeBox   = 0x00020000
+		wsMaximizeBox   = 0x00010000
+		wsSysMenu       = 0x00080000
+		swpNoSize       = 0x0001
+		swpNoMove       = 0x0002
+		swpNoZOrder     = 0x0004
+		swpFrameChanged = 0x0020
+	)
+	style, _, _ := procGetWindowLong.Call(hwnd, uintptr(gwlStyle))
+	style &^= wsCaption | wsThickFrame
+	style |= wsPopup | wsMinimizeBox | wsMaximizeBox | wsSysMenu
+	_, _, _ = procSetWindowLong.Call(hwnd, uintptr(gwlStyle), style)
+	_, _, _ = procSetWindowPos.Call(hwnd, 0, 0, 0, 0, 0, swpNoSize|swpNoMove|swpNoZOrder|swpFrameChanged)
+}
+
+func releaseCapture() { _, _, _ = procReleaseCapture.Call() }
+func sendMessage(hwnd, msg, wparam, lparam uintptr) {
+	_, _, _ = procSendMessageW.Call(hwnd, msg, wparam, lparam)
+}
+func showWindow(hwnd uintptr, cmd int32) {
+	_, _, _ = procShowWindow.Call(hwnd, uintptr(cmd))
+}
+func isZoomed(hwnd uintptr) bool {
+	r, _, _ := procIsZoomed.Call(hwnd)
+	return r != 0
 }
 
 func newCapability() (string, error) {

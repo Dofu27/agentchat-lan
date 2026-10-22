@@ -1,4 +1,4 @@
-# Windows UI startup and icon
+# Windows UI startup, chrome, and icon
 
 The console is `AgentChatConsole.exe`; the hub is the `AgentChatFedB` service.
 Do not start the hub binary directly for the desktop UI.
@@ -21,7 +21,13 @@ The Codex bridge loop (`AgentChatLoop`) is a separate background task. On
 legacy hosts it may use a `.cmd`; wrap it in a hidden `wscript.exe` launcher so
 it does not show a black cmd window.
 
-## Icon
+## Custom chrome
+
+The main console window is frameless (`WS_POPUP`, no native caption). The page
+draws its own dark title bar with drag, minimize, maximize, and close controls;
+the Go host binds `__winDrag`, `__winMin`, `__winMax`, and `__winClose`.
+
+## Icon and tray
 
 `assets/agentchat.ico` is embedded into the console and installer via committed
 `rsrc_windows_amd64.syso` files:
