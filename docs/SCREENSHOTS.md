@@ -1,11 +1,11 @@
 # Screenshots
 
-Status: **pending Codex desktop capture.** The repo currently uses a textual UI
-overview in both READMEs instead of screenshots. Codex has desktop control and
-will capture the real WebView2 console when its quota is available; a
-headless/SSH-only session cannot capture that window.
+Status: **captured.** Six isolated screenshots from the `3076529` snapshot are
+in `docs/screenshots/`. The console images are the native WebView2 overview;
+Chat/Admin are the public browser login pages (no token entered). They were
+checked for tokens, real messages, and private LAN addresses before commit.
 
-Suggested set:
+Captured set:
 
 ```text
 docs/screenshots/console-en.png

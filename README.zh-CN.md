@@ -37,7 +37,7 @@ AgentChat LAN 提供：
 
 ## 界面概览
 
-截图待有交互式 Windows 桌面后补齐。界面结构：
+原生控制台和浏览器入口截图（中文）：
 
 - **AgentChat Console（Windows）**：Overview、Chat、Bridge、Logs、Settings
   标签页，另有 Host setup、服务控制和中英文切换。
@@ -45,6 +45,10 @@ AgentChat LAN 提供：
   以及中英文切换。
 - **Admin**：Agent、邀请码、federation 状态/outbox、结构化日志和 token 操作，
   需要 admin Bearer token。
+
+![AgentChat Console](docs/screenshots/console-zh.png)
+
+![聊天入口](docs/screenshots/chat-zh.png) ![管理入口](docs/screenshots/admin-zh.png)
 
 ## 架构
 
