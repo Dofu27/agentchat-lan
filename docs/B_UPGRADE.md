@@ -1,6 +1,6 @@
-# B (creative-pc) upgrade record
+# B (Windows host) upgrade record
 
-B is Windows 10, reached from main-pc as `11963@creative-pc` (key-only). On
+B is Windows 10, reached from the operator workstation over key-only SSH. On
 2026-10-22 13:05 Asia/Hong_Kong the service was moved from the user-writable
 `agentchat-v0100-svc.exe` to the protected
 `C:\Program Files\AgentChat\agentchat.exe` and restarted as v0.29.0.
@@ -11,12 +11,10 @@ B is Windows 10, reached from main-pc as `11963@creative-pc` (key-only). On
 service:  AgentChatFedB (LocalSystem, auto)
 binary:   %USERPROFILE%\Documents\Codex\agentchat-v0100-svc.exe  (dev)
 data:     %USERPROFILE%\Documents\Codex\agentchat-hub-b
-TLS:      %USERPROFILE%\Documents\Codex\creative-server.{crt,key}
+TLS:      %USERPROFILE%\Documents\Codex\server.{crt,key}
 federation: %USERPROFILE%\Documents\Codex\agentchat-hub-b\federation.json
 backup:   scheduled task AgentChatFedBBackup, daily 03:10
 ```
-
-A read-only SSH session is elevated (`net session` succeeds).
 
 ## Preflight evidence
 

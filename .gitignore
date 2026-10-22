@@ -17,6 +17,8 @@
 .env.*
 !.env.example
 agentchat.local.toml
+/tls-client.json
+/agentchat-*.json
 /tmp/
 
 # Editors and OS
@@ -24,5 +26,3 @@ agentchat.local.toml
 .vscode/
 .DS_Store
 Thumbs.db
-/agentchat-desktop
-AgentChatConsole.exe
