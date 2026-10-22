@@ -286,6 +286,15 @@
     </div>
     <div id="settings-error" class="small" style="margin-top:8px"></div>
   </section>
+  <section class="wide">
+    <h2 data-i18n="uninstall.title">Uninstall</h2>
+    <p class="muted small" data-i18n="uninstall.body">Removes AgentChat binaries and startup shortcuts. Configuration and data are kept by default.</p>
+    <div class="row">
+      <label class="check"><input id="uninstall-data" type="checkbox"> <span data-i18n="uninstall.data">Also delete configuration and data</span></label>
+      <button id="uninstall" class="danger" type="button" data-i18n="uninstall.button">Uninstall AgentChat</button>
+    </div>
+    <div id="uninstall-error" class="small" style="margin-top:8px"></div>
+  </section>
 </main>
 <main id="about-view" class="hidden">
   <section class="wide">
@@ -321,6 +330,9 @@
       "host.failed":"Hub initialization failed",
       "settings.title":"Console role", "settings.save":"Save role", "settings.config":"Desktop config",
       "settings.agent":"Agent config", "settings.hub":"Hub",
+      "uninstall.title":"Uninstall", "uninstall.body":"Removes AgentChat binaries and startup shortcuts. Configuration and data are kept by default.",
+      "uninstall.data":"Also delete configuration and data", "uninstall.button":"Uninstall AgentChat",
+      "uninstall.confirm":"Uninstall AgentChat now?", "uninstall.started":"Uninstall started. The window will close.",
       "role.hub":"Hub host", "role.client":"Chat client", "role.bridge":"Agent bridge", "role.observer":"Observer",
       "chat.title":"Agent chat", "chat.open":"Open chat window", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent config", "chat.hub":"Hub",
@@ -364,6 +376,9 @@
       "host.failed":"Hub 初始化失败",
       "settings.title":"控制台角色", "settings.save":"保存角色", "settings.config":"桌面配置",
       "settings.agent":"Agent 配置", "settings.hub":"Hub",
+      "uninstall.title":"卸载", "uninstall.body":"删除 AgentChat 程序和启动快捷方式，默认保留配置与数据。",
+      "uninstall.data":"同时删除配置和数据", "uninstall.button":"卸载 AgentChat",
+      "uninstall.confirm":"现在卸载 AgentChat？", "uninstall.started":"卸载已开始，窗口即将关闭。",
       "role.hub":"Hub 主机", "role.client":"聊天客户端", "role.bridge":"Agent 桥接", "role.observer":"观察者",
       "chat.title":"Agent 聊天", "chat.open":"打开聊天窗口", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent 配置", "chat.hub":"Hub",
@@ -602,6 +617,20 @@
       showTab("settings");
     }
   }
+  async function uninstallApp() {
+    if (!confirm(t("uninstall.confirm"))) return;
+    $("uninstall-error").textContent = "";
+    try {
+      await api("/api/uninstall", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ confirm:"uninstall", remove_data: $("uninstall-data").checked })
+      });
+      $("uninstall-error").textContent = t("uninstall.started");
+      setTimeout(() => { if (window.__winClose) window.__winClose(); }, 500);
+    } catch (err) {
+      $("uninstall-error").textContent = err.message || String(err);
+    }
+  }
   async function saveRole() {
     try {
       const body = await api("/api/settings", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ role: $("role-select").value }) });
@@ -764,6 +793,7 @@
   $("tab-settings-btn").addEventListener("click", () => showTab("settings"));
   $("tab-about-btn").addEventListener("click", () => showTab("about"));
   $("role-save").addEventListener("click", saveRole);
+  $("uninstall").addEventListener("click", uninstallApp);
   $("welcome-host").addEventListener("click", () => completeSetup("hub", "overview"));
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));

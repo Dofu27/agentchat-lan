@@ -680,6 +680,7 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("POST /api/client/join", a.api(http.HandlerFunc(a.handleJoin)))
 	mux.Handle("GET /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
 	mux.Handle("POST /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
+	mux.Handle("POST /api/uninstall", a.api(http.HandlerFunc(a.handleUninstall)))
 	mux.Handle("POST /api/hub/init", a.api(http.HandlerFunc(a.handleHubInit)))
 	mux.Handle("POST /api/hub/service", a.api(http.HandlerFunc(a.handleHubService)))
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
@@ -1519,6 +1520,75 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *app) handleUninstall(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Confirm    string `json:"confirm"`
+		RemoveData bool   `json:"remove_data"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&req); err != nil || req.Confirm != "uninstall" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "uninstall confirmation required"})
+		return
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "install path unavailable"})
+		return
+	}
+	dir := filepath.Dir(exe)
+	markerData, err := os.ReadFile(filepath.Join(dir, ".agentchat-install.json"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "not an AgentChat per-user install"})
+		return
+	}
+	var marker struct {
+		App  string `json:"app"`
+		Root string `json:"root"`
+	}
+	if json.Unmarshal(markerData, &marker) != nil || marker.App != "agentchat-desktop" || !strings.EqualFold(filepath.Clean(marker.Root), filepath.Clean(dir)) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "install ownership marker does not match"})
+		return
+	}
+	if m, err := mgr.Connect(); err == nil {
+		if s, err := m.OpenService("AgentChatFedB"); err == nil {
+			s.Close()
+			m.Disconnect()
+			writeJSON(w, http.StatusConflict, map[string]any{"ok": false, "error": "remove the AgentChatFedB service first"})
+			return
+		}
+		m.Disconnect()
+	}
+	startup := filepath.Join(os.Getenv("APPDATA"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup")
+	for _, name := range []string{"AgentChat Console.lnk", "AgentChat Tray.lnk"} {
+		_ = os.Remove(filepath.Join(startup, name))
+	}
+	script, err := os.CreateTemp("", "agentchat-uninstall-*.cmd")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "cannot create uninstaller"})
+		return
+	}
+	scriptPath := script.Name()
+	content := "@echo off\r\nsetlocal\r\ntimeout /t 2 /nobreak >nul\r\n" +
+		"del /f /q \"" + exe + "\"\r\n" +
+		"del /f /q \"" + filepath.Join(dir, "agentchat.exe") + "\"\r\n"
+	if req.RemoveData {
+		content += "rmdir /s /q \"" + dir + "\"\r\n"
+	}
+	content += "del /f /q \"%~f0\"\r\n"
+	if _, err := script.WriteString(content); err != nil {
+		script.Close()
+		os.Remove(scriptPath)
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "cannot write uninstaller"})
+		return
+	}
+	script.Close()
+	if err := exec.Command("cmd.exe", "/c", "start", "", "/b", scriptPath).Start(); err != nil {
+		os.Remove(scriptPath)
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "cannot launch uninstaller"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data_removed": req.RemoveData})
 }
 
 func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
