@@ -279,6 +279,10 @@ var (
 	procSetWindowLong        = user32DLL.NewProc("SetWindowLongPtrW")
 	procSetWindowPos         = user32DLL.NewProc("SetWindowPos")
 	procSystemParametersInfo = user32DLL.NewProc("SystemParametersInfoW")
+	dwmapiDLL                = windows.NewLazySystemDLL("dwmapi.dll")
+	procDwmSetAttribute      = dwmapiDLL.NewProc("DwmSetWindowAttribute")
+	uxthemeDLL               = windows.NewLazySystemDLL("uxtheme.dll")
+	procSetWindowTheme       = uxthemeDLL.NewProc("SetWindowTheme")
 )
 
 type winRect struct {
@@ -331,6 +335,12 @@ func makeFrameless(hwnd uintptr) {
 	style |= wsPopup | wsThickFrame | wsMinimizeBox | wsMaximizeBox | wsSysMenu
 	_, _, _ = procSetWindowLong.Call(hwnd, uintptr(gwlStyle), style)
 	_, _, _ = procSetWindowPos.Call(hwnd, 0, 0, 0, 0, 0, swpNoSize|swpNoMove|swpNoZOrder|swpFrameChanged)
+	dark := int32(1)
+	_, _, _ = procDwmSetAttribute.Call(hwnd, 20, uintptr(unsafe.Pointer(&dark)), 4)   // DWMWA_USE_IMMERSIVE_DARK_MODE
+	border := uint32(0x00170F0A)                                                      // dark COLORREF
+	_, _, _ = procDwmSetAttribute.Call(hwnd, 34, uintptr(unsafe.Pointer(&border)), 4) // DWMWA_BORDER_COLOR
+	theme, _ := windows.UTF16PtrFromString("DarkMode_Explorer")
+	_, _, _ = procSetWindowTheme.Call(hwnd, uintptr(unsafe.Pointer(theme)), 0)
 }
 
 func releaseCapture() { _, _, _ = procReleaseCapture.Call() }
