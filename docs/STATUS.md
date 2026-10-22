@@ -1,21 +1,21 @@
 # Status
 
-Updated: 2026-10-21
+Updated: 2026-10-22
 
 ## Current (post-DSH bridge)
 
-- Released: `v0.21.11` (`75336ad`), Codex `REVIEW_OK` at AgentChat `#354`.
+- `v0.29.0` is published (tag `caa7444`): Codex `REVIEW_OK` at `29617d3`;
+  production A/B were upgraded to 0.29.0 on 2026-10-22 13:05 Asia/Hong_Kong.
 - F4 local explicit read receipts merged for `v0.22.0` from Codex `1602baa`,
   with a receipts ACL fix; `v0.22.15` makes the route opt-in via
-  `--read-receipts`. `v0.29.0` (pending review) adds opt-in federation
-  forwarding with bounded best-effort delivery and no re-forwarding loop, plus
-  per-peer multi-peer DM fanout.
+  `--read-receipts`. `v0.29.0` adds opt-in federation forwarding with bounded
+  best-effort delivery and no re-forwarding loop, plus multi-peer DM/typing.
 - `v0.22.8` adds a self-contained per-user installer EXE with embedded console
   and CLI, role selection, Startup entry, and uninstall flags.
 - Desktop Join E2E passed against a temporary local hub: invite -> agent config
   -> `/api/chat` identity, with no token in any API response.
-- Screenshots are deferred to Codex desktop capture; both READMEs now contain a
-  bilingual textual UI overview instead.
+- Six isolated console/chat/admin screenshots are committed in
+  `docs/screenshots/` and linked from both READMEs.
 - `v0.29.0` release candidate is built and checksum-verified: Windows
   installer plus Linux/macOS launcher packages; CI run `39660598264` passed
   Linux race/vet, Windows tests, the installer install/startup/uninstall check,
@@ -55,21 +55,21 @@ Updated: 2026-10-21
   `/healthz` returned 200, and the service was stopped/deleted cleanly.
 - Operator decision: future A/B upgrade, with federation paused for the window.
 - P1 rollout/rollback runbook prepared in
-  [PRODUCTION_ROLLOUT.md](PRODUCTION_ROLLOUT.md); production A/B remain v0.14.1
-  until an explicit maintenance window.
+  [PRODUCTION_ROLLOUT.md](PRODUCTION_ROLLOUT.md); production A/B were upgraded
+  to v0.29.0 on 2026-10-22 13:05 Asia/Hong_Kong.
 - P4 topology, trust, per-peer queue, loop prevention, and three-node acceptance
   criteria documented in
   [THREE_NODE_FEDERATION.md](THREE_NODE_FEDERATION.md); `v0.23.3` adds
   multi-peer text, attachment, DM, and typing fanout. `v0.25.0` adds a
   Linux/macOS loopback launcher; `v0.29.0` hardens its URL handling, but it is
   not yet a full native console.
-- `v0.29.0` is staged on A for the future window; no service was replaced.
-  A runs in Docker; staged image `agentchat:v0.29.0` was built and version-
-  checked without replacing the live container.
-  A v0.14.1 backup was upgraded in temporary rehearsal directories; v0.26.4,
-  v0.28.1, and the final v0.29.0 served healthy with federation state intact.
-  The v0.29.0 image also served health/ready against copied A data/TLS mounts;
-  a gzipped image archive is staged for B.
+- Cutover executed: A runs the `agentchat:v0.29.0` container (old container
+  retained as `agentchat-v0141-rollback`); B runs the Program Files binary via
+  the `AgentChatFedB` service. Both returned `version=0.29.0` and `ready`.
+  A federation outbox was `delivered=100, dead=0`; B was `delivered=2, dead=0`.
+  Backups: A `cutover-A-20261022-1304.tar.gz` (685,874 bytes, SHA-256
+  `2c0e8ddb...c6841`) and B `cutover-B-20261022-1304.tar.gz` (469,797 bytes,
+  SHA-256 `d96db96a...81bb`).
 - P1 preflight on 2026-10-21: A health/ready passed at `v0.14.1`; B
   health/ready passed with `version=dev`. On 2026-10-22 B was reached over
   key-only SSH as an elevated session: Windows LocalSystem service
@@ -85,9 +85,9 @@ Updated: 2026-10-21
   `DSH_RESTART_OK` (`#335`); one-time fixed cutoff initialization is durable.
 - Windows bridge install has a Startup-folder fallback when Task Scheduler is
   unavailable.
-- Production hubs A/B remain on `v0.14.1`; F0–F3 remain experimental.
-- Next: production release verification, staged A/B rollout, unified desktop,
-  then F4 explicit read receipts. See [ROADMAP.md](ROADMAP.md).
+- Production hubs A/B now run `v0.29.0`; F0–F3 remain experimental.
+- Next: monitor A/B, restart/reboot acceptance, then close P1. See
+  [ROADMAP.md](ROADMAP.md).
 
 ## Done (M0)
 
