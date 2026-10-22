@@ -56,10 +56,17 @@
   .tabs button.active { background:var(--panel); border-color:var(--line); color:var(--accent); }
   ol.steps { margin:12px 0; padding-left:22px; color:var(--muted); font-size:13px; }
   ol.steps li { margin:4px 0; }
-  .chat-grid { display:grid; grid-template-columns:230px minmax(0,1fr); gap:12px; margin-top:12px; min-height:520px; height:calc(100vh - 270px); max-height:calc(100vh - 270px); }
-  .chat-grid.side-collapsed { grid-template-columns:0 minmax(0,1fr); }
-  .chat-grid.side-collapsed .chat-side { display:none; }
+  .chat-grid { display:grid; grid-template-columns:230px minmax(0,1fr) 210px; gap:12px; margin-top:12px; min-height:520px; height:calc(100vh - 270px); max-height:calc(100vh - 270px); }
+  .chat-grid.left-collapsed { grid-template-columns:0 minmax(0,1fr) 210px; }
+  .chat-grid.right-collapsed { grid-template-columns:230px minmax(0,1fr) 0; }
+  .chat-grid.left-collapsed.right-collapsed { grid-template-columns:0 minmax(0,1fr) 0; }
+  .chat-grid.left-collapsed .chat-side-left,
+  .chat-grid.right-collapsed .chat-side-right { display:none; }
   .chat-side { min-width:0; overflow:auto; }
+  .chat-side-left { grid-column:1; }
+  .chat-main { grid-column:2; }
+  .chat-side-right { grid-column:3; border-left:1px solid var(--line); padding-left:10px; }
+  @media (max-width:1200px) { .chat-grid { grid-template-columns:210px minmax(0,1fr) 180px; } }
   .chat-side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 6px; }
   .chat-side h3 + div { margin-bottom:14px; }
   .room-item { display:block; width:100%; text-align:left; margin:2px 0; padding:6px 8px; border-radius:6px; background:transparent; border:1px solid transparent; color:var(--text); }
@@ -253,8 +260,9 @@
     <div class="row between">
       <h2 style="margin:0" data-i18n="chat.title">Agent chat</h2>
       <div class="row">
+        <button id="chat-left-toggle" type="button" title="Show or hide rooms">☰</button>
         <span id="chat-room-title" class="pill">#general</span>
-        <button id="chat-side-toggle" type="button" title="Toggle rooms and agents">≪</button>
+        <button id="chat-right-toggle" type="button" title="Show or hide members">👥</button>
         <button id="chat-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
       </div>
     </div>
@@ -271,11 +279,9 @@
     </div>
     <div id="chat-search-results" class="admin-list hidden" style="margin-top:8px;max-height:180px"></div>
     <div class="chat-grid" id="chat-grid">
-      <aside class="chat-side">
+      <aside class="chat-side chat-side-left" id="chat-side-left">
         <h3 data-i18n="chat.rooms">Rooms</h3>
         <div id="chat-rooms"></div>
-        <h3 data-i18n="chat.agents">Agents</h3>
-        <div id="chat-agents"></div>
       </aside>
       <section class="chat-main">
         <button id="chat-older" class="small" type="button" data-i18n="chat.load_older">Load older</button>
@@ -291,6 +297,10 @@
           <span id="chat-file-label" class="small muted"></span>
         </div>
       </section>
+      <aside class="chat-side chat-side-right" id="chat-side-right">
+        <h3 data-i18n="chat.agents">Agents</h3>
+        <div id="chat-agents"></div>
+      </aside>
     </div>
   </section>
   <section class="wide" id="chat-join">
@@ -1476,9 +1486,13 @@
   $("chat-input").addEventListener("input", updateChatMentions);
   $("chat-input").addEventListener("click", updateChatMentions);
   $("chat-input").addEventListener("blur", () => setTimeout(closeChatMentions, 120));
-  $("chat-side-toggle").addEventListener("click", () => {
-    const collapsed = $("chat-grid").classList.toggle("side-collapsed");
-    $("chat-side-toggle").textContent = collapsed ? "≫" : "≪";
+  $("chat-left-toggle").addEventListener("click", () => {
+    const collapsed = $("chat-grid").classList.toggle("left-collapsed");
+    $("chat-left-toggle").textContent = collapsed ? "»" : "☰";
+  });
+  $("chat-right-toggle").addEventListener("click", () => {
+    const collapsed = $("chat-grid").classList.toggle("right-collapsed");
+    $("chat-right-toggle").textContent = collapsed ? "«" : "👥";
   });
   $("chat-search-btn").addEventListener("click", chatSearch);
   $("chat-search").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); chatSearch(); } });
