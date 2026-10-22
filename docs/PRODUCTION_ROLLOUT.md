@@ -210,8 +210,11 @@ A federation: delivered=100, dead=0
 B federation: delivered=2, dead=0
 ```
 
-Future A reboots require the LUKS passphrase at the console. The initramfs now
-contains `systemd-cryptsetup` and the crypt modules.
+A second reboot at 2026-10-22 22:23 prompted for the LUKS passphrase and
+booted cleanly; uptime reset again, the container auto-started, A/B were
+`0.29.0`/ready, and federation stayed `dead=0`. This confirms the initramfs
+repair. Future A reboots require the LUKS passphrase at the console; the
+initramfs contains `systemd-cryptsetup` and the crypt modules.
 
 ## Acceptance
 

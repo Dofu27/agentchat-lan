@@ -97,8 +97,10 @@ Updated: 2026-10-22
   in initramfs because the encrypted root was not opened; after recovering with
   the Live USB session and installing `cryptsetup-initramfs`, the host booted
   normally. Uptime reset, the `agentchat` container auto-started, A returned
-  `0.29.0`/ready, B stayed healthy, and federation was `dead=0`. Future reboots
-  require the LUKS passphrase at the console.
+  `0.29.0`/ready, B stayed healthy, and federation was `dead=0`. A second
+  reboot prompted for the LUKS passphrase and booted cleanly on 2026-10-22
+  22:23, confirming the initramfs repair. Future reboots require the LUKS
+  passphrase at the console.
 - Next: B/A rollback drill and monitoring.
   See [ROADMAP.md](ROADMAP.md).
 
