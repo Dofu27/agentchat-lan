@@ -844,6 +844,8 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, a.connectorStatus())
 		return
 	}
+	a.setupMu.Lock()
+	defer a.setupMu.Unlock()
 	var req struct {
 		Action      string `json:"action"`
 		Connector   string `json:"connector"`
@@ -873,14 +875,18 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
 			return
 		}
-		a.mu.Lock()
-		a.cfg.AgentConfig = abs
+		a.mu.RLock()
 		cfg := a.cfg
-		a.mu.Unlock()
+		a.mu.RUnlock()
+		cfg.AgentConfig = abs
 		if err := a.saveConfig(cfg); err != nil {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
 			return
 		}
+		a.mu.Lock()
+		a.cfg = cfg
+		a.configVersion++
+		a.mu.Unlock()
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "agent_config": abs})
 		return
 	}
@@ -921,12 +927,14 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 			out["error"] = redactOutput(err.Error())
 		} else {
 			cfg.Connector = "codex"
-			a.mu.Lock()
-			a.cfg = cfg
-			a.mu.Unlock()
 			if saveErr := a.saveConfig(cfg); saveErr != nil {
 				out["ok"] = false
 				out["error"] = redactOutput(saveErr.Error())
+			} else {
+				a.mu.Lock()
+				a.cfg = cfg
+				a.configVersion++
+				a.mu.Unlock()
 			}
 		}
 		writeJSON(w, http.StatusOK, out)
@@ -968,13 +976,14 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cfg.BridgeExec = hook
-		a.mu.Lock()
-		a.cfg = cfg
-		a.mu.Unlock()
 		if err := a.saveConfig(cfg); err != nil {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
 			return
 		}
+		a.mu.Lock()
+		a.cfg = cfg
+		a.configVersion++
+		a.mu.Unlock()
 		result := bridgeResult(cfg, "install")
 		result["connector"] = "dsh"
 		result["exec"] = redactOutput(cfg.BridgeExec)
@@ -993,13 +1002,14 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cfg.BridgeExec = hook
-		a.mu.Lock()
-		a.cfg = cfg
-		a.mu.Unlock()
 		if err := a.saveConfig(cfg); err != nil {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
 			return
 		}
+		a.mu.Lock()
+		a.cfg = cfg
+		a.configVersion++
+		a.mu.Unlock()
 		result := bridgeResult(cfg, "install")
 		result["connector"] = "generic"
 		result["exec"] = redactOutput(cfg.BridgeExec)
@@ -1463,12 +1473,36 @@ func (a *app) handleUninstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var marker struct {
-		App  string `json:"app"`
-		Root string `json:"root"`
+		App           string   `json:"app"`
+		Root          string   `json:"root"`
+		Files         []string `json:"files"`
+		ConfigCreated bool     `json:"config_created"`
 	}
 	if json.Unmarshal(markerData, &marker) != nil || marker.App != "agentchat-desktop" || !strings.EqualFold(filepath.Clean(marker.Root), filepath.Clean(dir)) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "install ownership marker does not match"})
 		return
+	}
+	managed := make([]string, 0, len(marker.Files)+3)
+	seen := map[string]bool{}
+	addManaged := func(name string) {
+		name = filepath.Base(strings.TrimSpace(name))
+		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) || seen[name] {
+			return
+		}
+		seen[name] = true
+		managed = append(managed, name)
+	}
+	for _, name := range marker.Files {
+		addManaged(name)
+	}
+	if len(managed) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "install manifest has no managed files"})
+		return
+	}
+	if req.RemoveData {
+		addManaged("desktop.json")
+		addManaged("agentchat.json")
+		addManaged(".agentchat-install.json")
 	}
 	if m, err := mgr.Connect(); err == nil {
 		if s, err := m.OpenService("AgentChatFedB"); err == nil {
@@ -1490,19 +1524,19 @@ func (a *app) handleUninstall(w http.ResponseWriter, r *http.Request) {
 	}
 	scriptPath := script.Name()
 	content := "@echo off\r\nsetlocal\r\n" +
-		"set \"EXE=" + exe + "\"\r\nset \"CHAT=" + filepath.Join(dir, "agentchat.exe") + "\"\r\n" +
+		"set \"EXE=" + exe + "\"\r\n" +
 		"timeout /t 1 /nobreak >nul\r\n" +
 		"taskkill /PID " + fmt.Sprint(os.Getpid()) + " /F >nul 2>&1\r\n" +
 		"set /a N=0\r\n:waitup\r\n" +
 		"del /f /q \"%EXE%\" >nul 2>&1\r\n" +
-		"if not exist \"%EXE%\" goto delcli\r\n" +
-		"set /a N+=1\r\nif %N% geq 20 goto delcli\r\n" +
-		"timeout /t 1 /nobreak >nul\r\ngoto waitup\r\n:delcli\r\n" +
-		"del /f /q \"%CHAT%\" >nul 2>&1\r\n"
-	if req.RemoveData {
-		content += "rmdir /s /q \"" + dir + "\"\r\n"
+		"if not exist \"%EXE%\" goto delrest\r\n" +
+		"set /a N+=1\r\nif %N% geq 20 goto delrest\r\n" +
+		"timeout /t 1 /nobreak >nul\r\ngoto waitup\r\n:delrest\r\n"
+	for _, name := range managed {
+		content += "del /f /q \"" + filepath.Join(dir, name) + "\" >nul 2>&1\r\n"
 	}
-	content += "del /f /q \"%~f0\"\r\n"
+	content += "rmdir \"" + dir + "\" >nul 2>&1\r\n" +
+		"del /f /q \"%~f0\"\r\n"
 	if _, err := script.WriteString(content); err != nil {
 		script.Close()
 		os.Remove(scriptPath)
@@ -1647,23 +1681,104 @@ func writeHubData(w http.ResponseWriter, data []byte, status int, err error) {
 	_, _ = w.Write(data)
 }
 
+type hubEndpoint struct {
+	client  *http.Client
+	baseURL string
+	token   string
+}
+
+func (a *app) agentEndpoint() (hubEndpoint, error) {
+	a.mu.RLock()
+	client, baseURL, configPath := a.http, a.cfg.HubURL, a.cfg.AgentConfig
+	a.mu.RUnlock()
+	if client == nil {
+		return hubEndpoint{}, errors.New("hub client is not configured")
+	}
+	if strings.TrimSpace(configPath) == "" {
+		return hubEndpoint{}, errors.New("agent_config is not configured")
+	}
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return hubEndpoint{}, err
+	}
+	var agent agentConfigFile
+	if err := json.Unmarshal(data, &agent); err != nil {
+		return hubEndpoint{}, errors.New("agent config is not valid JSON")
+	}
+	if strings.TrimSpace(agent.Token) == "" || strings.TrimSpace(agent.AgentID) == "" {
+		return hubEndpoint{}, errors.New("agent config has no token or agent_id")
+	}
+	baseOrigin, err := canonicalOrigin(baseURL)
+	if err != nil {
+		return hubEndpoint{}, err
+	}
+	agentOrigin, err := canonicalOrigin(agent.HubURL)
+	if err != nil || agentOrigin != baseOrigin {
+		return hubEndpoint{}, errors.New("agent config hub_url does not match the desktop hub")
+	}
+	return hubEndpoint{client: client, baseURL: baseURL, token: agent.Token}, nil
+}
+
+func (a *app) adminEndpoint() (hubEndpoint, error) {
+	a.mu.RLock()
+	client, baseURL, token := a.http, a.cfg.HubURL, a.token
+	a.mu.RUnlock()
+	if client == nil {
+		return hubEndpoint{}, errors.New("hub client is not configured")
+	}
+	if token == "" {
+		return hubEndpoint{}, errors.New("admin token is not configured")
+	}
+	return hubEndpoint{client: client, baseURL: baseURL, token: token}, nil
+}
+
+func (e hubEndpoint) raw(method, path string, body []byte) ([]byte, int, error) {
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(context.Background(), method, e.baseURL+path, reader)
+	if err != nil {
+		return nil, 0, err
+	}
+	if e.token != "" {
+		req.Header.Set("Authorization", "Bearer "+e.token)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := e.client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return data, resp.StatusCode, fmt.Errorf("hub returned HTTP %d", resp.StatusCode)
+	}
+	return data, resp.StatusCode, nil
+}
+
 func (a *app) handleChatRooms(w http.ResponseWriter, r *http.Request) {
-	token, err := a.agentToken()
+	endpoint, err := a.agentEndpoint()
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
 		return
 	}
-	data, status, err := a.hubRaw(http.MethodGet, "/v1/rooms", token, nil)
+	data, status, err := endpoint.raw(http.MethodGet, "/v1/rooms", nil)
 	writeHubData(w, data, status, err)
 }
 
 func (a *app) handleChatAgents(w http.ResponseWriter, r *http.Request) {
-	token, err := a.agentToken()
+	endpoint, err := a.agentEndpoint()
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
 		return
 	}
-	data, status, err := a.hubRaw(http.MethodGet, "/v1/agents", token, nil)
+	data, status, err := endpoint.raw(http.MethodGet, "/v1/agents", nil)
 	writeHubData(w, data, status, err)
 }
 
@@ -1677,13 +1792,13 @@ func (a *app) handleChatSearch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "search query is required"})
 		return
 	}
-	token, err := a.agentToken()
+	endpoint, err := a.agentEndpoint()
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
 		return
 	}
 	path := "/v1/rooms/" + url.PathEscape(room) + "/search?q=" + url.QueryEscape(q) + "&limit=50"
-	data, status, err := a.hubRaw(http.MethodGet, path, token, nil)
+	data, status, err := endpoint.raw(http.MethodGet, path, nil)
 	writeHubData(w, data, status, err)
 }
 
@@ -1701,19 +1816,25 @@ func (a *app) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 	if q.Get("limit") == "" {
 		q.Set("limit", "50")
 	}
-	token, err := a.agentToken()
+	endpoint, err := a.agentEndpoint()
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
 		return
 	}
-	data, status, err := a.hubRaw(http.MethodGet, "/v1/rooms/"+url.PathEscape(room)+"/messages?"+q.Encode(), token, nil)
+	data, status, err := endpoint.raw(http.MethodGet, "/v1/rooms/"+url.PathEscape(room)+"/messages?"+q.Encode(), nil)
 	writeHubData(w, data, status, err)
 }
 
 func (a *app) handleChatSend(w http.ResponseWriter, r *http.Request) {
+	endpoint, err := a.agentEndpoint()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+		return
+	}
 	var req struct {
-		Room string `json:"room"`
-		Text string `json:"text"`
+		Room  string   `json:"room"`
+		Text  string   `json:"text"`
+		Files []string `json:"files"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid message"})
@@ -1721,42 +1842,34 @@ func (a *app) handleChatSend(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Room = strings.TrimSpace(req.Room)
 	req.Text = strings.TrimSpace(req.Text)
-	if req.Room == "" || req.Text == "" || len(req.Text) > 32<<10 {
+	if req.Room == "" || req.Text == "" || len(req.Text) > 32<<10 || len(req.Files) > 20 {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "room and text are required"})
 		return
 	}
-	payload, _ := json.Marshal(map[string]string{"room": req.Room, "text": req.Text})
-	token, err := a.agentToken()
-	if err != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
-		return
+	payload := map[string]any{"room": req.Room, "text": req.Text}
+	if len(req.Files) > 0 {
+		payload["files"] = req.Files
 	}
-	data, status, err := a.hubRaw(http.MethodPost, "/v1/rooms/"+url.PathEscape(req.Room)+"/messages", token, payload)
+	body, _ := json.Marshal(payload)
+	data, status, err := endpoint.raw(http.MethodPost, "/v1/rooms/"+url.PathEscape(req.Room)+"/messages", body)
 	writeHubData(w, data, status, err)
 }
 
 func (a *app) handleChatUpload(w http.ResponseWriter, r *http.Request) {
-	token, err := a.agentToken()
+	endpoint, err := a.agentEndpoint()
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
 		return
 	}
-	a.mu.RLock()
-	client, hubURL := a.http, a.cfg.HubURL
-	a.mu.RUnlock()
-	if client == nil {
-		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "hub client is not configured"})
-		return
-	}
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, hubURL+"/v1/files", r.Body)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, endpoint.baseURL+"/v1/files", r.Body)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "cannot create upload request"})
 		return
 	}
 	req.ContentLength = r.ContentLength
 	req.Header.Set("Content-Type", r.Header.Get("Content-Type"))
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := client.Do(req)
+	req.Header.Set("Authorization", "Bearer "+endpoint.token)
+	resp, err := endpoint.client.Do(req)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "upload failed"})
 		return
@@ -1774,25 +1887,18 @@ func (a *app) handleChatFile(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "file id is required"})
 		return
 	}
-	token, err := a.agentToken()
+	endpoint, err := a.agentEndpoint()
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
 		return
 	}
-	a.mu.RLock()
-	client, hubURL := a.http, a.cfg.HubURL
-	a.mu.RUnlock()
-	if client == nil {
-		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "hub client is not configured"})
-		return
-	}
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, hubURL+"/v1/files/"+url.PathEscape(id), nil)
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, endpoint.baseURL+"/v1/files/"+url.PathEscape(id), nil)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "cannot create download request"})
 		return
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := client.Do(req)
+	req.Header.Set("Authorization", "Bearer "+endpoint.token)
+	resp, err := endpoint.client.Do(req)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{"error": "download failed"})
 		return
@@ -1808,30 +1914,20 @@ func (a *app) handleChatFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleAdminAgents(w http.ResponseWriter, r *http.Request) {
-	a.mu.RLock()
-	token := a.token
-	a.mu.RUnlock()
-	if token == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "admin token is not configured"})
-		return
-	}
-	data, status, err := a.hubRaw(http.MethodGet, "/v1/admin/agents", token, nil)
-	writeHubData(w, data, status, err)
+	a.adminProxy(w, r, http.MethodGet, "/v1/admin/agents")
 }
 
 func (a *app) adminProxy(w http.ResponseWriter, r *http.Request, method, path string) {
-	a.mu.RLock()
-	token := a.token
-	a.mu.RUnlock()
-	if token == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "admin token is not configured"})
+	endpoint, err := a.adminEndpoint()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
 		return
 	}
 	var body []byte
 	if r.Body != nil && method != http.MethodGet {
 		body, _ = io.ReadAll(io.LimitReader(r.Body, 64<<10))
 	}
-	data, status, err := a.hubRaw(method, path, token, body)
+	data, status, err := endpoint.raw(method, path, body)
 	writeHubData(w, data, status, err)
 }
 
@@ -1871,21 +1967,11 @@ func (a *app) handleAdminArchiveRoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleAdminInvites(w http.ResponseWriter, r *http.Request) {
-	a.mu.RLock()
-	token := a.token
-	a.mu.RUnlock()
-	if token == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "admin token is not configured"})
-		return
-	}
 	if r.Method == http.MethodGet {
-		data, status, err := a.hubRaw(http.MethodGet, "/v1/admin/invites", token, nil)
-		writeHubData(w, data, status, err)
+		a.adminProxy(w, r, http.MethodGet, "/v1/admin/invites")
 		return
 	}
-	body, _ := io.ReadAll(io.LimitReader(r.Body, 16<<10))
-	data, status, err := a.hubRaw(http.MethodPost, "/v1/admin/invites", token, body)
-	writeHubData(w, data, status, err)
+	a.adminProxy(w, r, http.MethodPost, "/v1/admin/invites")
 }
 
 func (a *app) handleAdminFederation(w http.ResponseWriter, r *http.Request) {
@@ -1893,15 +1979,7 @@ func (a *app) handleAdminFederation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) handleAdminAudit(w http.ResponseWriter, r *http.Request) {
-	a.mu.RLock()
-	token := a.token
-	a.mu.RUnlock()
-	if token == "" {
-		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "admin token is not configured"})
-		return
-	}
-	data, status, err := a.hubRaw(http.MethodGet, "/v1/admin/audit?limit=50", token, nil)
-	writeHubData(w, data, status, err)
+	a.adminProxy(w, r, http.MethodGet, "/v1/admin/audit?limit=50")
 }
 
 func (a *app) handleChat(w http.ResponseWriter, r *http.Request) {

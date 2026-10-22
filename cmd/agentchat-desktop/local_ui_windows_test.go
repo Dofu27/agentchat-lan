@@ -97,6 +97,24 @@ func TestLocalSearchProxy(t *testing.T) {
 	}
 }
 
+func TestLocalChatSendForwardsFiles(t *testing.T) {
+	var gotBody string
+	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		gotBody = string(data)
+		_, _ = io.WriteString(w, `{"id":"m1"}`)
+	}))
+	defer hub.Close()
+	app := &app{http: hub.Client(), cfg: config{HubURL: hub.URL, AgentConfig: testAgentConfig(t, hub.URL)}}
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/send", strings.NewReader(`{"room":"general","text":"hello","files":["fil_1"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	app.handleChatSend(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(gotBody, `"files":["fil_1"]`) {
+		t.Fatalf("status=%d body=%s", rec.Code, gotBody)
+	}
+}
+
 func TestLocalUploadProxy(t *testing.T) {
 	var gotPath, gotAuth, gotType, gotBody string
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

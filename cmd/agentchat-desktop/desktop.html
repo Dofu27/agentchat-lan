@@ -1324,7 +1324,9 @@
   async function adminRotateAgent(agent) {
     if (!confirm(t("admin.token_confirm"))) return;
     try {
-      const body = await api("/api/admin/agents/" + encodeURIComponent(agent.id) + "/token", { method:"POST" });
+      const body = await api("/api/admin/agents/" + encodeURIComponent(agent.id) + "/token", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"
+      });
       adminShowToken(body.token || "");
       await refreshAdmin();
     } catch (err) { $("admin-error").textContent = err.message || String(err); }
