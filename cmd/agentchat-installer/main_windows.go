@@ -194,7 +194,9 @@ func createShortcut(link, target, args, workdir string) error {
 	script := "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('" + strings.ReplaceAll(link, "'", "''") +
 		"');$s.TargetPath='" + strings.ReplaceAll(target, "'", "''") +
 		"';$s.Arguments='" + strings.ReplaceAll(args, "'", "''") +
-		"';$s.WorkingDirectory='" + strings.ReplaceAll(workdir, "'", "''") + "';$s.Save()"
+		"';$s.WorkingDirectory='" + strings.ReplaceAll(workdir, "'", "''") +
+		"';$s.IconLocation='" + strings.ReplaceAll(target, "'", "''") + ",0" +
+		"';$s.Description='AgentChat Console';$s.Save()"
 	return exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).Run()
 }
 
