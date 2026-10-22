@@ -45,6 +45,9 @@
   th,td { text-align:left; padding:7px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--muted); font-weight:500; }
   #toast { min-height:20px; color:var(--muted); margin-top:10px; white-space:pre-wrap; }
+  .notice { display:flex; align-items:center; gap:10px; margin-top:10px; padding:8px 10px; border:1px solid #2f6b45; border-radius:8px; background:#12251a; color:#9fe3b3; font-size:13px; }
+  .notice.bad { border-color:#7a3038; background:#2a1418; color:#ffb4bb; }
+  .notice-close { margin-left:auto; border:0; background:transparent; color:inherit; font-size:18px; line-height:1; padding:0 2px; cursor:pointer; }
   #toast.bad { color:var(--bad); }
   @media (max-width:800px) { main { grid-template-columns:1fr; } }
   .hidden { display:none !important; }
@@ -401,6 +404,10 @@
       </div>
       <span class="hint" data-i18n="settings.admin_token_hint">Required for the local Admin tab. The file is read locally; it is never displayed.</span>
     </div>
+    <div id="settings-status" class="notice hidden" role="status">
+      <span id="settings-status-text"></span>
+      <button id="settings-status-close" type="button" class="notice-close" aria-label="Close">×</button>
+    </div>
     <div id="settings-error" class="small" style="margin-top:8px"></div>
   </section>
   <section class="wide">
@@ -456,7 +463,7 @@
       "settings.agent":"Agent config", "settings.hub":"Hub",
       "settings.admin_token":"Admin token file", "settings.save_token":"Save token",
       "settings.admin_token_hint":"Required for the local Admin tab. The file is read locally; it is never displayed.",
-      "settings.saved":"Saved.",
+      "settings.saved":"Saved.", "common.close":"Dismiss",
       "uninstall.title":"Uninstall", "uninstall.body":"Removes AgentChat binaries and startup shortcuts. Configuration and data are kept by default.",
       "uninstall.data":"Also delete configuration and data", "uninstall.button":"Uninstall AgentChat",
       "uninstall.confirm":"Uninstall AgentChat now?", "uninstall.started":"Uninstall started. The window will close.",
@@ -515,7 +522,7 @@
       "settings.agent":"Agent 配置", "settings.hub":"Hub",
       "settings.admin_token":"管理员 token 文件", "settings.save_token":"保存 token",
       "settings.admin_token_hint":"本地管理页需要。文件只在本地读取，不会显示内容。",
-      "settings.saved":"已保存。",
+      "settings.saved":"已保存。", "common.close":"关闭",
       "uninstall.title":"卸载", "uninstall.body":"删除 AgentChat 程序和启动快捷方式，默认保留配置与数据。",
       "uninstall.data":"同时删除配置和数据", "uninstall.button":"卸载 AgentChat",
       "uninstall.confirm":"现在卸载 AgentChat？", "uninstall.started":"卸载已开始，窗口即将关闭。",
@@ -781,20 +788,30 @@
       $("uninstall-error").textContent = err.message || String(err);
     }
   }
+  function settingsStatus(message, bad) {
+    $("settings-status-text").textContent = message || "";
+    $("settings-status").classList.toggle("bad", !!bad);
+    $("settings-status").classList.toggle("hidden", !message);
+  }
   async function saveAdminToken() {
     try {
       await api("/api/settings", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ token_file: $("settings-token").value.trim() })
       });
-      $("settings-error").textContent = t("settings.saved");
+      settingsStatus(t("settings.saved"), false);
+      $("settings-error").textContent = "";
       await refreshSettings();
-    } catch (err) { $("settings-error").textContent = err.message || String(err); }
+    } catch (err) {
+      settingsStatus(err.message || String(err), true);
+      $("settings-error").textContent = "";
+    }
   }
   async function saveRole() {
     try {
       const body = await api("/api/settings", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ role: $("role-select").value }) });
       $("settings-error").textContent = "";
+      settingsStatus(t("settings.saved"), false);
       applyRole(body.role);
     } catch (err) {
       $("settings-error").textContent = err.message || String(err);
@@ -1179,6 +1196,7 @@
   $("tab-about-btn").addEventListener("click", () => showTab("about"));
   $("role-save").addEventListener("click", saveRole);
   $("settings-token-save").addEventListener("click", saveAdminToken);
+  $("settings-status-close").addEventListener("click", () => settingsStatus("", false));
   $("uninstall").addEventListener("click", uninstallApp);
   $("welcome-host").addEventListener("click", () => completeSetup("hub", "overview"));
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
