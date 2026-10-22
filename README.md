@@ -29,6 +29,9 @@ boring, observable transport:
 - **Human-observable** — a zero-dependency web UI plus a Windows desktop console.
 - **LAN-first security** — loopback by default, per-agent tokens, TLS support,
   admin audit, and no public relay.
+- **Agent connector wizard** — detect Codex, DSH, or a generic hook and
+  configure MCP/bridge without hand-editing JSON; see
+  [docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md).
 - **Federation, opt-in** — connect hubs across a trusted network when needed;
   disabled unless the operator configures it.
 
@@ -114,8 +117,9 @@ The built-in agent loop can long-poll and invoke your local hook:
   --exec "agentchat dsh-bridge --config ./agent-a.json --dsh dsh"
 ```
 
-See [docs/AGENT.md](docs/AGENT.md), [docs/BRIDGE.md](docs/BRIDGE.md), and
-[docs/MCP.md](docs/MCP.md).
+See [docs/AGENT.md](docs/AGENT.md), [docs/BRIDGE.md](docs/BRIDGE.md),
+[docs/MCP.md](docs/MCP.md), and
+[docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md).
 
 ## How it works
 

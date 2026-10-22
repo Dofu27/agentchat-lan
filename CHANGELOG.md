@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [Unreleased]
+
+### Added
+
+- Windows console agent connector wizard: Codex MCP config generation with
+  backup/duplicate protection, DSH native bridge setup, and a generic hook
+  connector.
+
 ## [0.29.2] - 2026-10-22
 
 ### Changed

@@ -192,6 +192,32 @@
 <main id="bridge-view" class="hidden">
   <section class="wide">
     <div class="row between">
+      <h2 style="margin:0" data-i18n="connector.title">Connect an agent</h2>
+      <div class="row">
+        <button id="connector-detect" type="button" data-i18n="connector.detect">Detect</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <select id="connector-type">
+        <option value="codex">Codex (MCP)</option>
+        <option value="dsh">DSH (bridge)</option>
+        <option value="generic">Generic (hook)</option>
+      </select>
+      <input id="connector-name" type="text" autocomplete="off" placeholder="AgentChatBridge" style="min-width:180px">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="connector-path" type="text" autocomplete="off" placeholder="Detected path" style="flex:1;min-width:260px">
+      <input id="connector-exec" type="text" autocomplete="off" placeholder="Command / hook" class="hidden" style="flex:1;min-width:260px">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="connector-apply" class="primary" type="button" data-i18n="connector.configure">Configure</button>
+      <span class="small muted" data-i18n="connector.hint">Codex uses MCP; DSH uses the native bridge; Generic runs your command.</span>
+    </div>
+    <pre id="connector-output" class="logs" style="height:180px;margin-top:10px"></pre>
+    <div id="connector-error" class="small" style="margin-top:8px"></div>
+  </section>
+  <section class="wide">
+    <div class="row between">
       <h2 style="margin:0" data-i18n="bridge.title">Agent bridge</h2>
       <div class="row">
         <button id="bridge-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
@@ -269,6 +295,9 @@
       "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
       "chat.join_title":"Join a hub", "chat.join":"Join", "chat.joined":"Joined. Agent config saved.",
       "chat.join_failed":"Join failed", "chat.join_exists":"Agent config already exists.",
+      "connector.title":"Connect an agent", "connector.detect":"Detect", "connector.configure":"Configure",
+      "connector.hint":"Codex uses MCP; DSH uses the native bridge; Generic runs your command.",
+      "connector.failed":"Connector setup failed", "connector.done":"Connector configured.",
       "bridge.title":"Agent bridge", "bridge.install":"Install bridge", "bridge.uninstall":"Uninstall",
       "bridge.name":"Bridge name", "bridge.agent_config":"Agent config", "bridge.exec":"Hook command",
       "bridge.binary":"agentchat binary", "bridge.confirm":"Uninstall the bridge startup entry?",
@@ -303,6 +332,9 @@
       "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
       "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存。",
       "chat.join_failed":"加入失败", "chat.join_exists":"agent 配置已存在，未覆盖。",
+      "connector.title":"连接 Agent", "connector.detect":"检测", "connector.configure":"配置",
+      "connector.hint":"Codex 使用 MCP；DSH 使用原生 bridge；通用型运行你的命令。",
+      "connector.failed":"连接器配置失败", "connector.done":"连接器已配置。",
       "bridge.title":"Agent 桥接", "bridge.install":"安装桥接", "bridge.uninstall":"卸载",
       "bridge.name":"桥接名称", "bridge.agent_config":"Agent 配置", "bridge.exec":"Hook 命令",
       "bridge.binary":"agentchat 可执行文件", "bridge.confirm":"确认卸载桥接启动项？",
@@ -589,6 +621,64 @@
       $("bridge-error").style.color = "var(--bad)";
     }
   }
+  let connectorInfo = null;
+  function connectorType() { return $("connector-type").value; }
+  function syncConnectorFields() {
+    const type = connectorType();
+    const path = $("connector-path");
+    const exec = $("connector-exec");
+    path.classList.toggle("hidden", type === "generic");
+    exec.classList.toggle("hidden", type !== "generic");
+    if (!connectorInfo) return;
+    if (type === "codex") {
+      path.value = (connectorInfo.codex && (connectorInfo.codex.config || connectorInfo.codex.path)) || "";
+      path.placeholder = "Codex config.toml";
+    } else if (type === "dsh") {
+      path.value = (connectorInfo.dsh && connectorInfo.dsh.path) || "";
+      path.placeholder = "DSH Desktop.exe";
+    } else {
+      exec.value = exec.value || "";
+      exec.placeholder = "command or hook that reads JSON on stdin";
+    }
+  }
+  async function refreshConnectors() {
+    connectorInfo = await api("/api/connectors");
+    const codex = connectorInfo.codex || {};
+    const dsh = connectorInfo.dsh || {};
+    const lines = [
+      "agentchat: " + (connectorInfo.agentchat || ""),
+      "agent config: " + (connectorInfo.agent_config || ""),
+      "codex: " + (codex.found ? (codex.path || codex.config || "found") : "not found"),
+      "dsh: " + (dsh.found ? dsh.path : "not found")
+    ];
+    if (connectorInfo.mcp) lines.push("", connectorInfo.mcp);
+    $("connector-output").textContent = lines.join("\n");
+    syncConnectorFields();
+  }
+  async function applyConnector() {
+    const type = connectorType();
+    const payload = {
+      connector: type,
+      name: $("connector-name").value.trim(),
+      path: $("connector-path").value.trim(),
+      exec: $("connector-exec").value.trim()
+    };
+    $("connector-error").textContent = "";
+    $("connector-apply").disabled = true;
+    try {
+      const body = await api("/api/connectors", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload) });
+      $("connector-output").textContent = body.mcp || body.output || JSON.stringify(body, null, 2);
+      $("connector-error").textContent = body.error || (body.ok ? t("connector.done") : t("connector.failed"));
+      $("connector-error").style.color = body.ok ? "" : "var(--bad)";
+      await refreshConnectors();
+      await refreshBridge();
+    } catch (err) {
+      $("connector-error").textContent = err.message || String(err);
+      $("connector-error").style.color = "var(--bad)";
+    } finally {
+      $("connector-apply").disabled = false;
+    }
+  }
   function showTab(tab) {
     activeTab = tab;
     $("overview-view").classList.toggle("hidden", tab !== "overview");
@@ -603,7 +693,10 @@
     $("tab-settings-btn").classList.toggle("active", tab === "settings");
     if (tab === "logs") refreshLogs();
     if (tab === "chat") refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); });
-    if (tab === "bridge") refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); });
+    if (tab === "bridge") {
+      refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); });
+      refreshConnectors().catch((err) => { $("connector-error").textContent = err.message || String(err); });
+    }
     if (tab === "settings") refreshSettings().catch((err) => { $("settings-error").textContent = err.message || String(err); });
   }
   $("tab-overview-btn").addEventListener("click", () => showTab("overview"));
@@ -625,6 +718,9 @@
   $("bridge-refresh").addEventListener("click", () => refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); }));
   $("bridge-install").addEventListener("click", () => bridgeAction("install"));
   $("bridge-uninstall").addEventListener("click", () => bridgeAction("uninstall"));
+  $("connector-type").addEventListener("change", syncConnectorFields);
+  $("connector-detect").addEventListener("click", () => refreshConnectors().catch((err) => { $("connector-error").textContent = err.message || String(err); }));
+  $("connector-apply").addEventListener("click", applyConnector);
   $("log-source").addEventListener("change", refreshLogs);
   $("log-refresh").addEventListener("click", refreshLogs);
   $("log-pause").addEventListener("click", () => {

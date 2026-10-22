@@ -21,7 +21,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,6 +51,7 @@ type config struct {
 	AgentConfig   string            `json:"agent_config,omitempty"`
 	BridgeName    string            `json:"bridge_name,omitempty"`
 	BridgeExec    string            `json:"bridge_exec,omitempty"`
+	Connector     string            `json:"connector,omitempty"`
 	Role          string            `json:"role,omitempty"`
 	SetupDone     bool              `json:"setup_done,omitempty"`
 	HubData       string            `json:"hub_data,omitempty"`
@@ -549,6 +552,8 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/logs", a.api(http.HandlerFunc(a.handleLogs)))
 	mux.Handle("GET /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
 	mux.Handle("POST /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
+	mux.Handle("GET /api/connectors", a.api(http.HandlerFunc(a.handleConnectors)))
+	mux.Handle("POST /api/connectors", a.api(http.HandlerFunc(a.handleConnectors)))
 	mux.Handle("GET /api/chat", a.api(http.HandlerFunc(a.handleChat)))
 	mux.Handle("POST /api/client/join", a.api(http.HandlerFunc(a.handleJoin)))
 	mux.Handle("GET /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
@@ -629,6 +634,271 @@ func bridgeResult(cfg config, action string) map[string]any {
 		result["error"] = redactOutput(err.Error())
 	}
 	return result
+}
+
+type connectorProbe struct {
+	Found  bool   `json:"found"`
+	Path   string `json:"path,omitempty"`
+	Config string `json:"config,omitempty"`
+	Script string `json:"script,omitempty"`
+	Home   string `json:"home,omitempty"`
+	Note   string `json:"note,omitempty"`
+}
+
+func firstExisting(paths ...string) string {
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if info, err := os.Stat(p); err == nil && !info.IsDir() {
+			return p
+		}
+	}
+	return ""
+}
+
+func codexProbe() connectorProbe {
+	var out connectorProbe
+	home, _ := os.UserHomeDir()
+	if p, err := exec.LookPath("codex"); err == nil {
+		out.Path = p
+	}
+	if out.Path == "" {
+		out.Path = firstExisting(
+			filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", "OpenAI", "Codex", "bin", "codex.exe"),
+			filepath.Join(os.Getenv("ProgramFiles"), "OpenAI", "Codex", "bin", "codex.exe"),
+		)
+	}
+	configDir := os.Getenv("CODEX_HOME")
+	if configDir == "" {
+		configDir = filepath.Join(home, ".codex")
+	}
+	out.Config = filepath.Join(configDir, "config.toml")
+	out.Found = out.Path != "" || firstExisting(out.Config) != ""
+	return out
+}
+
+func dshProbe() connectorProbe {
+	var out connectorProbe
+	home, _ := os.UserHomeDir()
+	candidates := []string{
+		filepath.Join(os.Getenv("DSH_HOME"), "DSH Desktop.exe"),
+		filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", "DSH", "DSH Desktop.exe"),
+		filepath.Join(os.Getenv("ProgramFiles"), "DSH", "DSH Desktop.exe"),
+		filepath.Join(os.Getenv("ProgramFiles(x86)"), "DSH", "DSH Desktop.exe"),
+		filepath.Join(home, "DSH", "DSH Desktop.exe"),
+	}
+	out.Path = firstExisting(candidates...)
+	if out.Path != "" {
+		out.Script = filepath.Join(filepath.Dir(out.Path), "resources", "app", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
+	}
+	out.Home = os.Getenv("DSH_HOME")
+	if out.Home == "" {
+		out.Home = filepath.Join(home, ".dsh")
+	}
+	out.Found = out.Path != ""
+	return out
+}
+
+func codexMCPBlock(agentchat, agentConfig string) string {
+	return "[mcp_servers.agentchat]\n" +
+		"command = " + strconv.Quote(agentchat) + "\n" +
+		"args = [\"mcp\", \"--config\", " + strconv.Quote(agentConfig) + "]\n"
+}
+
+func writeCodexMCP(path, block string) (string, error) {
+	if strings.TrimSpace(path) == "" {
+		return "", errors.New("Codex config.toml path is empty")
+	}
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return "", err
+	}
+	if strings.Contains(string(existing), "[mcp_servers.agentchat]") {
+		return "", errors.New("Codex already has [mcp_servers.agentchat]; not overwriting")
+	}
+	backup := ""
+	if len(existing) > 0 {
+		backup = path + ".bak-agentchat-" + time.Now().Format("20060102-150405")
+		if err := os.WriteFile(backup, existing, 0o600); err != nil {
+			return "", fmt.Errorf("backup Codex config: %w", err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	b.Write(existing)
+	if len(existing) > 0 && !bytes.HasSuffix(existing, []byte("\n")) {
+		b.WriteByte('\n')
+	}
+	if b.Len() > 0 {
+		b.WriteByte('\n')
+	}
+	b.WriteString(block)
+	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+		return backup, err
+	}
+	return backup, nil
+}
+
+func quoteCmdArg(s string) string {
+	if s == "" {
+		return `""`
+	}
+	if !strings.ContainsAny(s, " \t\"") {
+		return s
+	}
+	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
+}
+
+func dshBridgeExec(agentchat, agentConfig, dsh, script, dshHome, workdir string) string {
+	args := []string{quoteCmdArg(agentchat), "dsh-bridge", "--config", quoteCmdArg(agentConfig),
+		"--dsh", quoteCmdArg(dsh), "--dsh-script", quoteCmdArg(script),
+		"--dsh-home", quoteCmdArg(dshHome), "--workdir", quoteCmdArg(workdir), "--timeout", "300"}
+	return strings.Join(args, " ")
+}
+
+func (a *app) connectorStatus() map[string]any {
+	a.mu.RLock()
+	cfg := a.cfg
+	a.mu.RUnlock()
+	codex := codexProbe()
+	dsh := dshProbe()
+	out := map[string]any{
+		"agentchat":    cfg.AgentchatPath,
+		"agent_config": cfg.AgentConfig,
+		"connector":    cfg.Connector,
+		"codex":        codex,
+		"dsh":          dsh,
+		"ready":        cfg.AgentConfig != "" && cfg.AgentchatPath != "",
+	}
+	if cfg.AgentConfig != "" && cfg.AgentchatPath != "" {
+		out["mcp"] = codexMCPBlock(cfg.AgentchatPath, cfg.AgentConfig)
+	}
+	return out
+}
+
+func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		writeJSON(w, http.StatusOK, a.connectorStatus())
+		return
+	}
+	var req struct {
+		Connector string `json:"connector"`
+		Name      string `json:"name"`
+		Path      string `json:"path"`
+		Exec      string `json:"exec"`
+		DSHHome   string `json:"dsh_home"`
+		Workdir   string `json:"workdir"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+		return
+	}
+	connector := strings.ToLower(strings.TrimSpace(req.Connector))
+	if connector != "codex" && connector != "dsh" && connector != "generic" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unsupported connector"})
+		return
+	}
+	a.mu.RLock()
+	cfg := a.cfg
+	a.mu.RUnlock()
+	if cfg.AgentConfig == "" || cfg.AgentchatPath == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "join a hub and configure an agent first"})
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = "AgentChatBridge-" + connector
+	}
+	if !regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`).MatchString(name) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "connector name may contain letters, digits, dot, dash, underscore only"})
+		return
+	}
+	switch connector {
+	case "codex":
+		path := strings.TrimSpace(req.Path)
+		if path == "" {
+			path = codexProbe().Config
+		}
+		if !strings.EqualFold(filepath.Ext(path), ".toml") {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Codex config path must end in .toml"})
+			return
+		}
+		block := codexMCPBlock(cfg.AgentchatPath, cfg.AgentConfig)
+		backup, err := writeCodexMCP(path, block)
+		out := map[string]any{"ok": err == nil, "connector": "codex", "config": path, "backup": backup, "mcp": block}
+		if err != nil {
+			out["error"] = redactOutput(err.Error())
+		} else {
+			cfg.Connector = "codex"
+			a.mu.Lock()
+			a.cfg = cfg
+			a.mu.Unlock()
+			if saveErr := a.saveConfig(cfg); saveErr != nil {
+				out["ok"] = false
+				out["error"] = redactOutput(saveErr.Error())
+			}
+		}
+		writeJSON(w, http.StatusOK, out)
+	case "dsh":
+		probe := dshProbe()
+		dsh := strings.TrimSpace(req.Path)
+		if dsh == "" {
+			dsh = probe.Path
+		}
+		if dsh == "" {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "DSH Desktop.exe not found; set the path manually"})
+			return
+		}
+		script := probe.Script
+		if script == "" {
+			script = filepath.Join(filepath.Dir(dsh), "resources", "app", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
+		}
+		home := strings.TrimSpace(req.DSHHome)
+		if home == "" {
+			home = probe.Home
+		}
+		workdir := strings.TrimSpace(req.Workdir)
+		if workdir == "" {
+			workdir, _ = os.UserHomeDir()
+		}
+		cfg.Connector = "dsh"
+		cfg.BridgeName = name
+		cfg.BridgeExec = dshBridgeExec(cfg.AgentchatPath, cfg.AgentConfig, dsh, script, home, workdir)
+		a.mu.Lock()
+		a.cfg = cfg
+		a.mu.Unlock()
+		if err := a.saveConfig(cfg); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
+			return
+		}
+		result := bridgeResult(cfg, "install")
+		result["connector"] = "dsh"
+		result["exec"] = redactOutput(cfg.BridgeExec)
+		writeJSON(w, http.StatusOK, result)
+	case "generic":
+		execCmd := strings.TrimSpace(req.Exec)
+		if execCmd == "" {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "generic connector requires a command"})
+			return
+		}
+		cfg.Connector = "generic"
+		cfg.BridgeName = name
+		cfg.BridgeExec = execCmd
+		a.mu.Lock()
+		a.cfg = cfg
+		a.mu.Unlock()
+		if err := a.saveConfig(cfg); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
+			return
+		}
+		result := bridgeResult(cfg, "install")
+		result["connector"] = "generic"
+		result["exec"] = redactOutput(cfg.BridgeExec)
+		writeJSON(w, http.StatusOK, result)
+	}
 }
 
 func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {

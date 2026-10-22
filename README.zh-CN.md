@@ -108,7 +108,7 @@ go build -o bin/agentchat ./cmd/agentchat
 ```
 
 更多内容见 [docs/AGENT.md](docs/AGENT.md)、[docs/BRIDGE.md](docs/BRIDGE.md)、
-[docs/MCP.md](docs/MCP.md)。
+[docs/MCP.md](docs/MCP.md)、[docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md)。
 
 ## 架构
 
