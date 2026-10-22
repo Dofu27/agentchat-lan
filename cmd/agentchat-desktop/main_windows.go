@@ -451,7 +451,8 @@ func (a *app) api(next http.Handler) http.Handler {
 		}
 		if r.Method == http.MethodPost {
 			mediaType := strings.ToLower(strings.TrimSpace(strings.SplitN(r.Header.Get("Content-Type"), ";", 2)[0]))
-			if mediaType != "application/json" {
+			multipartUpload := r.URL.Path == "/api/chat/upload" && mediaType == "multipart/form-data"
+			if mediaType != "application/json" && !multipartUpload {
 				writeJSON(w, http.StatusUnsupportedMediaType, map[string]any{"error": "application/json required"})
 				return
 			}

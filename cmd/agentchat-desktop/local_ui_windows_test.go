@@ -117,6 +117,20 @@ func TestLocalUploadProxy(t *testing.T) {
 	}
 }
 
+func TestAPIMultipartUploadAllowed(t *testing.T) {
+	app := &app{cap: "cap-test"}
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/upload", strings.NewReader("x"))
+	req.Host = "127.0.0.1:18765"
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=x")
+	req.Header.Set("X-AgentChat-Desktop-Capability", "cap-test")
+	rec := httptest.NewRecorder()
+	app.api(inner).ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestLocalAdminAgentMutations(t *testing.T) {
 	var seen []string
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
