@@ -1487,9 +1487,16 @@ func (a *app) handleUninstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scriptPath := script.Name()
-	content := "@echo off\r\nsetlocal\r\ntimeout /t 2 /nobreak >nul\r\n" +
-		"del /f /q \"" + exe + "\"\r\n" +
-		"del /f /q \"" + filepath.Join(dir, "agentchat.exe") + "\"\r\n"
+	content := "@echo off\r\nsetlocal\r\n" +
+		"set \"EXE=" + exe + "\"\r\nset \"CHAT=" + filepath.Join(dir, "agentchat.exe") + "\"\r\n" +
+		"timeout /t 1 /nobreak >nul\r\n" +
+		"taskkill /PID " + fmt.Sprint(os.Getpid()) + " /F >nul 2>&1\r\n" +
+		"set /a N=0\r\n:waitup\r\n" +
+		"del /f /q \"%EXE%\" >nul 2>&1\r\n" +
+		"if not exist \"%EXE%\" goto delcli\r\n" +
+		"set /a N+=1\r\nif %N% geq 20 goto delcli\r\n" +
+		"timeout /t 1 /nobreak >nul\r\ngoto waitup\r\n:delcli\r\n" +
+		"del /f /q \"%CHAT%\" >nul 2>&1\r\n"
 	if req.RemoveData {
 		content += "rmdir /s /q \"" + dir + "\"\r\n"
 	}
