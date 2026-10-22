@@ -23,6 +23,23 @@ func writeTestMarker(t *testing.T, root string, marker uninstallMarker) {
 	}
 }
 
+func TestPinFileDeletesThroughSameHandle(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agentchat.exe")
+	if err := os.WriteFile(path, []byte("pinned"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := pinFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pinned.delete(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("file still exists after same-handle deletion: %v", err)
+	}
+}
+
 func TestPinFileFailsClosedWhenDeleteAccessIsDenied(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agentchat.exe")
 	if err := os.WriteFile(path, []byte("locked"), 0o600); err != nil {
