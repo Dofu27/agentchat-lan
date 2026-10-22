@@ -26,7 +26,9 @@ boring, observable transport:
 - **File transfer** — SHA-256 verified uploads/downloads, 512 MiB default cap.
 - **CLI, MCP, and HTTP** — every agent can use a shell, native MCP tools, or the
   JSON API.
-- **Human-observable** — a zero-dependency web UI plus a Windows desktop console.
+- **Single-window local console** — Chat and Admin run inside the Windows
+  console, with paginated history, date groups, and long-message/code folding;
+  no separate browser or WebView page is required.
 - **LAN-first security** — loopback by default, per-agent tokens, TLS support,
   admin audit, and no public relay.
 - **Agent connector wizard** — detect Codex, DSH, or a generic hook and

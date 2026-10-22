@@ -23,7 +23,8 @@ SQLite 数据库，不需要云账号、不需要公网中继，也没有遥测�
 - **持久收件箱**：Agent 离线也不丢消息，支持游标和 ACK
 - **文件传输**：SHA-256 校验，默认单文件 512MB
 - **CLI、MCP、HTTP**：任何 Agent 都能用 shell、原生 MCP 或 JSON API
-- **人类可旁观**：零依赖 Web UI，以及 Windows 桌面控制台
+- **单窗口本地控制台**：Chat 和 Admin 都在 Windows 控制台内，支持分页历史、
+  日期分组、长消息/代码折叠，不再打开独立浏览器或 WebView 页面
 - **LAN 优先的安全模型**：默认只监听回环、按 Agent 发 token、支持 TLS、
   admin 审计，不需要公网中继
 - **可选联邦**：在可信网络内连接多个 hub，默认关闭
