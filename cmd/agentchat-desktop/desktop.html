@@ -16,7 +16,9 @@
   .win-controls button { width:32px; height:26px; padding:0; border-radius:6px; background:transparent; border-color:transparent; color:var(--muted); font-size:15px; line-height:1; }
   .win-controls button:hover { background:#222c3a; color:var(--text); }
   .win-controls button.close:hover { background:#a3262f; color:#fff; }
-  header { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px clamp(16px,2vw,32px); border-bottom:1px solid var(--line); background:var(--panel); }
+  .topbar-left { display:flex; align-items:center; gap:18px; flex:1; min-width:0; flex-wrap:wrap; }
+  .topbar-left h1 { white-space:nowrap; }
   h1 { font-size:16px; margin:0; font-weight:650; }
   h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 12px; }
   main { width:100%; max-width:none; margin:0 auto; padding:18px clamp(16px,2vw,32px); display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
@@ -51,12 +53,17 @@
   #toast.bad { color:var(--bad); }
   @media (max-width:800px) { main { grid-template-columns:1fr; } }
   .hidden { display:none !important; }
-  .tabs { display:flex; gap:6px; width:100%; max-width:none; margin:14px auto 0; padding:0 clamp(16px,2vw,32px); }
-  .tabs button { border-radius:8px 8px 0 0; border-bottom-color:transparent; }
+  .tabs { display:flex; gap:6px; width:auto; max-width:none; margin:0; padding:0; flex-wrap:wrap; }
+  .tabs button { border-radius:8px; border-bottom-color:var(--line); padding:6px 10px; }
   .tabs button.active { background:var(--panel); border-color:var(--line); color:var(--accent); }
   ol.steps { margin:12px 0; padding-left:22px; color:var(--muted); font-size:13px; }
   ol.steps li { margin:4px 0; }
-  .chat-grid { display:grid; grid-template-columns:230px minmax(0,1fr) 210px; gap:12px; margin-top:12px; min-height:520px; height:calc(100vh - 270px); max-height:calc(100vh - 270px); }
+  #chat-view > .wide:first-child { display:flex; flex-direction:column; height:calc(100vh - 125px); min-height:480px; }
+  .chat-agent-info { margin-top:6px; border:1px solid var(--line); border-radius:8px; padding:6px 9px; background:#101720; }
+  .chat-agent-info > summary { cursor:pointer; color:var(--muted); font-size:12px; }
+  .chat-agent-info > summary span + span { margin-left:8px; }
+  .chat-agent-info .kv { margin-top:8px; }
+  .chat-grid { display:grid; grid-template-columns:230px minmax(0,1fr) 210px; gap:12px; margin-top:12px; min-height:0; height:auto; max-height:none; flex:1; }
   .chat-grid.left-collapsed { grid-template-columns:0 minmax(0,1fr) 210px; }
   .chat-grid.right-collapsed { grid-template-columns:230px minmax(0,1fr) 0; }
   .chat-grid.left-collapsed.right-collapsed { grid-template-columns:0 minmax(0,1fr) 0; }
@@ -123,22 +130,24 @@
   </div>
 </div>
 <header>
-  <h1>AgentChat Console</h1>
+  <div class="topbar-left">
+    <h1>AgentChat Console</h1>
+    <nav class="tabs" role="tablist">
+      <button id="tab-overview-btn" type="button" class="active" data-i18n="tab.overview">Overview</button>
+      <button id="tab-chat-btn" type="button" data-i18n="tab.chat">Chat</button>
+      <button id="tab-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
+      <button id="tab-admin-btn" type="button" data-i18n="tab.admin">Admin</button>
+      <button id="tab-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
+      <button id="tab-settings-btn" type="button" data-i18n="tab.settings">Settings</button>
+      <button id="tab-about-btn" type="button" data-i18n="tab.about">About</button>
+    </nav>
+  </div>
   <div class="row">
     <span id="hub-pill" class="pill">hub …</span>
     <button id="lang-toggle" type="button">中文</button>
     <button id="refresh" type="button">Refresh</button>
   </div>
 </header>
-<nav class="tabs" role="tablist">
-  <button id="tab-overview-btn" type="button" class="active" data-i18n="tab.overview">Overview</button>
-  <button id="tab-chat-btn" type="button" data-i18n="tab.chat">Chat</button>
-  <button id="tab-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
-  <button id="tab-admin-btn" type="button" data-i18n="tab.admin">Admin</button>
-  <button id="tab-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
-  <button id="tab-settings-btn" type="button" data-i18n="tab.settings">Settings</button>
-  <button id="tab-about-btn" type="button" data-i18n="tab.about">About</button>
-</nav>
 <main id="overview-view">
   <section class="wide" id="welcome">
     <h2 data-i18n="welcome.title">Welcome to AgentChat LAN</h2>
@@ -266,12 +275,15 @@
         <button id="chat-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
       </div>
     </div>
-    <div class="kv">
-      <span class="k" data-i18n="chat.agent">Agent</span><span class="v" id="chat-agent"></span>
-      <span class="k" data-i18n="chat.agent_id">Agent ID</span><span class="v" id="chat-agent-id"></span>
-      <span class="k" data-i18n="chat.config">Agent config</span><span class="v" id="chat-config"></span>
-      <span class="k" data-i18n="chat.hub">Hub</span><span class="v" id="chat-hub"></span>
-    </div>
+    <details class="chat-agent-info" id="chat-agent-info">
+      <summary><span data-i18n="chat.agent_info">Agent info</span><span id="chat-agent-summary" class="muted small"></span></summary>
+      <div class="kv">
+        <span class="k" data-i18n="chat.agent">Agent</span><span class="v" id="chat-agent"></span>
+        <span class="k" data-i18n="chat.agent_id">Agent ID</span><span class="v" id="chat-agent-id"></span>
+        <span class="k" data-i18n="chat.config">Agent config</span><span class="v" id="chat-config"></span>
+        <span class="k" data-i18n="chat.hub">Hub</span><span class="v" id="chat-hub"></span>
+      </div>
+    </details>
     <div id="chat-error" class="small" style="margin-top:8px"></div>
     <div class="row chat-tools">
       <input id="chat-search" type="text" placeholder="Search this room" data-i18n-placeholder="chat.search_placeholder">
@@ -538,7 +550,7 @@
       "chat.rooms":"Rooms", "chat.agents":"Agents", "chat.load_older":"Load older", "chat.send":"Send",
       "chat.placeholder":"Message #general — @name to mention", "chat.no_messages":"No messages yet.",
       "chat.fold":"Show more", "chat.unfold":"Show less", "chat.sent":"Sent", "chat.history_loaded":"Older messages loaded",
-      "chat.attach":"Attach", "chat.search":"Search", "chat.search_placeholder":"Search this room", "chat.search_empty":"No matches",
+      "chat.agent_info":"Agent info", "chat.attach":"Attach", "chat.search":"Search", "chat.search_placeholder":"Search this room", "chat.search_empty":"No matches",
       "chat.invite_placeholder":"Invite code", "chat.name_placeholder":"Agent name", "chat.kind_placeholder":"Kind (codex/dsh/human)",
       "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
       "chat.join_title":"Join a hub", "chat.join":"Join", "chat.joined":"Joined. Agent config saved.",
@@ -603,7 +615,7 @@
       "chat.rooms":"房间", "chat.agents":"Agent", "chat.load_older":"加载更早消息", "chat.send":"发送",
       "chat.placeholder":"输入消息，@名字 提及 Agent", "chat.no_messages":"还没有消息。",
       "chat.fold":"展开", "chat.unfold":"收起", "chat.sent":"已发送", "chat.history_loaded":"已加载更早消息",
-      "chat.attach":"附件", "chat.search":"搜索", "chat.search_placeholder":"搜索当前房间", "chat.search_empty":"没有匹配",
+      "chat.agent_info":"Agent 信息", "chat.attach":"附件", "chat.search":"搜索", "chat.search_placeholder":"搜索当前房间", "chat.search_empty":"没有匹配",
       "chat.invite_placeholder":"邀请码", "chat.name_placeholder":"Agent 名称", "chat.kind_placeholder":"类型（codex/dsh/human）",
       "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
       "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存。",
@@ -1170,6 +1182,7 @@
     $("chat-agent-id").textContent = body.agent_id || "";
     $("chat-config").textContent = body.agent_config || "";
     $("chat-hub").textContent = body.hub_url || "";
+    $("chat-agent-summary").textContent = body.agent_name ? "· " + body.agent_name : "";
     $("chat-error").textContent = body.ok ? "" : (body.error || t("chat.unavailable"));
     $("chat-join").classList.toggle("hidden", !!body.ok);
     $("chat-grid").classList.toggle("hidden", !body.ok);
