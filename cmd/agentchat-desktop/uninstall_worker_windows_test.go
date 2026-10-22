@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"golang.org/x/sys/windows"
 )
 
 func writeTestMarker(t *testing.T, root string, marker uninstallMarker) {
@@ -18,6 +20,29 @@ func writeTestMarker(t *testing.T, root string, marker uninstallMarker) {
 	}
 	if err := os.WriteFile(filepath.Join(root, ".agentchat-install.json"), data, 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPinFileFailsClosedWhenDeleteAccessIsDenied(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agentchat.exe")
+	if err := os.WriteFile(path, []byte("locked"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ptr, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocker, err := windows.CreateFile(ptr, windows.GENERIC_READ,
+		windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer windows.CloseHandle(blocker)
+	if _, err := pinFile(path); err == nil {
+		t.Fatalf("pinFile accepted a file without DELETE access")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("file was removed despite failed pin: %v", err)
 	}
 }
 
