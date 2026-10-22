@@ -216,6 +216,23 @@ booted cleanly; uptime reset again, the container auto-started, A/B were
 repair. Future A reboots require the LUKS passphrase at the console; the
 initramfs contains `systemd-cryptsetup` and the crypt modules.
 
+## Isolated rollback rehearsal
+
+Production was not switched. Each old artifact was started on a spare port
+against a copy of its pre-cutover backup:
+
+```text
+A: agentchat-v0141-rollback image + cutover-A-20261022-1304
+   :18787  health {"status":"ok","version":"v0.14.1"}
+B: agentchat-v0100-svc.exe + cutover-B-20261022-1304
+   :18788  health {"status":"ok","version":"dev"}
+```
+
+A's backup contains `agentchat.db` and `manifest.json` but no
+`federation.json`; the old binary starts without the federation flag. Both
+test containers/processes and temporary extracts were removed after the
+rehearsal.
+
 ## Acceptance
 
 - `/healthz` and `/readyz` return 200 on A and B.
