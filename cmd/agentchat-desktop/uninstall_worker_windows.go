@@ -225,20 +225,21 @@ func runUninstallWorker(args []string) int {
 		return 2
 	}
 	pinned := make([]pinnedFile, 0, len(files))
+	pinFailed := false
 	for _, path := range files {
 		p, err := pinFile(path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
 			}
-			// A locked file is still pinned read-only by pinFile; other failures
-			// leave the unknown object untouched.
+			// Leave an object we could not pin untouched and fail closed.
+			pinFailed = true
 			continue
 		}
 		pinned = append(pinned, p)
 	}
 	waitForParent(pid)
-	hadErr := false
+	hadErr := pinFailed
 	for _, p := range pinned {
 		if err := p.delete(); err != nil {
 			hadErr = true

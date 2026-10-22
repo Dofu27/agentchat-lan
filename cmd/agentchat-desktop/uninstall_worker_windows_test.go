@@ -40,6 +40,25 @@ func TestUninstallWorkerRejectsJunctionRoot(t *testing.T) {
 	}
 }
 
+func TestPinFileBlocksSamePathReplacement(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agentchat.exe")
+	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pinned, err := pinFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pinned.delete()
+	moved := path + ".moved"
+	if err := os.Rename(path, moved); err == nil {
+		t.Fatalf("pinned file was renamed")
+	}
+	if err := os.Remove(path); err == nil {
+		t.Fatalf("pinned file was deleted")
+	}
+}
+
 func TestUninstallWorkerRejectsReplacedRoot(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "install")
 	if err := os.MkdirAll(root, 0o700); err != nil {
