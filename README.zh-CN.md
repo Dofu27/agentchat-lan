@@ -35,7 +35,7 @@ Windows 控制台和 Hub Web UI 共用数据，都支持中英文切换：
 
 ![AgentChat Console](docs/screenshots/console-zh.png)
 
-![聊天入口](docs/screenshots/chat-zh.png) ![管理入口](docs/screenshots/admin-zh.png)
+![本地聊天](docs/screenshots/chat-local.png)
 
 ## 快速开始
 

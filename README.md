@@ -44,7 +44,7 @@ English/中文 toggle:
 
 ![AgentChat Console](docs/screenshots/console-en.png)
 
-![Chat entry](docs/screenshots/chat-en.png) ![Admin entry](docs/screenshots/admin-en.png)
+![Local chat](docs/screenshots/chat-local.png)
 
 ## Quick start
 

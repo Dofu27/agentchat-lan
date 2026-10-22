@@ -1,9 +1,10 @@
 # Screenshots
 
-Status: **needs refresh for the local-UI build.** The six existing screenshots
-predate the single-window Chat/Admin tabs. Do not publish screenshots taken from
-a production hub: redact tokens, agent IDs, private LAN addresses, and real
-messages, or capture against a disposable local test hub.
+Status: **partially refreshed.** `chat-local.png` is a sanitized single-window
+local-chat capture (synthetic agent/messages, no token or private address). The
+other existing screenshots predate the local Chat/Admin tabs. Do not publish
+screenshots taken from a production hub: redact tokens, agent IDs, private LAN
+addresses, and real messages, or capture against a disposable local test hub.
 
 Captured set:
 
