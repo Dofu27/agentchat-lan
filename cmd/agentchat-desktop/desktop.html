@@ -687,12 +687,15 @@
     };
     $("connector-error").textContent = "";
     $("connector-apply").disabled = true;
+    const pathValue = $("connector-path").value;
     try {
       const body = await api("/api/connectors", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload) });
-      $("connector-output").textContent = body.mcp || body.output || JSON.stringify(body, null, 2);
+      const resultText = body.mcp || body.output || JSON.stringify(body, null, 2);
       $("connector-error").textContent = body.error || (body.ok ? t("connector.done") : t("connector.failed"));
       $("connector-error").style.color = body.ok ? "" : "var(--bad)";
       await refreshConnectors();
+      $("connector-path").value = pathValue;
+      $("connector-output").textContent = resultText;
       await refreshBridge();
     } catch (err) {
       $("connector-error").textContent = err.message || String(err);

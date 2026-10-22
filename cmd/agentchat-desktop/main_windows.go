@@ -783,6 +783,23 @@ func dshBridgeExec(agentchat, agentConfig, dsh, script, dshHome, workdir string)
 	return strings.Join(args, " ")
 }
 
+func writeConnectorHook(name, command string) (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	dir = filepath.Join(dir, "AgentChat")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, name+"-hook.cmd")
+	content := "@echo off\r\n" + command + "\r\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 func (a *app) connectorStatus() map[string]any {
 	a.mu.RLock()
 	cfg := a.cfg
@@ -926,7 +943,12 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.Connector = "dsh"
 		cfg.BridgeName = name
-		cfg.BridgeExec = dshBridgeExec(cfg.AgentchatPath, cfg.AgentConfig, dsh, script, home, workdir)
+		hook, err := writeConnectorHook(name, dshBridgeExec(cfg.AgentchatPath, cfg.AgentConfig, dsh, script, home, workdir))
+		if err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
+			return
+		}
+		cfg.BridgeExec = hook
 		a.mu.Lock()
 		a.cfg = cfg
 		a.mu.Unlock()
@@ -946,7 +968,12 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.Connector = "generic"
 		cfg.BridgeName = name
-		cfg.BridgeExec = execCmd
+		hook, err := writeConnectorHook(name, execCmd)
+		if err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
+			return
+		}
+		cfg.BridgeExec = hook
 		a.mu.Lock()
 		a.cfg = cfg
 		a.mu.Unlock()
