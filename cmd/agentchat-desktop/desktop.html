@@ -53,6 +53,32 @@
   .tabs button.active { background:var(--panel); border-color:var(--line); color:var(--accent); }
   ol.steps { margin:12px 0; padding-left:22px; color:var(--muted); font-size:13px; }
   ol.steps li { margin:4px 0; }
+  .chat-grid { display:grid; grid-template-columns:200px minmax(0,1fr); gap:12px; margin-top:12px; }
+  .chat-side { min-width:0; }
+  .chat-side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 6px; }
+  .chat-side h3 + div { margin-bottom:14px; }
+  .room-item { display:block; width:100%; text-align:left; margin:2px 0; padding:6px 8px; border-radius:6px; background:transparent; border:1px solid transparent; color:var(--text); }
+  .room-item:hover { background:#1b2430; }
+  .room-item.active { background:#1d2b3d; border-color:var(--line); color:var(--accent); }
+  .room-meta { color:var(--muted); font-size:11px; }
+  .chat-main { min-width:0; }
+  .messages { height:min(52vh,520px); min-height:260px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:10px; background:#0a1018; margin:8px 0; }
+  .message { padding:7px 6px; border-bottom:1px solid rgba(43,53,69,.55); }
+  .message:last-child { border-bottom:0; }
+  .message-head { display:flex; gap:8px; align-items:baseline; }
+  .message-author { font-weight:600; color:var(--accent); }
+  .message-time { color:var(--muted); font-size:11px; }
+  .message-text { white-space:pre-wrap; overflow-wrap:anywhere; margin-top:3px; font-size:13px; }
+  .message-text.folded { max-height:8.5em; overflow:hidden; mask-image:linear-gradient(#000 60%,transparent); }
+  .message-fold { margin-top:2px; padding:2px 6px; font-size:11px; }
+  .date-sep { position:sticky; top:0; z-index:2; text-align:center; padding:4px 0; margin:6px 0; background:#0a1018; color:var(--muted); font-size:11px; }
+  .chat-composer textarea { flex:1; min-height:48px; resize:vertical; background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; }
+  .admin-grid { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr); gap:14px; margin-top:14px; }
+  .admin-grid h3 { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin:0 0 8px; }
+  .admin-list { max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:8px; background:#0a1018; font-size:12px; }
+  .admin-row { padding:5px 4px; border-bottom:1px solid rgba(43,53,69,.55); overflow-wrap:anywhere; }
+  .admin-row:last-child { border-bottom:0; }
+  @media (max-width: 900px) { .admin-grid { grid-template-columns:1fr; } }
   .field { display:flex; flex-direction:column; flex:1; min-width:230px; gap:4px; }
   .field label { color:var(--muted); font-size:12px; }
   .field .hint { color:var(--muted); font-size:11px; line-height:1.3; }
@@ -73,7 +99,6 @@
   <h1>AgentChat Console</h1>
   <div class="row">
     <span id="hub-pill" class="pill">hub …</span>
-    <button id="open-admin" class="primary" type="button" data-i18n="open.admin">Open Web admin</button>
     <button id="lang-toggle" type="button">中文</button>
     <button id="refresh" type="button">Refresh</button>
   </div>
@@ -82,6 +107,7 @@
   <button id="tab-overview-btn" type="button" class="active" data-i18n="tab.overview">Overview</button>
   <button id="tab-chat-btn" type="button" data-i18n="tab.chat">Chat</button>
   <button id="tab-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
+  <button id="tab-admin-btn" type="button" data-i18n="tab.admin">Admin</button>
   <button id="tab-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
   <button id="tab-settings-btn" type="button" data-i18n="tab.settings">Settings</button>
   <button id="tab-about-btn" type="button" data-i18n="tab.about">About</button>
@@ -207,8 +233,8 @@
     <div class="row between">
       <h2 style="margin:0" data-i18n="chat.title">Agent chat</h2>
       <div class="row">
+        <span id="chat-room-title" class="pill">#general</span>
         <button id="chat-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
-        <button id="open-chat" class="primary" type="button" data-i18n="chat.open">Open chat window</button>
       </div>
     </div>
     <div class="kv">
@@ -218,6 +244,22 @@
       <span class="k" data-i18n="chat.hub">Hub</span><span class="v" id="chat-hub"></span>
     </div>
     <div id="chat-error" class="small" style="margin-top:8px"></div>
+    <div class="chat-grid" id="chat-grid">
+      <aside class="chat-side">
+        <h3 data-i18n="chat.rooms">Rooms</h3>
+        <div id="chat-rooms"></div>
+        <h3 data-i18n="chat.agents">Agents</h3>
+        <div id="chat-agents"></div>
+      </aside>
+      <section class="chat-main">
+        <button id="chat-older" class="small" type="button" data-i18n="chat.load_older">Load older</button>
+        <div id="chat-messages" class="messages"></div>
+        <div class="row chat-composer">
+          <textarea id="chat-input" rows="2" placeholder="Message #general — @name to mention" data-i18n-placeholder="chat.placeholder"></textarea>
+          <button id="chat-send" class="primary" type="button" data-i18n="chat.send">Send</button>
+        </div>
+      </section>
+    </div>
   </section>
   <section class="wide" id="chat-join">
     <h2 data-i18n="chat.join_title">Join a hub</h2>
@@ -281,6 +323,37 @@
     <div id="bridge-error" class="small" style="margin-top:8px"></div>
   </section>
 </main>
+<main id="admin-view" class="hidden">
+  <section class="wide">
+    <div class="row between">
+      <h2 style="margin:0" data-i18n="admin.title">Administration</h2>
+      <div class="row">
+        <button id="admin-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
+      </div>
+    </div>
+    <div id="admin-error" class="small" style="margin-top:8px"></div>
+    <div class="admin-grid">
+      <section>
+        <h3 data-i18n="admin.agents">Agents</h3>
+        <div id="admin-agents" class="admin-list"></div>
+      </section>
+      <section>
+        <h3 data-i18n="admin.invites">Invites</h3>
+        <div class="row">
+          <input id="admin-invite-room" type="text" value="general" placeholder="general">
+          <input id="admin-invite-uses" type="number" min="1" value="1" style="max-width:90px">
+          <button id="admin-invite-create" type="button" data-i18n="admin.create_invite">Create invite</button>
+        </div>
+        <div id="admin-invite-result" class="small" style="margin-top:6px"></div>
+        <div id="admin-invites" class="admin-list"></div>
+      </section>
+      <section>
+        <h3 data-i18n="admin.audit">Audit</h3>
+        <div id="admin-audit" class="admin-list"></div>
+      </section>
+    </div>
+  </section>
+</main>
 <main id="logs-view" class="logs hidden">
   <section class="wide">
     <div class="row between">
@@ -315,6 +388,14 @@
       <span class="k" data-i18n="settings.agent">Agent config</span><span class="v" id="settings-agent"></span>
       <span class="k" data-i18n="settings.hub">Hub</span><span class="v" id="settings-hub"></span>
     </div>
+    <div class="field" style="margin-top:12px">
+      <label for="settings-token" data-i18n="settings.admin_token">Admin token file</label>
+      <div class="row">
+        <input id="settings-token" type="text" autocomplete="off" placeholder="C:\Users\...\AgentChat\admin.token">
+        <button id="settings-token-save" type="button" data-i18n="settings.save_token">Save token</button>
+      </div>
+      <span class="hint" data-i18n="settings.admin_token_hint">Required for the local Admin tab. The file is read locally; it is never displayed.</span>
+    </div>
     <div id="settings-error" class="small" style="margin-top:8px"></div>
   </section>
   <section class="wide">
@@ -346,7 +427,9 @@
   const dict = {
     en: {
       "open.admin":"Open Web admin",
-      "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.logs":"Logs", "tab.settings":"Settings", "tab.about":"About",
+      "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.admin":"Admin", "tab.logs":"Logs", "tab.settings":"Settings", "tab.about":"About",
+      "admin.title":"Administration", "admin.agents":"Agents", "admin.invites":"Invites", "admin.audit":"Audit",
+      "admin.create_invite":"Create invite", "admin.invite_created":"Invite created", "admin.no_data":"No data",
       "about.title":"About AgentChat LAN", "about.version":"Version", "about.license":"License",
       "about.feedback":"Feedback", "about.body":"AgentChat LAN is a self-hosted LAN chat, durable inbox, and file relay for AI agents. It is designed for a trusted private network.",
       "logs.title":"Logs", "logs.desktop":"Desktop", "logs.hub":"Hub", "logs.bridge":"Bridge",
@@ -366,12 +449,18 @@
       "host.failed":"Hub initialization failed",
       "settings.title":"Console role", "settings.save":"Save role", "settings.config":"Desktop config",
       "settings.agent":"Agent config", "settings.hub":"Hub",
+      "settings.admin_token":"Admin token file", "settings.save_token":"Save token",
+      "settings.admin_token_hint":"Required for the local Admin tab. The file is read locally; it is never displayed.",
+      "settings.saved":"Saved.",
       "uninstall.title":"Uninstall", "uninstall.body":"Removes AgentChat binaries and startup shortcuts. Configuration and data are kept by default.",
       "uninstall.data":"Also delete configuration and data", "uninstall.button":"Uninstall AgentChat",
       "uninstall.confirm":"Uninstall AgentChat now?", "uninstall.started":"Uninstall started. The window will close.",
       "role.hub":"Hub host", "role.client":"Chat client", "role.bridge":"Agent bridge", "role.observer":"Observer",
       "chat.title":"Agent chat", "chat.open":"Open chat window", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent config", "chat.hub":"Hub",
+      "chat.rooms":"Rooms", "chat.agents":"Agents", "chat.load_older":"Load older", "chat.send":"Send",
+      "chat.placeholder":"Message #general — @name to mention", "chat.no_messages":"No messages yet.",
+      "chat.fold":"Show more", "chat.unfold":"Show less", "chat.sent":"Sent", "chat.history_loaded":"Older messages loaded",
       "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
       "chat.join_title":"Join a hub", "chat.join":"Join", "chat.joined":"Joined. Agent config saved.",
       "chat.join_failed":"Join failed", "chat.join_exists":"Agent config already exists.",
@@ -397,7 +486,9 @@
     },
     zh: {
       "open.admin":"打开管理网页",
-      "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.logs":"日志", "tab.settings":"设置", "tab.about":"关于",
+      "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.admin":"管理", "tab.logs":"日志", "tab.settings":"设置", "tab.about":"关于",
+      "admin.title":"管理", "admin.agents":"Agent", "admin.invites":"邀请码", "admin.audit":"审计",
+      "admin.create_invite":"生成邀请码", "admin.invite_created":"邀请码已生成", "admin.no_data":"暂无数据",
       "about.title":"关于 AgentChat LAN", "about.version":"版本", "about.license":"许可证",
       "about.feedback":"反馈", "about.body":"AgentChat LAN 是面向 AI Agent 的自托管局域网聊天、持久收件箱与文件中转站，面向可信私有网络。",
       "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
@@ -417,12 +508,18 @@
       "host.failed":"Hub 初始化失败",
       "settings.title":"控制台角色", "settings.save":"保存角色", "settings.config":"桌面配置",
       "settings.agent":"Agent 配置", "settings.hub":"Hub",
+      "settings.admin_token":"管理员 token 文件", "settings.save_token":"保存 token",
+      "settings.admin_token_hint":"本地管理页需要。文件只在本地读取，不会显示内容。",
+      "settings.saved":"已保存。",
       "uninstall.title":"卸载", "uninstall.body":"删除 AgentChat 程序和启动快捷方式，默认保留配置与数据。",
       "uninstall.data":"同时删除配置和数据", "uninstall.button":"卸载 AgentChat",
       "uninstall.confirm":"现在卸载 AgentChat？", "uninstall.started":"卸载已开始，窗口即将关闭。",
       "role.hub":"Hub 主机", "role.client":"聊天客户端", "role.bridge":"Agent 桥接", "role.observer":"观察者",
       "chat.title":"Agent 聊天", "chat.open":"打开聊天窗口", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent 配置", "chat.hub":"Hub",
+      "chat.rooms":"房间", "chat.agents":"Agent", "chat.load_older":"加载更早消息", "chat.send":"发送",
+      "chat.placeholder":"输入消息，@名字 提及 Agent", "chat.no_messages":"还没有消息。",
+      "chat.fold":"展开", "chat.unfold":"收起", "chat.sent":"已发送", "chat.history_loaded":"已加载更早消息",
       "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
       "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存。",
       "chat.join_failed":"加入失败", "chat.join_exists":"agent 配置已存在，未覆盖。",
@@ -455,6 +552,7 @@
   function applyLang() {
     document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
     document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
     $("lang-toggle").textContent = lang === "zh" ? "English" : "中文";
     if ($("log-pause")) $("log-pause").textContent = logsPaused ? t("logs.resume") : t("logs.pause");
   }
@@ -582,6 +680,7 @@
   let activeTab = "overview";
   let logsPaused = false;
   let logsBusy = false;
+  const chatState = { room: "general", rooms: [], agents: [], messages: [], oldest: 0, last: 0, loading: false, timer: null };
   async function refreshLogs() {
     if (logsBusy) return;
     logsBusy = true;
@@ -598,7 +697,7 @@
     } finally { logsBusy = false; }
   }
   const roleTabs = {
-    hub: ["overview", "chat", "bridge", "logs", "settings", "about"],
+    hub: ["overview", "chat", "bridge", "admin", "logs", "settings", "about"],
     client: ["chat", "logs", "settings", "about"],
     bridge: ["bridge", "logs", "settings", "about"],
     observer: ["chat", "logs", "settings", "about"]
@@ -607,7 +706,7 @@
   function applyRole(role) {
     currentRole = roleTabs[role] ? role : "hub";
     const allowed = roleTabs[currentRole];
-    const tabIds = ["overview", "chat", "bridge", "logs", "settings", "about"];
+    const tabIds = ["overview", "chat", "bridge", "admin", "logs", "settings", "about"];
     for (const tab of tabIds) {
       const button = $("tab-" + tab + "-btn");
       if (button) button.classList.toggle("hidden", !allowed.includes(tab));
@@ -620,6 +719,7 @@
     $("settings-config").textContent = body.config_path || "";
     $("settings-agent").textContent = body.agent_config || "";
     $("settings-hub").textContent = body.hub_url || "";
+    if ($("settings-token")) $("settings-token").value = body.token_file || "";
     $("settings-error").textContent = "";
     $("welcome").classList.toggle("hidden", !!body.setup_done);
     if (!$("host-data").value) $("host-data").value = body.hub_data || body.default_data || "";
@@ -672,6 +772,16 @@
       $("uninstall-error").textContent = err.message || String(err);
     }
   }
+  async function saveAdminToken() {
+    try {
+      await api("/api/settings", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ token_file: $("settings-token").value.trim() })
+      });
+      $("settings-error").textContent = t("settings.saved");
+      await refreshSettings();
+    } catch (err) { $("settings-error").textContent = err.message || String(err); }
+  }
   async function saveRole() {
     try {
       const body = await api("/api/settings", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ role: $("role-select").value }) });
@@ -681,6 +791,167 @@
       $("settings-error").textContent = err.message || String(err);
     }
   }
+  function chatDay(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function chatTime(ts) {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  function chatMessageElement(m) {
+    const article = document.createElement("article");
+    article.className = "message";
+    const head = document.createElement("div");
+    head.className = "message-head";
+    const author = document.createElement("span");
+    author.className = "message-author";
+    author.textContent = (m.from && m.from.name) || "?";
+    const time = document.createElement("span");
+    time.className = "message-time";
+    time.textContent = chatTime(m.ts);
+    head.appendChild(author); head.appendChild(time);
+    const text = document.createElement("div");
+    text.className = "message-text";
+    text.textContent = m.text || "";
+    article.appendChild(head); article.appendChild(text);
+    const lineCount = (m.text || "").split("\n").length;
+    if ((m.text || "").length > 1200 || lineCount > 8) {
+      text.classList.add("folded");
+      const fold = document.createElement("button");
+      fold.type = "button"; fold.className = "message-fold"; fold.textContent = t("chat.fold");
+      fold.addEventListener("click", () => {
+        const folded = text.classList.toggle("folded");
+        fold.textContent = folded ? t("chat.fold") : t("chat.unfold");
+      });
+      article.appendChild(fold);
+    }
+    for (const file of m.files || []) {
+      const line = document.createElement("div");
+      line.className = "small muted";
+      line.textContent = "📎 " + (file.name || file.id || "file");
+      article.appendChild(line);
+    }
+    return article;
+  }
+  function chatRenderMessages(keepPosition) {
+    const box = $("chat-messages");
+    const oldHeight = box.scrollHeight;
+    const oldTop = box.scrollTop;
+    box.replaceChildren();
+    let day = "";
+    for (const m of chatState.messages) {
+      const key = chatDay(m.ts);
+      if (key !== day) {
+        day = key;
+        const sep = document.createElement("div");
+        sep.className = "date-sep";
+        sep.textContent = new Date(m.ts).toLocaleDateString();
+        box.appendChild(sep);
+      }
+      box.appendChild(chatMessageElement(m));
+    }
+    if (chatState.messages.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "muted small";
+      empty.textContent = t("chat.no_messages");
+      box.appendChild(empty);
+    }
+    if (keepPosition) box.scrollTop = box.scrollHeight - oldHeight + oldTop;
+    else box.scrollTop = box.scrollHeight;
+  }
+  async function chatLoadRooms() {
+    const body = await api("/api/chat/rooms");
+    chatState.rooms = body.rooms || [];
+    if (!chatState.rooms.some((r) => r.id === chatState.room) && chatState.rooms.length) chatState.room = chatState.rooms[0].id;
+    const box = $("chat-rooms"); box.replaceChildren();
+    for (const room of chatState.rooms) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "room-item" + (room.id === chatState.room ? " active" : "");
+      b.textContent = "#" + room.id;
+      const meta = document.createElement("div");
+      meta.className = "room-meta";
+      meta.textContent = room.topic || room.kind || "";
+      b.appendChild(meta);
+      b.addEventListener("click", () => { chatState.room = room.id; $("chat-room-title").textContent = "#" + room.id; chatLoadLatest().catch(chatError); });
+      box.appendChild(b);
+    }
+  }
+  async function chatLoadAgents() {
+    const body = await api("/api/chat/agents");
+    chatState.agents = body.agents || [];
+    const box = $("chat-agents"); box.replaceChildren();
+    for (const agent of chatState.agents) {
+      const row = document.createElement("div");
+      row.className = "small";
+      row.textContent = (agent.name || "?") + (agent.kind ? " · " + agent.kind : "");
+      box.appendChild(row);
+    }
+  }
+  function chatError(err) {
+    $("chat-error").textContent = err && err.message ? err.message : String(err);
+  }
+  async function chatLoadLatest() {
+    if (chatState.loading) return;
+    chatState.loading = true;
+    try {
+      const room = chatState.rooms.find((r) => r.id === chatState.room);
+      const latest = room && room.latest_seq ? Number(room.latest_seq) : 0;
+      const q = latest > 0
+        ? "room=" + encodeURIComponent(chatState.room) + "&after_seq=" + Math.max(0, latest - 49) + "&limit=50"
+        : "room=" + encodeURIComponent(chatState.room) + "&after_seq=0&limit=50";
+      const body = await api("/api/chat/messages?" + q);
+      chatState.messages = body.messages || [];
+      chatState.oldest = chatState.messages.length ? chatState.messages[0].seq : 0;
+      chatState.last = chatState.messages.length ? chatState.messages[chatState.messages.length - 1].seq : 0;
+      chatRenderMessages(false);
+    } finally { chatState.loading = false; }
+  }
+  async function chatLoadOlder() {
+    if (chatState.loading || chatState.oldest <= 0) return;
+    chatState.loading = true;
+    try {
+      const start = Math.max(0, chatState.oldest - 50);
+      const body = await api("/api/chat/messages?room=" + encodeURIComponent(chatState.room) + "&after_seq=" + start + "&before_seq=" + chatState.oldest + "&limit=50");
+      const older = body.messages || [];
+      const seen = new Set(chatState.messages.map((m) => m.id));
+      const add = older.filter((m) => !seen.has(m.id));
+      if (add.length) {
+        chatState.messages = add.concat(chatState.messages);
+        chatState.oldest = chatState.messages[0].seq;
+        chatRenderMessages(true);
+        toast(t("chat.history_loaded"));
+      }
+    } finally { chatState.loading = false; }
+  }
+  async function chatPoll() {
+    if (chatState.loading || !chatState.last || activeTab !== "chat") return;
+    try {
+      const body = await api("/api/chat/messages?room=" + encodeURIComponent(chatState.room) + "&after_seq=" + chatState.last + "&limit=100");
+      const fresh = body.messages || [];
+      if (!fresh.length) return;
+      const seen = new Set(chatState.messages.map((m) => m.id));
+      const add = fresh.filter((m) => !seen.has(m.id));
+      if (!add.length) return;
+      chatState.messages = chatState.messages.concat(add);
+      chatState.last = chatState.messages[chatState.messages.length - 1].seq;
+      const nearBottom = $("chat-messages").scrollHeight - $("chat-messages").scrollTop - $("chat-messages").clientHeight < 80;
+      chatRenderMessages(false);
+      if (!nearBottom) $("chat-messages").scrollTop = $("chat-messages").scrollHeight;
+    } catch (_) {}
+  }
+  async function chatSend() {
+    const input = $("chat-input");
+    const text = input.value.trim();
+    if (!text) return;
+    $("chat-send").disabled = true;
+    try {
+      await api("/api/chat/send", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ room: chatState.room, text }) });
+      input.value = "";
+      await chatPoll();
+    } catch (err) { chatError(err); }
+    finally { $("chat-send").disabled = false; }
+  }
   async function refreshChat() {
     const body = await api("/api/chat");
     $("chat-agent").textContent = body.agent_name || "";
@@ -689,6 +960,14 @@
     $("chat-hub").textContent = body.hub_url || "";
     $("chat-error").textContent = body.ok ? "" : (body.error || t("chat.unavailable"));
     $("chat-join").classList.toggle("hidden", !!body.ok);
+    $("chat-grid").classList.toggle("hidden", !body.ok);
+    if (!body.ok) return;
+    try {
+      await chatLoadRooms();
+      await chatLoadAgents();
+      $("chat-room-title").textContent = "#" + chatState.room;
+      await chatLoadLatest();
+    } catch (err) { chatError(err); }
   }
   async function joinHub() {
     const invite = $("join-invite").value.trim();
@@ -706,6 +985,47 @@
     } catch (err) {
       $("join-error").textContent = err.message || t("chat.join_failed");
     } finally { $("join-submit").disabled = false; }
+  }
+  function adminRows(container, rows) {
+    container.replaceChildren();
+    if (!rows.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted"; empty.textContent = t("admin.no_data");
+      container.appendChild(empty);
+      return;
+    }
+    for (const row of rows) {
+      const el = document.createElement("div");
+      el.className = "admin-row";
+      el.textContent = row;
+      container.appendChild(el);
+    }
+  }
+  async function refreshAdmin() {
+    $("admin-error").textContent = "";
+    try {
+      const [agents, invites, audit] = await Promise.all([
+        api("/api/admin/agents"), api("/api/admin/invites"), api("/api/admin/audit")
+      ]);
+      adminRows($("admin-agents"), (agents.agents || []).map((a) => (a.name || "?") + " · " + (a.kind || "") + " · " + (a.status || "")));
+      const inv = Array.isArray(invites) ? invites : (invites.invites || []);
+      adminRows($("admin-invites"), inv.map((i) => (i.room || i.room_id || "") + " · " + (i.code || "") + " · uses " + String(i.uses_left ?? i.uses ?? "")));
+      const events = Array.isArray(audit) ? audit : (audit.events || audit.audit || []);
+      adminRows($("admin-audit"), events.map((e) => (e.ts || "") + " · " + (e.action || "") + " · " + (e.actor_id || e.actor || "")));
+    } catch (err) {
+      $("admin-error").textContent = err.message || String(err);
+    }
+  }
+  async function createAdminInvite() {
+    $("admin-invite-result").textContent = "";
+    try {
+      const body = await api("/api/admin/invites", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ room: $("admin-invite-room").value.trim() || "general", uses: Number($("admin-invite-uses").value) || 1, ttl_seconds: 86400 })
+      });
+      $("admin-invite-result").textContent = t("admin.invite_created") + ": " + (body.code || "");
+      await refreshAdmin();
+    } catch (err) { $("admin-error").textContent = err.message || String(err); }
   }
   async function refreshBridge() {
     const body = await api("/api/bridge");
@@ -811,29 +1131,40 @@
     $("overview-view").classList.toggle("hidden", tab !== "overview");
     $("chat-view").classList.toggle("hidden", tab !== "chat");
     $("bridge-view").classList.toggle("hidden", tab !== "bridge");
+    $("admin-view").classList.toggle("hidden", tab !== "admin");
     $("logs-view").classList.toggle("hidden", tab !== "logs");
     $("settings-view").classList.toggle("hidden", tab !== "settings");
     $("about-view").classList.toggle("hidden", tab !== "about");
     $("tab-overview-btn").classList.toggle("active", tab === "overview");
     $("tab-chat-btn").classList.toggle("active", tab === "chat");
     $("tab-bridge-btn").classList.toggle("active", tab === "bridge");
+    $("tab-admin-btn").classList.toggle("active", tab === "admin");
     $("tab-logs-btn").classList.toggle("active", tab === "logs");
     $("tab-settings-btn").classList.toggle("active", tab === "settings");
     $("tab-about-btn").classList.toggle("active", tab === "about");
     if (tab === "logs") refreshLogs();
-    if (tab === "chat") refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); });
+    if (tab === "chat") {
+      refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); });
+      if (!chatState.timer) chatState.timer = setInterval(chatPoll, 4000);
+    } else if (chatState.timer) {
+      clearInterval(chatState.timer);
+      chatState.timer = null;
+    }
     if (tab === "bridge") {
       refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); });
       refreshConnectors().catch((err) => { $("connector-error").textContent = err.message || String(err); });
     }
+    if (tab === "admin") refreshAdmin();
     if (tab === "settings") refreshSettings().catch((err) => { $("settings-error").textContent = err.message || String(err); });
   }
   $("tab-overview-btn").addEventListener("click", () => showTab("overview"));
   $("tab-chat-btn").addEventListener("click", () => showTab("chat"));
   $("tab-bridge-btn").addEventListener("click", () => showTab("bridge"));
+  $("tab-admin-btn").addEventListener("click", () => showTab("admin"));
   $("tab-settings-btn").addEventListener("click", () => showTab("settings"));
   $("tab-about-btn").addEventListener("click", () => showTab("about"));
   $("role-save").addEventListener("click", saveRole);
+  $("settings-token-save").addEventListener("click", saveAdminToken);
   $("uninstall").addEventListener("click", uninstallApp);
   $("welcome-host").addEventListener("click", () => completeSetup("hub", "overview"));
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
@@ -841,9 +1172,10 @@
   $("host-init").addEventListener("click", initHub);
   $("chat-refresh").addEventListener("click", () => refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); }));
   $("join-submit").addEventListener("click", joinHub);
-  $("open-chat").addEventListener("click", async () => {
-    if (!window.__openChatWeb) { $("chat-error").textContent = t("chat.unavailable"); return; }
-    try { await window.__openChatWeb(); } catch (err) { $("chat-error").textContent = err.message || String(err); }
+  $("chat-older").addEventListener("click", () => chatLoadOlder().catch(chatError));
+  $("chat-send").addEventListener("click", chatSend);
+  $("chat-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); chatSend(); }
   });
   $("tab-logs-btn").addEventListener("click", () => showTab("logs"));
   $("bridge-refresh").addEventListener("click", () => refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); }));
@@ -875,10 +1207,8 @@
       await refresh();
     } catch (err) { event.target.checked = !event.target.checked; toast(err.message, true); }
   });
-  $("open-admin").addEventListener("click", async () => {
-    if (!window.__openAdminWeb) { toast("Desktop bridge unavailable", true); return; }
-    try { await window.__openAdminWeb(); } catch (err) { toast(err.message || String(err), true); }
-  });
+  $("admin-refresh").addEventListener("click", refreshAdmin);
+  $("admin-invite-create").addEventListener("click", createAdminInvite);
   $("lang-toggle").addEventListener("click", () => { lang = lang === "zh" ? "en" : "zh"; applyLang(); if (last) renderFederation(last.federation, last.federation_error); refresh(); });
   applyLang();
   refreshSettings().catch((err) => { $("settings-error").textContent = err.message || String(err); });

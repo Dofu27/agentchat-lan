@@ -732,6 +732,14 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/connectors", a.api(http.HandlerFunc(a.handleConnectors)))
 	mux.Handle("POST /api/connectors", a.api(http.HandlerFunc(a.handleConnectors)))
 	mux.Handle("GET /api/chat", a.api(http.HandlerFunc(a.handleChat)))
+	mux.Handle("GET /api/chat/rooms", a.api(http.HandlerFunc(a.handleChatRooms)))
+	mux.Handle("GET /api/chat/messages", a.api(http.HandlerFunc(a.handleChatMessages)))
+	mux.Handle("GET /api/chat/agents", a.api(http.HandlerFunc(a.handleChatAgents)))
+	mux.Handle("POST /api/chat/send", a.api(http.HandlerFunc(a.handleChatSend)))
+	mux.Handle("GET /api/admin/agents", a.api(http.HandlerFunc(a.handleAdminAgents)))
+	mux.Handle("GET /api/admin/invites", a.api(http.HandlerFunc(a.handleAdminInvites)))
+	mux.Handle("POST /api/admin/invites", a.api(http.HandlerFunc(a.handleAdminInvites)))
+	mux.Handle("GET /api/admin/audit", a.api(http.HandlerFunc(a.handleAdminAudit)))
 	mux.Handle("POST /api/client/join", a.api(http.HandlerFunc(a.handleJoin)))
 	mux.Handle("GET /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
 	mux.Handle("POST /api/settings", a.api(http.HandlerFunc(a.handleSettings)))
@@ -1653,8 +1661,9 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 	defer a.mu.Unlock()
 	if r.Method == http.MethodPost {
 		var req struct {
-			Role      string `json:"role"`
-			SetupDone *bool  `json:"setup_done"`
+			Role      string  `json:"role"`
+			SetupDone *bool   `json:"setup_done"`
+			TokenFile *string `json:"token_file"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
@@ -1673,11 +1682,30 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 		if req.SetupDone != nil {
 			candidate.SetupDone = *req.SetupDone
 		}
+		token := a.token
+		if req.TokenFile != nil {
+			path := strings.TrimSpace(*req.TokenFile)
+			token = ""
+			if path != "" {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "cannot read admin token file"})
+					return
+				}
+				token = strings.TrimSpace(string(data))
+				if token == "" {
+					writeJSON(w, http.StatusBadRequest, map[string]any{"error": "admin token file is empty"})
+					return
+				}
+			}
+			candidate.TokenFile = path
+		}
 		if err := a.saveConfig(candidate); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save desktop config"})
 			return
 		}
 		a.cfg = candidate
+		a.token = token
 		a.configVersion++
 	}
 	defaultData := ""
@@ -1693,6 +1721,176 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"default_data":  defaultData,
 		"default_token": filepath.Join(defaultData, "admin.token"),
 	})
+}
+
+func (a *app) hubRaw(method, path, token string, body []byte) ([]byte, int, error) {
+	a.mu.RLock()
+	client, hubURL := a.http, a.cfg.HubURL
+	a.mu.RUnlock()
+	if client == nil {
+		return nil, 0, errors.New("hub client is not configured")
+	}
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(context.Background(), method, hubURL+path, reader)
+	if err != nil {
+		return nil, 0, err
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return data, resp.StatusCode, fmt.Errorf("hub returned HTTP %d", resp.StatusCode)
+	}
+	return data, resp.StatusCode, nil
+}
+
+func (a *app) agentToken() (string, error) {
+	agent, err := a.loadAgentConfig()
+	if err != nil {
+		return "", err
+	}
+	return agent.Token, nil
+}
+
+func writeHubData(w http.ResponseWriter, data []byte, status int, err error) {
+	if err != nil && len(data) == 0 {
+		writeJSON(w, http.StatusBadGateway, map[string]any{"error": err.Error()})
+		return
+	}
+	if status == 0 {
+		status = http.StatusBadGateway
+	}
+	if err != nil && status < 400 {
+		status = http.StatusBadGateway
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write(data)
+}
+
+func (a *app) handleChatRooms(w http.ResponseWriter, r *http.Request) {
+	token, err := a.agentToken()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+		return
+	}
+	data, status, err := a.hubRaw(http.MethodGet, "/v1/rooms", token, nil)
+	writeHubData(w, data, status, err)
+}
+
+func (a *app) handleChatAgents(w http.ResponseWriter, r *http.Request) {
+	token, err := a.agentToken()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+		return
+	}
+	data, status, err := a.hubRaw(http.MethodGet, "/v1/agents", token, nil)
+	writeHubData(w, data, status, err)
+}
+
+func (a *app) handleChatMessages(w http.ResponseWriter, r *http.Request) {
+	room := strings.TrimSpace(r.URL.Query().Get("room"))
+	if room == "" {
+		room = "general"
+	}
+	q := url.Values{}
+	for _, key := range []string{"before_seq", "after_seq", "limit"} {
+		if v := strings.TrimSpace(r.URL.Query().Get(key)); v != "" {
+			q.Set(key, v)
+		}
+	}
+	if q.Get("limit") == "" {
+		q.Set("limit", "50")
+	}
+	token, err := a.agentToken()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+		return
+	}
+	data, status, err := a.hubRaw(http.MethodGet, "/v1/rooms/"+url.PathEscape(room)+"/messages?"+q.Encode(), token, nil)
+	writeHubData(w, data, status, err)
+}
+
+func (a *app) handleChatSend(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Room string `json:"room"`
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid message"})
+		return
+	}
+	req.Room = strings.TrimSpace(req.Room)
+	req.Text = strings.TrimSpace(req.Text)
+	if req.Room == "" || req.Text == "" || len(req.Text) > 32<<10 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "room and text are required"})
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{"room": req.Room, "text": req.Text})
+	token, err := a.agentToken()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+		return
+	}
+	data, status, err := a.hubRaw(http.MethodPost, "/v1/rooms/"+url.PathEscape(req.Room)+"/messages", token, payload)
+	writeHubData(w, data, status, err)
+}
+
+func (a *app) handleAdminAgents(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	token := a.token
+	a.mu.RUnlock()
+	if token == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "admin token is not configured"})
+		return
+	}
+	data, status, err := a.hubRaw(http.MethodGet, "/v1/admin/agents", token, nil)
+	writeHubData(w, data, status, err)
+}
+
+func (a *app) handleAdminInvites(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	token := a.token
+	a.mu.RUnlock()
+	if token == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "admin token is not configured"})
+		return
+	}
+	if r.Method == http.MethodGet {
+		data, status, err := a.hubRaw(http.MethodGet, "/v1/admin/invites", token, nil)
+		writeHubData(w, data, status, err)
+		return
+	}
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 16<<10))
+	data, status, err := a.hubRaw(http.MethodPost, "/v1/admin/invites", token, body)
+	writeHubData(w, data, status, err)
+}
+
+func (a *app) handleAdminAudit(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	token := a.token
+	a.mu.RUnlock()
+	if token == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "admin token is not configured"})
+		return
+	}
+	data, status, err := a.hubRaw(http.MethodGet, "/v1/admin/audit?limit=50", token, nil)
+	writeHubData(w, data, status, err)
 }
 
 func (a *app) handleChat(w http.ResponseWriter, r *http.Request) {
