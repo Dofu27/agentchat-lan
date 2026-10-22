@@ -9,6 +9,13 @@
   :root { --bg:#0d1117; --panel:#151b24; --line:#2b3545; --text:#e6edf3; --muted:#8b98a9; --accent:#5b9dff; --ok:#3fb950; --bad:#f85149; --warn:#d29922; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 "Segoe UI",system-ui,sans-serif; }
+  .titlebar { height:38px; display:flex; align-items:center; padding:0 10px 0 16px; background:#0a0f17; border-bottom:1px solid var(--line); -webkit-app-region:drag; user-select:none; }
+  .titlebar .brand { font-size:12px; font-weight:650; letter-spacing:.04em; color:var(--muted); }
+  .titlebar .brand b { color:var(--accent); }
+  .win-controls { margin-left:auto; display:flex; gap:4px; -webkit-app-region:no-drag; }
+  .win-controls button { width:32px; height:26px; padding:0; border-radius:6px; background:transparent; border-color:transparent; color:var(--muted); font-size:15px; line-height:1; }
+  .win-controls button:hover { background:#222c3a; color:var(--text); }
+  .win-controls button.close:hover { background:#a3262f; color:#fff; }
   header { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--panel); }
   h1 { font-size:16px; margin:0; font-weight:650; }
   h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 12px; }
@@ -49,6 +56,14 @@
 </style>
 </head>
 <body>
+<div class="titlebar" id="titlebar">
+  <span class="brand"><b>AC</b> · AgentChat LAN</span>
+  <div class="win-controls">
+    <button id="win-min" type="button" title="Minimize">—</button>
+    <button id="win-max" type="button" title="Maximize">□</button>
+    <button id="win-close" class="close" type="button" title="Close">✕</button>
+  </div>
+</div>
 <header>
   <h1>AgentChat Console</h1>
   <div class="row">
@@ -640,6 +655,19 @@
   refreshSettings().catch((err) => { $("settings-error").textContent = err.message || String(err); });
   refresh();
   setInterval(refresh, 3000);
+})();
+</script>
+<script>
+(() => {
+  const bar = document.getElementById("titlebar");
+  if (!bar) return;
+  bar.addEventListener("mousedown", (event) => {
+    if (event.target.closest(".win-controls")) return;
+    if (window.__winDrag) window.__winDrag();
+  });
+  document.getElementById("win-min").addEventListener("click", () => window.__winMin && window.__winMin());
+  document.getElementById("win-max").addEventListener("click", () => window.__winMax && window.__winMax());
+  document.getElementById("win-close").addEventListener("click", () => window.__winClose && window.__winClose());
 })();
 </script>
 </body>
