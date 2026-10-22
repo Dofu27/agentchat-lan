@@ -187,8 +187,9 @@ listener: one hub process on :8788
 federation: delivered=2, dead=0
 ```
 
-A remained healthy at `0.29.0` during the B reboot. A host reboot is still
-pending. The first
+A remained healthy at `0.29.0` during the B reboot. The operator confirmed
+normal UI startup, AC tray icon, custom frameless title bar, and no extra
+console host window on 2026-10-22 14:37. A host reboot is still pending. The first
 start used an earlier staging build; it was immediately refreshed from the
 tagged v0.29.0 code so production matches the reviewed/released SHA.
 
