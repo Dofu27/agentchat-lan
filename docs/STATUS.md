@@ -63,9 +63,11 @@ Updated: 2026-10-22
   multi-peer text, attachment, DM, and typing fanout. `v0.25.0` adds a
   Linux/macOS loopback launcher; `v0.29.0` hardens its URL handling, but it is
   not yet a full native console.
-- Cutover executed: A runs the `agentchat:v0.29.0` container (old container
-  retained as `agentchat-v0141-rollback`); B runs the Program Files binary via
-  the `AgentChatFedB` service. Both returned `version=0.29.0` and `ready`.
+- Cutover executed: A runs the `agentchat:v0.29.0-final` container from tag
+  `caa7444` (old `agentchat-v0141-rollback` and pre-final v0.29 containers
+  retained); B runs the tag-built Program Files binary (SHA-256
+  `24335571...9f83`) via the `AgentChatFedB` service. Both returned
+  `version=0.29.0` and `ready`.
   A federation outbox was `delivered=100, dead=0`; B was `delivered=2, dead=0`.
   Backups: A `cutover-A-20261022-1304.tar.gz` (685,874 bytes, SHA-256
   `2c0e8ddb...c6841`) and B `cutover-B-20261022-1304.tar.gz` (469,797 bytes,
