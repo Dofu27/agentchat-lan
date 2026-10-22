@@ -1106,6 +1106,8 @@
         chatState.messages = add.concat(chatState.messages);
         chatState.oldest = chatState.messages[0].seq;
         chatRenderMessages(true);
+        $("chat-messages").scrollTop = 0;
+        updateChatOlder();
         toast(t("chat.history_loaded"));
       }
     } finally { chatState.loading = false; }
