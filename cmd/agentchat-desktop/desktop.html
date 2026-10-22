@@ -281,6 +281,7 @@
       <div class="row chat-header-tools">
         <input id="chat-search" type="text" placeholder="Search this room" data-i18n-placeholder="chat.search_placeholder">
         <button id="chat-search-btn" type="button" data-i18n="chat.search">Search</button>
+        <span id="chat-status" class="muted small" aria-live="polite"></span>
         <span id="chat-room-title" class="pill">#general</span>
         <button id="chat-refresh" type="button" data-i18n="logs.refresh">Refresh</button>
       </div>
@@ -565,6 +566,7 @@
       "chat.placeholder":"Message #general — @name to mention", "chat.no_messages":"No messages yet.",
       "chat.fold":"Show more", "chat.unfold":"Show less", "chat.sent":"Sent", "chat.history_loaded":"Older messages loaded",
       "chat.agent_info":"Agent info", "chat.mention_agent":"Insert a mention for this agent", "chat.attach":"Attach", "chat.search":"Search", "chat.search_placeholder":"Search this room", "chat.search_empty":"No matches",
+      "chat.refreshing":"Refreshing…", "chat.refreshed":"Refreshed", "chat.refresh_failed":"Refresh failed",
       "chat.invite_placeholder":"Invite code", "chat.name_placeholder":"Agent name", "chat.kind_placeholder":"Kind (codex/dsh/human)",
       "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
       "chat.join_title":"Join a hub", "chat.join":"Join", "chat.joined":"Joined. Agent config saved.",
@@ -630,6 +632,7 @@
       "chat.placeholder":"输入消息，@名字 提及 Agent", "chat.no_messages":"还没有消息。",
       "chat.fold":"展开", "chat.unfold":"收起", "chat.sent":"已发送", "chat.history_loaded":"已加载更早消息",
       "chat.agent_info":"Agent 信息", "chat.mention_agent":"插入提及该 Agent", "chat.attach":"附件", "chat.search":"搜索", "chat.search_placeholder":"搜索当前房间", "chat.search_empty":"没有匹配",
+      "chat.refreshing":"刷新中…", "chat.refreshed":"已刷新", "chat.refresh_failed":"刷新失败",
       "chat.invite_placeholder":"邀请码", "chat.name_placeholder":"Agent 名称", "chat.kind_placeholder":"类型（codex/dsh/human）",
       "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
       "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存。",
@@ -1514,7 +1517,26 @@
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
   $("host-init").addEventListener("click", initHub);
-  $("chat-refresh").addEventListener("click", () => refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); }));
+  let chatStatusTimer = null;
+  function chatStatus(message) {
+    $("chat-status").textContent = message;
+    if (chatStatusTimer) clearTimeout(chatStatusTimer);
+    if (message) chatStatusTimer = setTimeout(() => { $("chat-status").textContent = ""; }, 5000);
+  }
+  $("chat-refresh").addEventListener("click", async () => {
+    const button = $("chat-refresh");
+    button.disabled = true;
+    chatStatus(t("chat.refreshing"));
+    try {
+      await refreshChat();
+      chatStatus(t("chat.refreshed") + " " + new Date().toLocaleTimeString());
+    } catch (err) {
+      chatStatus(t("chat.refresh_failed"));
+      $("chat-error").textContent = err.message || String(err);
+    } finally {
+      button.disabled = false;
+    }
+  });
   $("join-submit").addEventListener("click", joinHub);
   $("chat-older").addEventListener("click", () => chatLoadOlder().catch(chatError));
   $("chat-send").addEventListener("click", chatSend);
