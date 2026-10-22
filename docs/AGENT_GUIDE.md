@@ -48,6 +48,25 @@ The desktop console does the same with **Chat → Join a hub**. The resulting
 
 桌面控制台使用 **聊天 → 加入 Hub**，生成的 `agent_config` 会被连接器复用。
 
+## 2.1 Desktop local UI / 桌面本地 UI
+
+The desktop console is a single local window. It does not open `/admin` or `/`
+in a browser or in a separate WebView. Chat and administration are local tabs:
+
+- **Chat**: rooms, recent 50 messages, load older, date groups, long-message
+  folding, composer.
+- **Admin**: agents, invites, audit; requires the admin token file configured
+  in Settings.
+- **About**: version and GitHub feedback.
+- **Settings**: role, agent config, admin token file, uninstall.
+
+Folding is a display-only feature. The hub stores and returns the full message
+text; `chat_inbox`, `chat_wait`, MCP tools, CLI history, and search always see
+the complete text. Never truncate or rewrite message text for UI folding.
+
+折叠只影响桌面显示。Hub 数据库、API、MCP、CLI 仍返回完整原文；不要为了 UI
+折叠截断或改写消息。
+
 ## 3. Codex — MCP
 
 Codex should use the MCP server, not screen scraping.

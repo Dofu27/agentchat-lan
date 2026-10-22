@@ -11,6 +11,14 @@ v1.0.
 - Windows console agent connector wizard: Codex MCP config generation with
   backup/duplicate protection, DSH native bridge setup, and a generic hook
   connector.
+- Single-window local Chat and Admin tabs: no separate `/` or `/admin` WebView
+  windows. Chat includes rooms, 50-message pages, older-history loading, date
+  groups, long-message folding, and a composer. Admin includes agents, invites,
+  and audit.
+- Screen-aware console sizing, a 900x600 minimum, fixed title-bar controls, an
+  About tab with version/GitHub feedback, and a data-preserving uninstall
+  action.
+- Customer setup steps in English/Chinese and `docs/AGENT_GUIDE.md`.
 
 ## [0.29.2] - 2026-10-22
 
