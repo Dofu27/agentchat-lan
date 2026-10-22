@@ -68,6 +68,17 @@ func TestLocalAdminRequiresAdminToken(t *testing.T) {
 	}
 }
 
+func TestUninstallRequiresInstallMarker(t *testing.T) {
+	app := &app{}
+	req := httptest.NewRequest(http.MethodPost, "/api/uninstall", strings.NewReader(`{"confirm":"uninstall"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	app.handleUninstall(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestLocalAdminProxy(t *testing.T) {
 	var gotAuth, gotPath string
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
