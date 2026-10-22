@@ -74,11 +74,7 @@ type app struct {
 	configVersion uint64
 }
 
-var (
-	instanceMutex windows.Handle
-	adminWindow   webview2.WebView
-	chatWindow    webview2.WebView
-)
+var instanceMutex windows.Handle
 
 func main() {
 	mutexName, _ := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
@@ -231,28 +227,6 @@ func main() {
 	origin := "http://" + ln.Addr().String()
 	w.Init("if (window.top === window && location.origin === " + strconv.Quote(origin) +
 		") { window.__agentchatDesktopCapability = " + strconv.Quote(a.cap) + "; }")
-	_ = w.Bind("__openAdminWeb", func() error {
-		a.mu.RLock()
-		hasToken := a.token != ""
-		a.mu.RUnlock()
-		if !hasToken {
-			return errors.New("admin token file is not configured")
-		}
-		w.Dispatch(func() {
-			if err := a.openAdminWindow(); err != nil {
-				log.Printf("open admin window: %v", err)
-			}
-		})
-		return nil
-	})
-	_ = w.Bind("__openChatWeb", func() error {
-		w.Dispatch(func() {
-			if err := a.openChatWindow(); err != nil {
-				log.Printf("open chat window: %v", err)
-			}
-		})
-		return nil
-	})
 	_ = w.Bind("__winDrag", func() {
 		releaseCapture()
 		sendMessage(uintptr(w.Window()), 0x00A1, 2, 0) // WM_NCLBUTTONDOWN, HTCAPTION
@@ -491,93 +465,6 @@ func (a *app) api(next http.Handler) http.Handler {
 	})
 }
 
-func fitWebViewOptions(width, height int) (int, int) {
-	cfg := config{Width: width, Height: height}
-	fitWindowSize(&cfg)
-	return cfg.Width, cfg.Height
-}
-
-func bindWindowControls(w webview2.WebView) {
-	hwnd := uintptr(w.Window())
-	_ = w.Bind("__winDrag", func() {
-		releaseCapture()
-		sendMessage(hwnd, 0x00A1, 2, 0)
-	})
-	_ = w.Bind("__winMin", func() { showWindow(hwnd, 6) })
-	_ = w.Bind("__winMax", func() {
-		if isZoomed(hwnd) {
-			showWindow(hwnd, 9)
-		} else {
-			showWindow(hwnd, 3)
-		}
-	})
-	_ = w.Bind("__winClose", func() { sendMessage(hwnd, 0x0010, 0, 0) })
-}
-
-func windowChromeScript(title string) string {
-	return `(function(){
-  function add(){
-    if (document.getElementById("__ac_window_chrome")) return;
-    var bar=document.createElement("div");
-    bar.id="__ac_window_chrome";
-    bar.style.cssText="position:fixed;top:0;left:0;right:0;height:38px;z-index:2147483647;display:flex;align-items:center;padding:0 10px 0 16px;background:#0a0f17;border-bottom:1px solid #2b3545;color:#8b98a9;font:12px/1.4 'Segoe UI',system-ui,sans-serif;user-select:none;";
-    var brand=document.createElement("span");
-    brand.textContent="AC · "+` + strconv.Quote(title) + `;
-    bar.appendChild(brand);
-    var controls=document.createElement("div");
-    controls.style.cssText="margin-left:auto;display:flex;gap:4px;";
-    function button(label, fn, close){
-      var b=document.createElement("button");
-      b.type="button"; b.textContent=label;
-      b.style.cssText="width:32px;height:26px;border:0;border-radius:6px;background:transparent;color:#8b98a9;font:15px/1 'Segoe UI',sans-serif;cursor:pointer;";
-      if(close){b.onmouseover=function(){b.style.background="#a3262f";b.style.color="#fff";};b.onmouseout=function(){b.style.background="transparent";b.style.color="#8b98a9";};}
-      b.onclick=fn; controls.appendChild(b); return b;
-    }
-    button("—",function(){window.__winMin&&window.__winMin();},false);
-    button("□",function(){window.__winMax&&window.__winMax();},false);
-    button("✕",function(){window.__winClose&&window.__winClose();},true);
-    bar.appendChild(controls);
-    bar.addEventListener("mousedown",function(e){if(e.target.closest("button"))return;window.__winDrag&&window.__winDrag();});
-    document.documentElement.appendChild(bar);
-    if(document.body) document.body.style.paddingTop="38px";
-  }
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",add); else add();
-})();`
-}
-
-func applyFramelessWindow(w webview2.WebView, title string) {
-	makeFrameless(uintptr(w.Window()))
-	bindWindowControls(w)
-	w.Init(windowChromeScript(title))
-}
-
-func (a *app) openAdminWindow() error {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	if adminWindow != nil {
-		adminWindow.Navigate(a.cfg.HubURL + "/admin")
-		return nil
-	}
-	aw, ah := fitWebViewOptions(1280, 860)
-	adminWindow = webview2.NewWithOptions(webview2.WebViewOptions{
-		Debug: false,
-		WindowOptions: webview2.WindowOptions{
-			Title: "AgentChat Admin", Width: uint(aw), Height: uint(ah), Center: true,
-		},
-	})
-	if adminWindow == nil {
-		return errors.New("could not create the admin WebView2 window")
-	}
-	applyFramelessWindow(adminWindow, "AgentChat Admin")
-	origin, err := canonicalOrigin(a.cfg.HubURL)
-	if err != nil {
-		return err
-	}
-	adminWindow.Init(adminLoginScript(a.token, origin))
-	adminWindow.Navigate(a.cfg.HubURL + "/admin")
-	return nil
-}
-
 type agentConfigFile struct {
 	HubURL    string `json:"hub_url"`
 	AgentName string `json:"agent_name"`
@@ -634,37 +521,6 @@ func (a *app) loadAgentConfig() (agentConfigFile, error) {
 	return cfg, nil
 }
 
-func (a *app) openChatWindow() error {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	if chatWindow != nil {
-		chatWindow.Navigate(a.cfg.HubURL + "/")
-		return nil
-	}
-	agent, err := a.loadAgentConfig()
-	if err != nil {
-		return err
-	}
-	cw, ch := fitWebViewOptions(1280, 860)
-	chatWindow = webview2.NewWithOptions(webview2.WebViewOptions{
-		Debug: false,
-		WindowOptions: webview2.WindowOptions{
-			Title: "AgentChat", Width: uint(cw), Height: uint(ch), Center: true,
-		},
-	})
-	if chatWindow == nil {
-		return errors.New("could not create the chat WebView2 window")
-	}
-	applyFramelessWindow(chatWindow, "AgentChat")
-	origin, err := canonicalOrigin(a.cfg.HubURL)
-	if err != nil {
-		return err
-	}
-	chatWindow.Init(chatLoginScript(agent.Token, origin))
-	chatWindow.Navigate(a.cfg.HubURL + "/")
-	return nil
-}
-
 func canonicalOrigin(raw string) (string, error) {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
@@ -690,15 +546,6 @@ func canonicalOrigin(raw string) (string, error) {
 		host += ":" + port
 	}
 	return u.Scheme + "://" + host, nil
-}
-
-func chatLoginScript(token, origin string) string {
-	return `(function(){var t=` + strconv.Quote(token) + `,o=` + strconv.Quote(origin) +
-		`;if(location.origin!==o)return;try{sessionStorage.setItem("agentchat_token",t);}catch(e){}})();`
-}
-
-func adminLoginScript(token, origin string) string {
-	return `(function(){var t=` + strconv.Quote(token) + `,o=` + strconv.Quote(origin) + `;if(location.origin!==o)return;var n=0;function go(){var login=document.getElementById("admin-login");var i=document.getElementById("admin-token");var f=document.getElementById("admin-login-form");if(login&&login.classList.contains("hidden"))return;if(i&&f&&!i.value){i.value=t;f.requestSubmit();return;}if(n++<20)setTimeout(go,250);}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",go);else go();})();`
 }
 
 func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
