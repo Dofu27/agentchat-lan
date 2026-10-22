@@ -77,6 +77,9 @@ type app struct {
 var instanceMutex windows.Handle
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "--uninstall-worker" {
+		os.Exit(runUninstallWorker(os.Args[2:]))
+	}
 	mutexName, _ := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
 	instanceMutex, _ = windows.CreateMutex(nil, false, mutexName)
 	if instanceMutex != 0 && windows.GetLastError() == windows.ERROR_ALREADY_EXISTS {
@@ -1472,37 +1475,14 @@ func (a *app) handleUninstall(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "not an AgentChat per-user install"})
 		return
 	}
-	var marker struct {
-		App           string   `json:"app"`
-		Root          string   `json:"root"`
-		Files         []string `json:"files"`
-		ConfigCreated bool     `json:"config_created"`
-	}
+	var marker uninstallMarker
 	if json.Unmarshal(markerData, &marker) != nil || marker.App != "agentchat-desktop" || !strings.EqualFold(filepath.Clean(marker.Root), filepath.Clean(dir)) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "install ownership marker does not match"})
 		return
 	}
-	managed := make([]string, 0, len(marker.Files)+3)
-	seen := map[string]bool{}
-	addManaged := func(name string) {
-		name = filepath.Base(strings.TrimSpace(name))
-		if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) || seen[name] {
-			return
-		}
-		seen[name] = true
-		managed = append(managed, name)
-	}
-	for _, name := range marker.Files {
-		addManaged(name)
-	}
-	if len(managed) == 0 {
+	if len(managedUninstallFiles(marker, dir, false)) == 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "install manifest has no managed files"})
 		return
-	}
-	if req.RemoveData {
-		addManaged("desktop.json")
-		addManaged("agentchat.json")
-		addManaged(".agentchat-install.json")
 	}
 	if m, err := mgr.Connect(); err == nil {
 		if s, err := m.OpenService("AgentChatFedB"); err == nil {
@@ -1517,36 +1497,8 @@ func (a *app) handleUninstall(w http.ResponseWriter, r *http.Request) {
 	for _, name := range []string{"AgentChat Console.lnk", "AgentChat Tray.lnk"} {
 		_ = os.Remove(filepath.Join(startup, name))
 	}
-	script, err := os.CreateTemp("", "agentchat-uninstall-*.cmd")
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "cannot create uninstaller"})
-		return
-	}
-	scriptPath := script.Name()
-	content := "@echo off\r\nsetlocal\r\n" +
-		"set \"EXE=" + exe + "\"\r\n" +
-		"timeout /t 1 /nobreak >nul\r\n" +
-		"taskkill /PID " + fmt.Sprint(os.Getpid()) + " /F >nul 2>&1\r\n" +
-		"set /a N=0\r\n:waitup\r\n" +
-		"del /f /q \"%EXE%\" >nul 2>&1\r\n" +
-		"if not exist \"%EXE%\" goto delrest\r\n" +
-		"set /a N+=1\r\nif %N% geq 20 goto delrest\r\n" +
-		"timeout /t 1 /nobreak >nul\r\ngoto waitup\r\n:delrest\r\n"
-	for _, name := range managed {
-		content += "del /f /q \"" + filepath.Join(dir, name) + "\" >nul 2>&1\r\n"
-	}
-	content += "rmdir \"" + dir + "\" >nul 2>&1\r\n" +
-		"del /f /q \"%~f0\"\r\n"
-	if _, err := script.WriteString(content); err != nil {
-		script.Close()
-		os.Remove(scriptPath)
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "cannot write uninstaller"})
-		return
-	}
-	script.Close()
-	if err := exec.Command("cmd.exe", "/c", "start", "", "/b", scriptPath).Start(); err != nil {
-		os.Remove(scriptPath)
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "cannot launch uninstaller"})
+	if err := startUninstallWorker(dir, req.RemoveData); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "cannot start uninstall worker"})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data_removed": req.RemoveData})
