@@ -189,9 +189,29 @@ federation: delivered=2, dead=0
 
 A remained healthy at `0.29.0` during the B reboot. The operator confirmed
 normal UI startup, AC tray icon, custom frameless title bar, and no extra
-console host window on 2026-10-22 14:37. A host reboot is still pending. The first
-start used an earlier staging build; it was immediately refreshed from the
-tagged v0.29.0 code so production matches the reviewed/released SHA.
+console host window on 2026-10-22 14:37. The first B start used an earlier
+staging build; it was immediately refreshed from the tagged v0.29.0 code so
+production matches the reviewed/released SHA.
+
+## A host reboot acceptance
+
+A (linux-host-a) was rebooted on 2026-10-22 22:12 Asia/Hong_Kong. The first
+boot stopped in dracut emergency mode because the LUKS root was not opened.
+After a Live USB recovery session and installing `cryptsetup-initramfs`, the
+host booted normally:
+
+```text
+uptime reset
+agentchat container: Up ~1 minute (restart unless-stopped)
+A health: {"status":"ok","version":"0.29.0"}
+A ready:  ready
+B health: {"status":"ok","version":"0.29.0"}
+A federation: delivered=100, dead=0
+B federation: delivered=2, dead=0
+```
+
+Future A reboots require the LUKS passphrase at the console. The initramfs now
+contains `systemd-cryptsetup` and the crypt modules.
 
 ## Acceptance
 

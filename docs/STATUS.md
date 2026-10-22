@@ -92,8 +92,14 @@ Updated: 2026-10-22
   `AgentChatFedB` service returned `0.29.0`, ready, one listener, federation
   `delivered=2, dead=0`; A stayed healthy. The operator confirmed normal UI
   startup, AC tray icon, custom frameless title bar, and no extra console host
-  window on 2026-10-22 14:37. A host reboot is still pending.
-- Next: A host/DSH bridge reboot acceptance, rollback drill, and monitoring.
+  window on 2026-10-22 14:37.
+- A host reboot acceptance passed on 2026-10-22 22:12: the first boot stopped
+  in initramfs because the encrypted root was not opened; after recovering with
+  the Live USB session and installing `cryptsetup-initramfs`, the host booted
+  normally. Uptime reset, the `agentchat` container auto-started, A returned
+  `0.29.0`/ready, B stayed healthy, and federation was `dead=0`. Future reboots
+  require the LUKS passphrase at the console.
+- Next: B/A rollback drill and monitoring.
   See [ROADMAP.md](ROADMAP.md).
 
 ## Done (M0)
