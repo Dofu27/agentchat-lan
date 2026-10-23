@@ -161,10 +161,12 @@ func ordinaryUserCanMutate(sd *windows.SECURITY_DESCRIPTOR, token windows.Token,
 	}
 	mutation := uint32(windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_EA | windows.FILE_WRITE_ATTRIBUTES | 0x40 /* FILE_DELETE_CHILD */ | windows.DELETE | windows.WRITE_DAC | windows.WRITE_OWNER)
 	if isDir {
-		// FILE_APPEND_DATA on a directory is FILE_ADD_SUBDIRECTORY. Creating an
-		// unrelated child does not let an ordinary user replace an existing
-		// pinned component; deletion, rename, DACL, and owner changes still do.
-		mutation &^= windows.FILE_APPEND_DATA
+		// On a directory FILE_WRITE_DATA/FILE_APPEND_DATA mean FILE_ADD_FILE/
+		// FILE_ADD_SUBDIRECTORY. Creating unrelated children does not let an
+		// ordinary user replace an already pinned component; deletion, rename,
+		// DACL, and owner changes still do. The data directory itself gets an
+		// explicit protected DACL before the database is created.
+		mutation &^= windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA
 	}
 	return allowed != 0 && granted&mutation != 0, nil
 }

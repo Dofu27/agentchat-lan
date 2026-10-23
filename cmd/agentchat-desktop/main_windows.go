@@ -1489,53 +1489,106 @@ func withinPath(path, root string) bool {
 	}
 }
 
-func secureProgramDataParent(parent string) error {
-	icacls, err := exec.LookPath("icacls.exe")
+func secureDataDirectory(path string, usersRead bool) error {
+	systemDir, err := windows.GetSystemDirectory()
 	if err != nil {
-		return errors.New("cannot locate icacls.exe")
+		return errors.New("cannot locate Windows system directory")
+	}
+	icacls := filepath.Join(systemDir, "icacls.exe")
+	args := []string{
+		path, "/inheritance:r",
+		"/grant:r", "*S-1-5-18:(OI)(CI)F",
+		"/grant:r", "*S-1-5-32-544:(OI)(CI)F",
+	}
+	if usersRead {
+		args = append(args, "/grant:r", "*S-1-5-32-545:(OI)(CI)RX")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	out, err := runBoundedCommand(ctx, icacls, []string{
-		parent, "/inheritance:r",
-		"/grant:r", "*S-1-5-18:(OI)(CI)F",
-		"/grant:r", "*S-1-5-32-544:(OI)(CI)F",
-		"/grant:r", "*S-1-5-32-545:(OI)(CI)RX",
-	}, 16<<10)
+	out, err := runBoundedCommand(ctx, icacls, args, 16<<10)
 	if err != nil {
-		return fmt.Errorf("secure data parent failed: %s", redactOutput(strings.TrimSpace(out)))
+		return fmt.Errorf("secure data directory failed: %s", redactOutput(strings.TrimSpace(out)))
 	}
 	return nil
 }
 
-func prepareDataParent(dataPath string) error {
-	parent := filepath.Dir(filepath.Clean(dataPath))
-	info, err := os.Lstat(parent)
+func mergeChains(dst, src *pinnedDirectoryChain) {
+	dst.handles = append(dst.handles, src.handles...)
+	src.handles = nil
+}
+
+func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
+	data := filepath.Clean(dataPath)
+	parent := filepath.Dir(data)
+	chain := &pinnedDirectoryChain{}
+	fail := func(err error) (*pinnedDirectoryChain, error) {
+		chain.Close()
+		return nil, err
+	}
+	parentInfo, err := os.Lstat(parent)
 	if os.IsNotExist(err) {
 		programData := os.Getenv("ProgramData")
 		if programData == "" || !withinPath(parent, filepath.Join(programData, "AgentChat")) {
-			return errors.New("data parent directory does not exist; create a protected data directory first")
+			return fail(errors.New("data parent directory does not exist; create a protected data directory first"))
 		}
+		ancestor := filepath.Dir(parent)
+		ancestorChain, err := pinDirectoryChain(ancestor)
+		if err != nil {
+			return fail(fmt.Errorf("pin data ancestor: %w", err))
+		}
+		mergeChains(chain, ancestorChain)
 		if err := os.Mkdir(parent, 0o755); err != nil {
-			return fmt.Errorf("create data parent: %w", err)
+			return fail(fmt.Errorf("create data parent: %w", err))
 		}
-		if err := secureProgramDataParent(parent); err != nil {
-			return err
+		if err := secureDataDirectory(parent, true); err != nil {
+			return fail(err)
 		}
-		info, err = os.Lstat(parent)
+		parentInfo, err = os.Lstat(parent)
 	}
 	if err != nil {
-		return err
+		return fail(err)
 	}
-	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return errors.New("data parent must be a regular directory")
+	if !parentInfo.IsDir() || parentInfo.Mode()&os.ModeSymlink != 0 {
+		return fail(errors.New("data parent must be a regular directory"))
 	}
-	chain, err := pinDirectoryChain(parent)
+	parentChain, err := pinDirectoryChain(parent)
 	if err != nil {
-		return fmt.Errorf("data parent is not a protected directory: %w", err)
+		return fail(fmt.Errorf("data parent is not a protected directory: %w", err))
 	}
-	chain.Close()
-	return nil
+	mergeChains(chain, parentChain)
+
+	dataInfo, err := os.Lstat(data)
+	switch {
+	case os.IsNotExist(err):
+		if err := os.Mkdir(data, 0o755); err != nil {
+			return fail(fmt.Errorf("create data directory: %w", err))
+		}
+		if err := secureDataDirectory(data, false); err != nil {
+			return fail(err)
+		}
+	case err != nil:
+		return fail(err)
+	default:
+		if !dataInfo.IsDir() || dataInfo.Mode()&os.ModeSymlink != 0 {
+			return fail(errors.New("data path must be a regular directory"))
+		}
+		entries, err := os.ReadDir(data)
+		if err != nil {
+			return fail(err)
+		}
+		if len(entries) != 0 {
+			return fail(errors.New("data directory already exists and is not empty; remove it to initialize"))
+		}
+		if err := secureDataDirectory(data, false); err != nil {
+			return fail(err)
+		}
+	}
+	dataChain, err := pinDirectoryChain(data)
+	if err != nil {
+		return fail(fmt.Errorf("data directory is not protected: %w", err))
+	}
+	mergeChains(chain, dataChain)
+	return chain, nil
 }
 
 func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
@@ -1599,7 +1652,11 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "non-loopback hub_url must use https"})
 		return
 	}
-	if ip := net.ParseIP(strings.Trim(parsed.Hostname(), "[]")); ip != nil && ip.IsUnspecified() {
+	hostname := strings.Trim(parsed.Hostname(), "[]")
+	if i := strings.IndexByte(hostname, '%'); i >= 0 {
+		hostname = hostname[:i]
+	}
+	if ip := net.ParseIP(hostname); ip != nil && ip.IsUnspecified() {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub_url must use 127.0.0.1 or this machine's LAN address, not a wildcard listen address"})
 		return
 	}
@@ -1626,17 +1683,12 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub TLS client could not be built"})
 		return
 	}
-	if err := prepareDataParent(req.Data); err != nil {
+	dataGuard, err := prepareDataDirectory(req.Data)
+	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
-	if _, err := os.Stat(req.Data); err == nil {
-		writeJSON(w, http.StatusConflict, map[string]any{"error": "data directory already exists; remove it to initialize"})
-		return
-	} else if !os.IsNotExist(err) {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot inspect data directory"})
-		return
-	}
+	defer dataGuard.Close()
 	if _, err := os.Stat(req.TokenFile); err == nil {
 		writeJSON(w, http.StatusConflict, map[string]any{"error": "admin token file already exists; remove it to initialize"})
 		return

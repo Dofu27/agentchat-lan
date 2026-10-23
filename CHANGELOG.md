@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.11] - 2026-10-24
+
+### Security
+
+- Use the System32 `icacls.exe` path, never PATH lookup, when applying data
+  directory ACLs.
+- Pin ancestors before creating the ProgramData parent, and keep the full
+  directory guard open until hub initialization completes.
+- Create the data directory with its own explicit protected DACL before
+  SQLite is opened, so inheritable parent ACEs cannot grant Users write access.
+- Allow pre-created empty data directories only after they are pinned and
+  secured.
+- Accept normal ProgramData ancestors that only grant create-child rights,
+  while still rejecting delete, rename, DACL, and owner changes.
+- Strip IPv6 zone identifiers before checking for the unspecified address.
+
 ## [0.30.10] - 2026-10-24
 
 ### Security
