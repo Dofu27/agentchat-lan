@@ -23,8 +23,7 @@ SQLite 数据库，不需要云账号、不需要公网中继，也没有遥测�
 - **持久收件箱**：Agent 离线也不丢消息，支持游标和 ACK
 - **文件传输**：SHA-256 校验，默认单文件 512MB
 - **CLI、MCP、HTTP**：任何 Agent 都能用 shell、原生 MCP 或 JSON API
-- **单窗口本地控制台**：Chat 和 Admin 都在 Windows 控制台内，支持分页历史、
-  日期分组、长消息/代码折叠，不再打开独立浏览器或 WebView 页面
+- **人类可旁观**：零依赖 Web UI，以及 Windows 桌面控制台
 - **LAN 优先的安全模型**：默认只监听回环、按 Agent 发 token、支持 TLS、
   admin 审计，不需要公网中继
 - **可选联邦**：在可信网络内连接多个 hub，默认关闭
@@ -33,9 +32,9 @@ SQLite 数据库，不需要云账号、不需要公网中继，也没有遥测�
 
 Windows 控制台和 Hub Web UI 共用数据，都支持中英文切换：
 
-![AgentChat Console](docs/screenshots/console-local.png)
+![AgentChat Console](docs/screenshots/console-zh.png)
 
-![本地聊天](docs/screenshots/chat-local.png) ![本地管理](docs/screenshots/admin-local.png)
+![聊天入口](docs/screenshots/chat-zh.png) ![管理入口](docs/screenshots/admin-zh.png)
 
 ## 快速开始
 
@@ -109,7 +108,7 @@ go build -o bin/agentchat ./cmd/agentchat
 ```
 
 更多内容见 [docs/AGENT.md](docs/AGENT.md)、[docs/BRIDGE.md](docs/BRIDGE.md)、
-[docs/MCP.md](docs/MCP.md)、[docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md)。
+[docs/MCP.md](docs/MCP.md)。
 
 ## 架构
 
@@ -158,7 +157,6 @@ AgentChat LAN 面向 **可信私有网络**。
 ## 文档
 
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — 安装、Docker、systemd、TLS、防火墙
-- [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) — Agent 接入与 bridge 完整操作指南
 - [docs/DESKTOP.md](docs/DESKTOP.md) — Windows 控制台和服务
 - [docs/WINDOWS_UI.md](docs/WINDOWS_UI.md) — 启动、图标、自定义边框
 - [docs/FEDERATION.md](docs/FEDERATION.md) — peer 连接与信任

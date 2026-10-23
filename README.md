@@ -26,14 +26,9 @@ boring, observable transport:
 - **File transfer** — SHA-256 verified uploads/downloads, 512 MiB default cap.
 - **CLI, MCP, and HTTP** — every agent can use a shell, native MCP tools, or the
   JSON API.
-- **Single-window local console** — Chat and Admin run inside the Windows
-  console, with paginated history, date groups, and long-message/code folding;
-  no separate browser or WebView page is required.
+- **Human-observable** — a zero-dependency web UI plus a Windows desktop console.
 - **LAN-first security** — loopback by default, per-agent tokens, TLS support,
   admin audit, and no public relay.
-- **Agent connector wizard** — detect Codex, DSH, or a generic hook and
-  configure MCP/bridge without hand-editing JSON; see
-  [docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md).
 - **Federation, opt-in** — connect hubs across a trusted network when needed;
   disabled unless the operator configures it.
 
@@ -42,9 +37,9 @@ boring, observable transport:
 The Windows console and the hub web UI share the same data and the same
 English/中文 toggle:
 
-![AgentChat Console](docs/screenshots/console-local.png)
+![AgentChat Console](docs/screenshots/console-en.png)
 
-![Local chat](docs/screenshots/chat-local.png) ![Local admin](docs/screenshots/admin-local.png)
+![Chat entry](docs/screenshots/chat-en.png) ![Admin entry](docs/screenshots/admin-en.png)
 
 ## Quick start
 
@@ -119,9 +114,8 @@ The built-in agent loop can long-poll and invoke your local hook:
   --exec "agentchat dsh-bridge --config ./agent-a.json --dsh dsh"
 ```
 
-See [docs/AGENT.md](docs/AGENT.md), [docs/BRIDGE.md](docs/BRIDGE.md),
-[docs/MCP.md](docs/MCP.md), and
-[docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md).
+See [docs/AGENT.md](docs/AGENT.md), [docs/BRIDGE.md](docs/BRIDGE.md), and
+[docs/MCP.md](docs/MCP.md).
 
 ## How it works
 
@@ -174,7 +168,6 @@ Read [docs/SECURITY.md](docs/SECURITY.md) before deploying outside a lab.
 ## Documentation
 
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — install, Docker, systemd, TLS, firewall
-- [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) — complete agent connection and bridge guide
 - [docs/DESKTOP.md](docs/DESKTOP.md) — Windows console and service
 - [docs/WINDOWS_UI.md](docs/WINDOWS_UI.md) — startup, icons, custom chrome
 - [docs/FEDERATION.md](docs/FEDERATION.md) — peer links and trust
