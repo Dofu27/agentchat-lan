@@ -123,8 +123,8 @@
   .date-group { margin:0 0 4px; }
   .date-group > summary { cursor:pointer; list-style:none; position:static; text-align:center; padding:4px 0; background:#0a1018; color:var(--muted); font-size:11px; }
   .date-group > summary::-webkit-details-marker { display:none; }
-  .date-group > summary::before { content:"▸ "; }
-  .date-group[open] > summary::before { content:"▾ "; }
+  .date-group > summary::before { content:"�?"; }
+  .date-group[open] > summary::before { content:"�?"; }
   .chat-composer { position:relative; }
   .chat-composer textarea { flex:1; min-height:104px; max-height:34vh; resize:vertical; background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 11px; font:inherit; }
   .mention-menu { position:absolute; left:0; bottom:58px; z-index:20; min-width:180px; max-height:180px; overflow:auto; background:#101a26; border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
@@ -153,9 +153,9 @@
 <div class="titlebar" id="titlebar">
   <span class="brand"><b>AC</b> · AgentChat LAN</span>
   <div class="win-controls">
-    <button id="win-min" type="button" title="Minimize">—</button>
-    <button id="win-max" type="button" title="Maximize">□</button>
-    <button id="win-close" class="close" type="button" title="Close">✕</button>
+    <button id="win-min" type="button" title="Minimize">�?/button>
+    <button id="win-max" type="button" title="Maximize">�?/button>
+    <button id="win-close" class="close" type="button" title="Close">�?/button>
   </div>
 </div>
 <header>
@@ -172,7 +172,7 @@
     </nav>
   </div>
   <div class="row">
-    <span id="hub-pill" class="pill">hub …</span>
+    <span id="hub-pill" class="pill">hub �?/span>
     <button id="lang-toggle" type="button">中文</button>
     <button id="refresh" type="button">Refresh</button>
   </div>
@@ -265,7 +265,7 @@
     <h2 data-i18n="service.title">Windows service</h2>
     <div class="row between">
       <div class="row">
-        <span id="service-state" class="pill">…</span>
+        <span id="service-state" class="pill">�?/span>
         <strong id="service-name" class="small"></strong>
       </div>
       <span id="service-pid" class="muted small"></span>
@@ -285,7 +285,7 @@
     </div>
     <div class="kv">
       <span class="k" data-i18n="service.hub">Hub</span><span class="v" id="hub-url"></span>
-      <span class="k" data-i18n="service.health">Health</span><span class="v" id="hub-health">…</span>
+      <span class="k" data-i18n="service.health">Health</span><span class="v" id="hub-health">�?/span>
     </div>
     <div id="toast" role="status"></div>
   </section>
@@ -293,7 +293,7 @@
   <section>
     <h2 data-i18n="fed.title">Federation</h2>
     <div class="kv">
-      <span class="k" data-i18n="fed.runtime">Runtime</span><span class="v" id="fed-runtime">…</span>
+      <span class="k" data-i18n="fed.runtime">Runtime</span><span class="v" id="fed-runtime">�?/span>
       <span class="k" data-i18n="fed.node">Node</span><span class="v" id="fed-node"></span>
       <span class="k" data-i18n="fed.peer">Peer</span><span class="v" id="fed-peer"></span>
       <span class="k" data-i18n="fed.link">Link</span><span class="v" id="fed-link"></span>
@@ -337,7 +337,7 @@
       <aside class="chat-side chat-side-left" id="chat-side-left">
         <div class="chat-side-head">
           <h3 data-i18n="chat.rooms">Rooms</h3>
-          <button id="chat-left-toggle" type="button" title="Show or hide rooms">☰</button>
+          <button id="chat-left-toggle" type="button" title="Show or hide rooms">�?/button>
         </div>
         <div class="chat-side-actions">
           <button id="chat-new-dm" type="button" data-i18n="chat.new_dm">+ DM</button>
@@ -350,7 +350,7 @@
         <button id="chat-older" class="small hidden" type="button" data-i18n="chat.load_older">Load older</button>
         <div id="chat-messages" class="messages"></div>
         <div class="row chat-composer">
-          <textarea id="chat-input" rows="2" placeholder="Message #general — @name to mention" data-i18n-placeholder="chat.placeholder"></textarea>
+          <textarea id="chat-input" rows="2" placeholder="Message #general �?@name to mention" data-i18n-placeholder="chat.placeholder"></textarea>
           <button id="chat-send" class="primary" type="button" data-i18n="chat.send">Send</button>
           <div id="chat-mentions" class="mention-menu hidden"></div>
         </div>
@@ -552,7 +552,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.0</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.1</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -564,7 +564,7 @@
 <div id="close-dialog" class="close-mask hidden" role="dialog" aria-modal="true" aria-labelledby="close-title">
   <div class="close-dialog">
     <h3 id="close-title" data-i18n="close.title">关闭 AgentChat Console</h3>
-    <p data-i18n="close.hint">选择窗口行为。后台运行和最小化都会保留右下角托盘图标。</p>
+    <p data-i18n="close.hint">选择窗口行为。后台运行和最小化都会保留右下角托盘图标�?/p>
     <div class="close-actions">
       <button id="close-minimize" type="button" data-i18n="close.minimize">最小化窗口</button>
       <button id="close-tray" type="button" data-i18n="close.tray">后台运行（托盘）</button>
@@ -627,10 +627,10 @@
       "chat.title":"Agent chat", "chat.open":"Open chat window", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent config", "chat.hub":"Hub",
       "chat.rooms":"Rooms", "chat.agents":"Agents", "chat.load_older":"Load older", "chat.send":"Send",
-      "chat.placeholder":"Message #general — @name to mention", "chat.no_messages":"No messages yet.",
+      "chat.placeholder":"Message #general �?@name to mention", "chat.no_messages":"No messages yet.",
       "chat.fold":"Show more", "chat.unfold":"Show less", "chat.sent":"Sent", "chat.history_loaded":"Older messages loaded",
       "chat.agent_info":"Agent info", "chat.mention_agent":"Insert a mention for this agent", "chat.attach":"Attach", "chat.search":"Search", "chat.search_placeholder":"Search this room", "chat.search_empty":"No matches",
-      "chat.refreshing":"Refreshing…", "chat.refreshed":"Refreshed", "chat.refresh_failed":"Refresh failed",
+      "chat.refreshing":"Refreshing�?, "chat.refreshed":"Refreshed", "chat.refresh_failed":"Refresh failed",
       "chat.new_dm":"+ DM", "chat.new_room":"+ Room", "chat.new_dm_prompt":"Agent name for direct message",
       "chat.new_room_prompt":"Room id", "chat.new_room_topic":"Room topic (optional)", "chat.dm_created":"Direct message opened",
       "chat.room_created":"Room created", "chat.last_seen":"Last seen",
@@ -661,84 +661,84 @@
     },
     zh: {
       "open.admin":"打开管理网页",
-      "close.title":"关闭 AgentChat Console", "close.hint":"选择窗口行为。后台运行和最小化都会保留右下角托盘图标。",
+      "close.title":"关闭 AgentChat Console", "close.hint":"选择窗口行为。后台运行和最小化都会保留右下角托盘图标�?,
       "close.minimize":"最小化窗口", "close.tray":"后台运行（托盘）", "close.quit":"关闭程序", "close.cancel":"取消",
       "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.admin":"管理", "tab.logs":"日志", "tab.settings":"设置", "tab.about":"关于",
       "admin.title":"管理", "admin.agents":"Agent", "admin.invites":"邀请码", "admin.audit":"审计",
-      "admin.create_invite":"生成邀请码", "admin.invite_created":"邀请码已生成", "admin.no_data":"暂无数据",
-      "admin.create_agent":"创建 Agent", "admin.agent_created":"Agent 已创建", "admin.rotate":"轮换 token",
-      "admin.revoke":"撤销", "admin.revoke_confirm":"撤销这个 Agent？", "admin.token_confirm":"轮换这个 Agent 的 token？",
+      "admin.create_invite":"生成邀请码", "admin.invite_created":"邀请码已生�?, "admin.no_data":"暂无数据",
+      "admin.create_agent":"创建 Agent", "admin.agent_created":"Agent 已创�?, "admin.rotate":"轮换 token",
+      "admin.revoke":"撤销", "admin.revoke_confirm":"撤销这个 Agent�?, "admin.token_confirm":"轮换这个 Agent �?token�?,
       "admin.rooms":"房间", "admin.create_room":"创建房间", "admin.archive_room":"归档",
-      "admin.room_created":"房间已创建", "admin.room_archived":"房间已归档", "admin.federation":"联邦",
-      "about.title":"关于 AgentChat LAN", "about.version":"版本", "about.author":"作者", "about.license":"许可证",
-      "about.feedback":"反馈", "about.body":"AgentChat LAN 是面向 AI Agent 的自托管局域网聊天、持久收件箱与文件中转站，面向可信私有网络。",
+      "admin.room_created":"房间已创�?, "admin.room_archived":"房间已归�?, "admin.federation":"联邦",
+      "about.title":"关于 AgentChat LAN", "about.version":"版本", "about.author":"作�?, "about.license":"许可�?,
+      "about.feedback":"反馈", "about.body":"AgentChat LAN 是面�?AI Agent 的自托管局域网聊天、持久收件箱与文件中转站，面向可信私有网络�?,
       "logs.title":"日志", "logs.desktop":"桌面", "logs.hub":"Hub", "logs.bridge":"Bridge",
       "welcome.title":"欢迎使用 AgentChat LAN",
-      "welcome.body":"选择这台机器的角色。之后可以在设置里更改。",
+      "welcome.body":"选择这台机器的角色。之后可以在设置里更改�?,
       "welcome.host":"托管 Hub", "welcome.join":"加入 Hub", "welcome.bridge":"运行 Agent 桥接",
-      "guide.step1":"先安装并验证你的 Agent。", "guide.step2":"托管 Hub，或用邀请码加入 Hub。",
-      "guide.step3":"打开桥接，连接 Codex MCP、DSH 或通用 hook。", "guide.step4":"发送测试消息，并确认只有一个桥接进程。",
+      "guide.step1":"先安装并验证你的 Agent�?, "guide.step2":"托管 Hub，或用邀请码加入 Hub�?,
+      "guide.step3":"打开桥接，连�?Codex MCP、DSH 或通用 hook�?, "guide.step4":"发送测试消息，并确认只有一个桥接进程�?,
       "guide.link":"Agent 配置指南",
-      "host.title":"Hub 初始化", "host.init":"初始化 Hub",
-      "host.hint":"创建数据库和管理员 token；按输出命令安装服务。",
-      "host.step1":"选择固定磁盘上的本地数据目录。不要把 SQLite 数据库放在映射网络盘上。",
-      "host.step2":"选择管理员 token 的写入位置，并妥善保管。",
-      "host.step3":"生成或导入 TLS 证书，在所有需要 HTTPS 的客户端安装该证书，并把 Hub URL 设为这台机器的局域网地址。",
-      "host.step4":"初始化 Hub，然后在下方安装并启动 Windows 服务。",
-      "host.step5":"开放局域网防火墙端口。此步骤需要以管理员身份运行 Console。",
-      "host.tls_generate":"生成证书", "host.tls_install":"为当前用户安装证书",
-      "host.tls_failed":"证书操作失败", "host.firewall_open":"开放局域网防火墙",
-      "host.firewall_remove":"删除防火墙规则", "host.firewall_ok":"防火墙规则已更新",
-      "host.firewall_failed":"防火墙修改失败；请以管理员身份运行 Console",
-      "host.data":"数据目录", "host.data_hint":"数据库和上传文件存放的位置。",
-      "host.token":"管理员 token 文件", "host.token_hint":"管理员 token 只写入一次，请妥善保管。",
-      "host.listen":"监听地址", "host.listen_hint":"127.0.0.1 只允许本机；局域网用 0.0.0.0:8787。",
-      "host.url":"Hub URL", "host.url_hint":"Agent 访问此 Hub 的地址；启用 TLS 时写 https。",
-      "host.cert":"TLS 证书", "host.key":"TLS 私钥", "host.ca":"客户端 CA", "host.optional":"可选",
-      "host.failed":"Hub 初始化失败",
-      "settings.title":"控制台角色", "settings.save":"保存角色", "settings.config":"桌面配置",
+      "host.title":"Hub 初始�?, "host.init":"初始�?Hub",
+      "host.hint":"创建数据库和管理�?token；按输出命令安装服务�?,
+      "host.step1":"选择固定磁盘上的本地数据目录。不要把 SQLite 数据库放在映射网络盘上�?,
+      "host.step2":"选择管理�?token 的写入位置，并妥善保管�?,
+      "host.step3":"生成或导�?TLS 证书，在所有需�?HTTPS 的客户端安装该证书，并把 Hub URL 设为这台机器的局域网地址�?,
+      "host.step4":"初始�?Hub，然后在下方安装并启�?Windows 服务�?,
+      "host.step5":"开放局域网防火墙端口。此步骤需要以管理员身份运�?Console�?,
+      "host.tls_generate":"生成证书", "host.tls_install":"为当前用户安装证�?,
+      "host.tls_failed":"证书操作失败", "host.firewall_open":"开放局域网防火�?,
+      "host.firewall_remove":"删除防火墙规�?, "host.firewall_ok":"防火墙规则已更新",
+      "host.firewall_failed":"防火墙修改失败；请以管理员身份运�?Console",
+      "host.data":"数据目录", "host.data_hint":"数据库和上传文件存放的位置�?,
+      "host.token":"管理�?token 文件", "host.token_hint":"管理�?token 只写入一次，请妥善保管�?,
+      "host.listen":"监听地址", "host.listen_hint":"127.0.0.1 只允许本机；局域网�?0.0.0.0:8787�?,
+      "host.url":"Hub URL", "host.url_hint":"Agent 访问�?Hub 的地址；启�?TLS 时写 https�?,
+      "host.cert":"TLS 证书", "host.key":"TLS 私钥", "host.ca":"客户�?CA", "host.optional":"可�?,
+      "host.failed":"Hub 初始化失�?,
+      "settings.title":"控制台角�?, "settings.save":"保存角色", "settings.config":"桌面配置",
       "settings.agent":"Agent 配置", "settings.hub":"Hub",
-      "settings.admin_token":"管理员 token 文件", "settings.save_token":"保存 token",
-      "settings.admin_token_hint":"本地管理页需要。文件只在本地读取，不会显示内容。",
-      "settings.saved":"已保存。", "common.close":"关闭",
-      "uninstall.title":"卸载", "uninstall.body":"删除 AgentChat 程序和启动快捷方式，默认保留配置与数据。",
-      "uninstall.data":"同时删除配置和数据", "uninstall.button":"卸载 AgentChat",
-      "uninstall.confirm":"现在卸载 AgentChat？", "uninstall.started":"卸载已开始，窗口即将关闭。",
-      "role.hub":"Hub 主机", "role.client":"聊天客户端", "role.bridge":"Agent 桥接", "role.observer":"观察者",
+      "settings.admin_token":"管理�?token 文件", "settings.save_token":"保存 token",
+      "settings.admin_token_hint":"本地管理页需要。文件只在本地读取，不会显示内容�?,
+      "settings.saved":"已保存�?, "common.close":"关闭",
+      "uninstall.title":"卸载", "uninstall.body":"删除 AgentChat 程序和启动快捷方式，默认保留配置与数据�?,
+      "uninstall.data":"同时删除配置和数�?, "uninstall.button":"卸载 AgentChat",
+      "uninstall.confirm":"现在卸载 AgentChat�?, "uninstall.started":"卸载已开始，窗口即将关闭�?,
+      "role.hub":"Hub 主机", "role.client":"聊天客户�?, "role.bridge":"Agent 桥接", "role.observer":"观察�?,
       "chat.title":"Agent 聊天", "chat.open":"打开聊天窗口", "chat.agent":"Agent",
       "chat.agent_id":"Agent ID", "chat.config":"Agent 配置", "chat.hub":"Hub",
-      "chat.rooms":"房间", "chat.agents":"Agent", "chat.load_older":"加载更早消息", "chat.send":"发送",
-      "chat.placeholder":"输入消息，@名字 提及 Agent", "chat.no_messages":"还没有消息。",
-      "chat.fold":"展开", "chat.unfold":"收起", "chat.sent":"已发送", "chat.history_loaded":"已加载更早消息",
-      "chat.agent_info":"Agent 信息", "chat.mention_agent":"插入提及该 Agent", "chat.attach":"附件", "chat.search":"搜索", "chat.search_placeholder":"搜索当前房间", "chat.search_empty":"没有匹配",
-      "chat.refreshing":"刷新中…", "chat.refreshed":"已刷新", "chat.refresh_failed":"刷新失败",
+      "chat.rooms":"房间", "chat.agents":"Agent", "chat.load_older":"加载更早消息", "chat.send":"发�?,
+      "chat.placeholder":"输入消息，@名字 提及 Agent", "chat.no_messages":"还没有消息�?,
+      "chat.fold":"展开", "chat.unfold":"收起", "chat.sent":"已发�?, "chat.history_loaded":"已加载更早消�?,
+      "chat.agent_info":"Agent 信息", "chat.mention_agent":"插入提及�?Agent", "chat.attach":"附件", "chat.search":"搜索", "chat.search_placeholder":"搜索当前房间", "chat.search_empty":"没有匹配",
+      "chat.refreshing":"刷新中�?, "chat.refreshed":"已刷�?, "chat.refresh_failed":"刷新失败",
       "chat.new_dm":"+ 私聊", "chat.new_room":"+ 房间", "chat.new_dm_prompt":"输入私聊 Agent 名称",
       "chat.new_room_prompt":"输入房间 ID", "chat.new_room_topic":"房间主题（可选）", "chat.dm_created":"已打开私聊",
-      "chat.room_created":"房间已创建", "chat.last_seen":"最后在线",
+      "chat.room_created":"房间已创�?, "chat.last_seen":"最后在�?,
       "chat.status_online":"在线", "chat.status_idle":"空闲", "chat.status_offline":"离线",
-      "chat.invite_placeholder":"邀请码", "chat.name_placeholder":"Agent 名称", "chat.kind_placeholder":"类型（codex/dsh/human）",
-      "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
-      "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存。",
-      "chat.join_failed":"加入失败", "chat.join_exists":"agent 配置已存在，未覆盖。",
-      "connector.title":"连接 Agent", "connector.detect":"检测", "connector.configure":"配置",
-      "connector.hint":"Codex 使用 MCP；DSH 使用原生 bridge；通用型运行你的命令。",
-      "connector.use":"使用这个配置", "connector.join":"加入 Hub", "connector.config_saved":"Agent 配置已接受。",
-      "connector.failed":"连接器配置失败", "connector.done":"连接器已配置。",
+      "chat.invite_placeholder":"邀请码", "chat.name_placeholder":"Agent 名称", "chat.kind_placeholder":"类型（codex/dsh/human�?,
+      "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天�?,
+      "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存�?,
+      "chat.join_failed":"加入失败", "chat.join_exists":"agent 配置已存在，未覆盖�?,
+      "connector.title":"连接 Agent", "connector.detect":"检�?, "connector.configure":"配置",
+      "connector.hint":"Codex 使用 MCP；DSH 使用原生 bridge；通用型运行你的命令�?,
+      "connector.use":"使用这个配置", "connector.join":"加入 Hub", "connector.config_saved":"Agent 配置已接受�?,
+      "connector.failed":"连接器配置失�?, "connector.done":"连接器已配置�?,
       "bridge.title":"Agent 桥接", "bridge.install":"安装桥接", "bridge.uninstall":"卸载",
       "bridge.name":"桥接名称", "bridge.agent_config":"Agent 配置", "bridge.exec":"Hook 命令",
-      "bridge.binary":"agentchat 可执行文件", "bridge.confirm":"确认卸载桥接启动项？",
-      "bridge.install_failed":"桥接命令失败", "bridge.done":"桥接状态已刷新。",
-      "logs.pause":"暂停", "logs.resume":"继续", "logs.refresh":"刷新", "logs.empty":"还没有日志文件。",
+      "bridge.binary":"agentchat 可执行文�?, "bridge.confirm":"确认卸载桥接启动项？",
+      "bridge.install_failed":"桥接命令失败", "bridge.done":"桥接状态已刷新�?,
+      "logs.pause":"暂停", "logs.resume":"继续", "logs.refresh":"刷新", "logs.empty":"还没有日志文件�?,
       "service.title":"Windows 服务", "service.install":"安装 Hub 服务", "service.start":"启动", "service.stop":"停止", "service.restart":"重启",
-      "service.start_with_windows":"开机自动启动", "service.hub":"Hub", "service.health":"健康",
-      "fed.title":"联邦", "fed.runtime":"运行状态", "fed.node":"节点", "fed.peer":"对端", "fed.link":"房间链接", "fed.outbox":"发件箱",
-      "dead.title":"死信", "dead.hint":"重投只会重新激活死信；对端幂等仍然生效。",
-      "dead.empty":"没有死信。", "dead.id":"ID", "dead.peer":"对端", "dead.origin":"来源", "dead.attempts":"尝试次数", "dead.error":"错误", "dead.created":"创建时间", "dead.retry":"重投",
-      "state.running":"运行中", "state.stopped":"已停止", "state.starting":"启动中", "state.stopping":"停止中", "state.paused":"已暂停", "state.unknown":"未知",
+      "service.start_with_windows":"开机自动启�?, "service.hub":"Hub", "service.health":"健康",
+      "fed.title":"联邦", "fed.runtime":"运行状�?, "fed.node":"节点", "fed.peer":"对端", "fed.link":"房间链接", "fed.outbox":"发件�?,
+      "dead.title":"死信", "dead.hint":"重投只会重新激活死信；对端幂等仍然生效�?,
+      "dead.empty":"没有死信�?, "dead.id":"ID", "dead.peer":"对端", "dead.origin":"来源", "dead.attempts":"尝试次数", "dead.error":"错误", "dead.created":"创建时间", "dead.retry":"重投",
+      "state.running":"运行�?, "state.stopped":"已停�?, "state.starting":"启动�?, "state.stopping":"停止�?, "state.paused":"已暂�?, "state.unknown":"未知",
       "startup.automatic":"自动", "startup.manual":"手动", "startup.disabled":"禁用",
-      "common.yes":"已启用", "common.no":"已关闭", "common.loading":"加载中", "common.ok":"健康", "common.bad":"不可达",
-      "service.not_installed":"服务未安装", "service.need_admin":"请以管理员身份运行控制台。",
-      "dead.retry_failed":"重投失败", "dead.confirm":"确认重投这条死信？"
+      "common.yes":"已启�?, "common.no":"已关�?, "common.loading":"加载�?, "common.ok":"健康", "common.bad":"不可�?,
+      "service.not_installed":"服务未安�?, "service.need_admin":"请以管理员身份运行控制台�?,
+      "dead.retry_failed":"重投失败", "dead.confirm":"确认重投这条死信�?
     }
   };
   let lang = (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
@@ -799,7 +799,7 @@
     setText("fed-runtime", fed.runtime_enabled ? t("common.yes") : t("common.no"));
     setText("fed-node", fed.node_id || "");
     setText("fed-peer", (fed.peers || []).map((p) => p.node_id + (p.enabled ? "" : " (" + t("common.no") + ")")).join(", "));
-    setText("fed-link", (fed.room_links || []).map((l) => l.local_room + " → " + l.remote_room).join(", "));
+    setText("fed-link", (fed.room_links || []).map((l) => l.local_room + " �?" + l.remote_room).join(", "));
     const o = fed.outbox || {};
     setText("fed-outbox", ["pending","inflight","delivered","dead","attempts"].map((k) => k + " " + (o[k] ?? 0)).join(" · "));
   }
@@ -965,7 +965,7 @@
         const port = listen.split(":").pop();
         $("host-url").value = "https://127.0.0.1:" + port;
       }
-      $("host-cert-status").textContent = body.fingerprint ? ("SHA256 " + body.fingerprint.slice(0, 16) + "…") : (body.output || "");
+      $("host-cert-status").textContent = body.fingerprint ? ("SHA256 " + body.fingerprint.slice(0, 16) + "�?) : (body.output || "");
     } catch (err) {
       $("host-error").textContent = err.message || t("host.tls_failed");
     }
@@ -1050,7 +1050,7 @@
   }
   function chatAppendMentions(el, value) {
     const text = value || "";
-    const re = /(^|[\s([{（，。:：])@([A-Za-z0-9_.-]+)/g;
+    const re = /(^|[\s([{（，�?：])@([A-Za-z0-9_.-]+)/g;
     let last = 0;
     let match;
     while ((match = re.exec(text)) !== null) {
@@ -1776,7 +1776,7 @@
   function toggleChatSide(side) {
     const collapsed = $("chat-grid").classList.toggle(side + "-collapsed");
     if (side === "left") {
-      $("chat-left-toggle").textContent = collapsed ? "»" : "☰";
+      $("chat-left-toggle").textContent = collapsed ? "»" : "�?;
       $("chat-left-rail").textContent = "»";
     } else {
       $("chat-right-toggle").textContent = collapsed ? "«" : "👥";

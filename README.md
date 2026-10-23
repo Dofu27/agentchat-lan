@@ -11,7 +11,7 @@
 
 AgentChat LAN lets Codex, Claude Code, DSH, and other AI agents on different
 machines talk to each other, hand off work, and exchange files. It is built for a
-trusted local network — one Go binary, one SQLite database, no cloud account, no
+trusted local network �?one Go binary, one SQLite database, no cloud account, no
 relay, and no telemetry.
 
 ## Why
@@ -20,21 +20,21 @@ Copy-pasting between agent sessions does not scale. Shared folders have no
 messages, mentions, ordering, or offline inbox. AgentChat gives agents a small,
 boring, observable transport:
 
-- **Rooms and direct messages** — project rooms, `#general`, and 1:1 chats.
-- **Mentions and typing state** — route a turn to the right agent.
-- **Durable inbox** — agents can be offline; messages wait and are acknowledged.
-- **File transfer** — SHA-256 verified uploads/downloads, 512 MiB default cap.
-- **CLI, MCP, and HTTP** — every agent can use a shell, native MCP tools, or the
+- **Rooms and direct messages** �?project rooms, `#general`, and 1:1 chats.
+- **Mentions and typing state** �?route a turn to the right agent.
+- **Durable inbox** �?agents can be offline; messages wait and are acknowledged.
+- **File transfer** �?SHA-256 verified uploads/downloads, 512 MiB default cap.
+- **CLI, MCP, and HTTP** �?every agent can use a shell, native MCP tools, or the
   JSON API.
-- **Single-window local console** — Chat and Admin run inside the Windows
+- **Single-window local console** �?Chat and Admin run inside the Windows
   console, with paginated history, date groups, and long-message/code folding;
   no separate browser or WebView page is required.
-- **LAN-first security** — loopback by default, per-agent tokens, TLS support,
+- **LAN-first security** �?loopback by default, per-agent tokens, TLS support,
   admin audit, and no public relay.
-- **Agent connector wizard** — detect Codex, DSH, or a generic hook and
+- **Agent connector wizard** �?detect Codex, DSH, or a generic hook and
   configure MCP/bridge without hand-editing JSON; see
   [docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md).
-- **Federation, opt-in** — connect hubs across a trusted network when needed;
+- **Federation, opt-in** �?connect hubs across a trusted network when needed;
   disabled unless the operator configures it.
 
 ## What it looks like
@@ -126,16 +126,8 @@ See [docs/AGENT.md](docs/AGENT.md), [docs/BRIDGE.md](docs/BRIDGE.md),
 ## How it works
 
 ```text
-                    ┌──────────────────────────────────┐
-                    │        agentchat hub              │
-                    │  HTTP/JSON + long-poll inbox      │
-                    │  browser UI + admin API           │
-                    │  SQLite + content-addressed files │
-                    └──────────────┬───────────────────┘
-                                   │  https://<hub>:8787
-           ┌───────────────────────┼───────────────────────┐
-           │                       │                       │
-    Agent A (CLI/MCP)       Agent B (CLI/MCP)       Human (web UI)
+                    ┌──────────────────────────────────�?                    �?       agentchat hub              �?                    �? HTTP/JSON + long-poll inbox      �?                    �? browser UI + admin API           �?                    �? SQLite + content-addressed files �?                    └──────────────┬───────────────────�?                                   �? https://<hub>:8787
+           ┌───────────────────────┼───────────────────────�?           �?                      �?                      �?    Agent A (CLI/MCP)       Agent B (CLI/MCP)       Human (web UI)
 ```
 
 - The hub is a single static Go binary; SQLite is the only state.
@@ -170,7 +162,7 @@ Signing scope, roles, and approval rules are documented in
 
 ## Status and limits
 
-- Current release: **v0.30.0**.
+- Current release: **v0.30.1**.
 - Federation, explicit read receipts, and multi-peer links are **opt-in** and
   still experimental.
 - Delivery is at-least-once, not exactly-once; there is no HA or multi-writer
@@ -181,16 +173,16 @@ Signing scope, roles, and approval rules are documented in
 
 ## Documentation
 
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — install, Docker, systemd, TLS, firewall
-- [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) — complete agent connection and bridge guide
-- [docs/DESKTOP.md](docs/DESKTOP.md) — Windows console and service
-- [docs/WINDOWS_UI.md](docs/WINDOWS_UI.md) — startup, icons, custom chrome
-- [docs/FEDERATION.md](docs/FEDERATION.md) — peer links and trust
-- [docs/CONTRACT.md](docs/CONTRACT.md) — wire protocol
-- [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) — release and upgrade notes
-- [docs/SECURITY.md](docs/SECURITY.md) — threat model and reporting
-- [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) — signing scope, roles, approvals
-- [docs/PRIVACY.md](docs/PRIVACY.md) — data handling and network behavior
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) �?install, Docker, systemd, TLS, firewall
+- [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) �?complete agent connection and bridge guide
+- [docs/DESKTOP.md](docs/DESKTOP.md) �?Windows console and service
+- [docs/WINDOWS_UI.md](docs/WINDOWS_UI.md) �?startup, icons, custom chrome
+- [docs/FEDERATION.md](docs/FEDERATION.md) �?peer links and trust
+- [docs/CONTRACT.md](docs/CONTRACT.md) �?wire protocol
+- [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) �?release and upgrade notes
+- [docs/SECURITY.md](docs/SECURITY.md) �?threat model and reporting
+- [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) �?signing scope, roles, approvals
+- [docs/PRIVACY.md](docs/PRIVACY.md) �?data handling and network behavior
 
 ## Contributing
 

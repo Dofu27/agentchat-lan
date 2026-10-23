@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.1] - 2026-10-23
+
+### Added
+
+- Guided host setup in the Console, with certificate generation,
+  current-user certificate installation, firewall open/remove controls,
+  hub initialization, Windows service installation, and start/stop controls
+  in one window.
+- Windows VERSIONINFO resources for the desktop, CLI, and installer binaries.
+
 ## [0.30.0] - 2026-10-23
 
 ### Added
