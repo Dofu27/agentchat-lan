@@ -31,6 +31,13 @@ SignPath. Every signing request requires explicit approval by the approver.
   workflow run, and artifact checksums.
 - The project does not sign locally rebuilt or modified binaries.
 
+## Metadata
+
+Windows resources are defined in `winres/desktop.json`, `winres/installer.json`,
+and `winres/cli.json`, and generated into the tracked `.syso` files by
+`scripts/generate-windows-resources.sh`. Every signed build must use the same
+product name and version in the VERSIONINFO resources.
+
 ## Privacy
 
 See [PRIVACY.md](PRIVACY.md). The application does not include telemetry and
