@@ -6,17 +6,23 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"net/url"
@@ -845,6 +851,8 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("POST /api/uninstall", a.api(http.HandlerFunc(a.handleUninstall)))
 	mux.Handle("POST /api/hub/init", a.api(http.HandlerFunc(a.handleHubInit)))
 	mux.Handle("POST /api/hub/service", a.api(http.HandlerFunc(a.handleHubService)))
+	mux.Handle("POST /api/hub/firewall", a.api(http.HandlerFunc(a.handleHubFirewall)))
+	mux.Handle("POST /api/hub/tls", a.api(http.HandlerFunc(a.handleHubTLS)))
 	mux.Handle("GET /api/federation/outbox", a.api(http.HandlerFunc(a.handleOutbox)))
 	mux.Handle("POST /api/federation/retry", a.api(http.HandlerFunc(a.handleRetry)))
 	return ln, &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}, nil
@@ -1692,6 +1700,189 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (a *app) handleHubFirewall(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Action string `json:"action"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2048)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+		return
+	}
+	a.mu.RLock()
+	listen := a.cfg.HubListen
+	a.mu.RUnlock()
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil || port == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub listen address is not configured"})
+		return
+	}
+	if strings.EqualFold(host, "localhost") || host == "127.0.0.1" || host == "::1" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub is loopback-only; no LAN firewall rule is needed"})
+		return
+	}
+	name := "AgentChat Hub " + port
+	systemDir, err := windows.GetSystemDirectory()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot locate Windows tools"})
+		return
+	}
+	netsh := filepath.Join(systemDir, "netsh.exe")
+	var args []string
+	switch req.Action {
+	case "open":
+		args = []string{"advfirewall", "firewall", "add", "rule", "name=" + name, "dir=in", "action=allow", "protocol=TCP", "localport=" + port, "profile=any"}
+	case "remove":
+		args = []string{"advfirewall", "firewall", "delete", "rule", "name=" + name}
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unsupported firewall action"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	out, err := runBoundedCommand(ctx, netsh, args, 16<<10)
+	result := map[string]any{"ok": err == nil, "output": redactOutput(strings.TrimSpace(out)), "port": port}
+	if err != nil {
+		result["error"] = "firewall change failed; run the console as administrator"
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func localTLSFiles() (string, string, string) {
+	base := os.Getenv("LOCALAPPDATA")
+	if base == "" {
+		base = os.TempDir()
+	}
+	dir := filepath.Join(base, "AgentChat", "tls")
+	return dir, filepath.Join(dir, "server.crt"), filepath.Join(dir, "server.key")
+}
+
+func generateHubCertificate() (string, string, string, error) {
+	dir, certPath, keyPath := localTLSFiles()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", "", "", err
+	}
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", "", "", err
+	}
+	serialLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serial, err := rand.Int(rand.Reader, serialLimit)
+	if err != nil {
+		return "", "", "", err
+	}
+	host, _ := os.Hostname()
+	now := time.Now()
+	template := &x509.Certificate{
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: host, Organization: []string{"AgentChat LAN"}},
+		NotBefore:             now.Add(-5 * time.Minute),
+		NotAfter:              now.Add(825 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		DNSNames:              []string{host, "localhost"},
+		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
+	}
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, addr := range addrs {
+			ipnet, ok := addr.(*net.IPNet)
+			if !ok || ipnet.IP == nil || ipnet.IP.IsLoopback() || ipnet.IP.IsLinkLocalUnicast() {
+				continue
+			}
+			template.IPAddresses = append(template.IPAddresses, ipnet.IP)
+		}
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		return "", "", "", err
+	}
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return "", "", "", err
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	if err := os.WriteFile(certPath, certPEM, 0o644); err != nil {
+		return "", "", "", err
+	}
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		return "", "", "", err
+	}
+	return certPath, keyPath, fmt.Sprintf("%x", sha256.Sum256(der)), nil
+}
+
+func certificateFingerprint(certPath string) (string, error) {
+	data, err := os.ReadFile(certPath)
+	if err != nil {
+		return "", err
+	}
+	block, _ := pem.Decode(data)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return "", errors.New("certificate is not PEM")
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(block.Bytes)), nil
+}
+
+func (a *app) handleHubTLS(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Action string `json:"action"`
+		Cert   string `json:"cert"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+		return
+	}
+	certPath, keyPath, _ := localTLSFiles()
+	switch req.Action {
+	case "generate":
+		if _, err := os.Stat(certPath); err == nil {
+			fingerprint, ferr := certificateFingerprint(certPath)
+			if ferr != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": ferr.Error()})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "cert": certPath, "key": keyPath, "fingerprint": fingerprint, "existing": true})
+			return
+		}
+		cert, key, fingerprint, err := generateHubCertificate()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": redactOutput(err.Error())})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "cert": cert, "key": key, "fingerprint": fingerprint})
+	case "install":
+		path := strings.TrimSpace(req.Cert)
+		if path == "" {
+			path = certPath
+		}
+		if !filepath.IsAbs(path) || strings.ContainsRune(path, 0) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "certificate path must be absolute"})
+			return
+		}
+		if _, err := os.Stat(path); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "certificate file not found"})
+			return
+		}
+		systemDir, err := windows.GetSystemDirectory()
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot locate Windows tools"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		out, err := runBoundedCommand(ctx, filepath.Join(systemDir, "certutil.exe"),
+			[]string{"-addstore", "-user", "Root", path}, 16<<10)
+		result := map[string]any{"ok": err == nil, "output": redactOutput(strings.TrimSpace(out)), "cert": path}
+		if err != nil {
+			result["error"] = "certificate install failed"
+		}
+		writeJSON(w, http.StatusOK, result)
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "unsupported certificate action"})
+	}
 }
 
 func (a *app) handleUninstall(w http.ResponseWriter, r *http.Request) {
