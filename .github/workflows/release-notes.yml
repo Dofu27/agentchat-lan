@@ -16,4 +16,4 @@ jobs:
       - name: Update v0.30.7 release body
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit v0.30.7 --notes-file docs/RELEASE_NOTES_v0.30.7.md
+        run: gh release edit v0.30.7 --draft=false --notes-file docs/RELEASE_NOTES_v0.30.7.md
