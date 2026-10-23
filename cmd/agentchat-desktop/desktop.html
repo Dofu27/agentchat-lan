@@ -70,6 +70,13 @@
   .chat-side-actions { display:flex; gap:6px; margin:6px 0 8px; }
   .chat-side-actions button { flex:1; padding:4px 6px; font-size:11px; }
   .mention { color:#8fd3ff; background:rgba(84,160,255,.16); border-radius:4px; padding:0 2px; font-weight:600; }
+  .close-mask { position:fixed; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.55); }
+  .close-mask.hidden { display:none; }
+  .close-dialog { width:min(420px,calc(100vw - 40px)); border:1px solid var(--line); border-radius:10px; background:#101720; padding:18px; box-shadow:0 18px 50px rgba(0,0,0,.5); }
+  .close-dialog h3 { margin:0 0 8px; }
+  .close-dialog p { margin:0 0 14px; color:var(--muted); font-size:12px; line-height:1.6; }
+  .close-dialog .close-actions { display:flex; flex-direction:column; gap:8px; }
+  .close-dialog .close-actions button { width:100%; padding:8px 10px; }
   .agent-status-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; background:#64748b; vertical-align:middle; }
   .agent-status-dot.online { background:#3ddc84; }
   .agent-status-dot.idle { background:#f4c95d; }
@@ -534,6 +541,18 @@
     <p class="muted small" data-i18n="about.body">AgentChat LAN is a self-hosted LAN chat, durable inbox, and file relay for AI agents. It is designed for a trusted private network.</p>
   </section>
 </main>
+<div id="close-dialog" class="close-mask hidden" role="dialog" aria-modal="true" aria-labelledby="close-title">
+  <div class="close-dialog">
+    <h3 id="close-title" data-i18n="close.title">关闭 AgentChat Console</h3>
+    <p data-i18n="close.hint">选择窗口行为。后台运行和最小化都会保留右下角托盘图标。</p>
+    <div class="close-actions">
+      <button id="close-minimize" type="button" data-i18n="close.minimize">最小化窗口</button>
+      <button id="close-tray" type="button" data-i18n="close.tray">后台运行（托盘）</button>
+      <button id="close-quit" class="danger" type="button" data-i18n="close.quit">关闭程序</button>
+      <button id="close-cancel" type="button" data-i18n="close.cancel">取消</button>
+    </div>
+  </div>
+</div>
 <script>
 (() => {
   "use strict";
@@ -541,6 +560,8 @@
   const dict = {
     en: {
       "open.admin":"Open Web admin",
+      "close.title":"Close AgentChat Console", "close.hint":"Choose what happens. Background and minimize keep the tray icon in the notification area.",
+      "close.minimize":"Minimize window", "close.tray":"Run in background (tray)", "close.quit":"Close program", "close.cancel":"Cancel",
       "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.admin":"Admin", "tab.logs":"Logs", "tab.settings":"Settings", "tab.about":"About",
       "admin.title":"Administration", "admin.agents":"Agents", "admin.invites":"Invites", "admin.audit":"Audit",
       "admin.create_invite":"Create invite", "admin.invite_created":"Invite created", "admin.no_data":"No data",
@@ -611,6 +632,8 @@
     },
     zh: {
       "open.admin":"打开管理网页",
+      "close.title":"关闭 AgentChat Console", "close.hint":"选择窗口行为。后台运行和最小化都会保留右下角托盘图标。",
+      "close.minimize":"最小化窗口", "close.tray":"后台运行（托盘）", "close.quit":"关闭程序", "close.cancel":"取消",
       "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.admin":"管理", "tab.logs":"日志", "tab.settings":"设置", "tab.about":"关于",
       "admin.title":"管理", "admin.agents":"Agent", "admin.invites":"邀请码", "admin.audit":"审计",
       "admin.create_invite":"生成邀请码", "admin.invite_created":"邀请码已生成", "admin.no_data":"暂无数据",
@@ -909,7 +932,7 @@
         body: JSON.stringify({ confirm:"uninstall", remove_data: $("uninstall-data").checked })
       });
       $("uninstall-error").textContent = t("uninstall.started");
-      setTimeout(() => { if (window.__winClose) window.__winClose(); }, 500);
+      setTimeout(() => { if (window.__winForceClose) window.__winForceClose(); }, 500);
     } catch (err) {
       $("uninstall-error").textContent = err.message || String(err);
     }
@@ -1645,6 +1668,21 @@
   $("chat-older").addEventListener("click", () => chatLoadOlder().catch(chatError));
   $("chat-new-dm").addEventListener("click", chatCreateDM);
   $("chat-new-room").addEventListener("click", chatCreateRoom);
+
+  function hideCloseDialog() { $("close-dialog").classList.add("hidden"); }
+  function askCloseDialog() { $("close-dialog").classList.remove("hidden"); }
+  window.__agentchatAskClose = askCloseDialog;
+  function chooseClose(mode) {
+    hideCloseDialog();
+    if (typeof window.__winCloseChoice === "function") window.__winCloseChoice(mode);
+  }
+  $("close-minimize").addEventListener("click", () => chooseClose("minimize"));
+  $("close-tray").addEventListener("click", () => chooseClose("tray"));
+  $("close-quit").addEventListener("click", () => chooseClose("quit"));
+  $("close-cancel").addEventListener("click", hideCloseDialog);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hideCloseDialog();
+  });
   $("chat-messages").addEventListener("scroll", updateChatOlder);
   $("chat-send").addEventListener("click", chatSend);
   $("chat-input").addEventListener("keydown", (e) => {

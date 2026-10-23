@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -226,7 +227,10 @@ func main() {
 		log.Fatal("WebView2 runtime is not available; install Microsoft Edge WebView2 Runtime")
 	}
 	defer w.Destroy()
-	makeFrameless(uintptr(w.Window()))
+	hwnd := uintptr(w.Window())
+	makeFrameless(hwnd)
+	ensureTrayIcon(hwnd)
+	closeDialogEval = func() { w.Eval("window.__agentchatAskClose && window.__agentchatAskClose()") }
 	origin := "http://" + ln.Addr().String()
 	w.Init("if (window.top === window && location.origin === " + strconv.Quote(origin) +
 		") { window.__agentchatDesktopCapability = " + strconv.Quote(a.cap) + "; }")
@@ -242,15 +246,23 @@ func main() {
 			showWindow(uintptr(w.Window()), 3)
 		}
 	})
-	_ = w.Bind("__winClose", func() { sendMessage(uintptr(w.Window()), 0x0010, 0, 0) })
+	_ = w.Bind("__winClose", func() { sendMessage(hwnd, wmClose, 0, 0) })
+	_ = w.Bind("__winCloseChoice", func(choice string) { closeChoice(hwnd, choice) })
+	_ = w.Bind("__winForceClose", func() {
+		allowClose.Store(true)
+		removeTrayIcon(hwnd)
+		sendMessage(hwnd, wmClose, 0, 0)
+	})
 	w.Navigate(origin + "/")
 	w.Run()
 }
 
 var (
 	user32DLL                = windows.NewLazySystemDLL("user32.dll")
+	shell32DLL               = windows.NewLazySystemDLL("shell32.dll")
 	procReleaseCapture       = user32DLL.NewProc("ReleaseCapture")
 	procSendMessageW         = user32DLL.NewProc("SendMessageW")
+	procPostMessageW         = user32DLL.NewProc("PostMessageW")
 	procShowWindow           = user32DLL.NewProc("ShowWindow")
 	procIsZoomed             = user32DLL.NewProc("IsZoomed")
 	procGetWindowLong        = user32DLL.NewProc("GetWindowLongPtrW")
@@ -259,11 +271,152 @@ var (
 	procGetWindowRect        = user32DLL.NewProc("GetWindowRect")
 	procCallWindowProc       = user32DLL.NewProc("CallWindowProcW")
 	procSystemParametersInfo = user32DLL.NewProc("SystemParametersInfoW")
+	procLoadIconW            = user32DLL.NewProc("LoadIconW")
+	procGetCursorPos         = user32DLL.NewProc("GetCursorPos")
+	procCreatePopupMenu      = user32DLL.NewProc("CreatePopupMenu")
+	procAppendMenuW          = user32DLL.NewProc("AppendMenuW")
+	procTrackPopupMenu       = user32DLL.NewProc("TrackPopupMenu")
+	procDestroyMenu          = user32DLL.NewProc("DestroyMenu")
+	procSetForegroundWindow  = user32DLL.NewProc("SetForegroundWindow")
+	procShellNotifyIconW     = shell32DLL.NewProc("Shell_NotifyIconW")
+	procExtractIconExW       = shell32DLL.NewProc("ExtractIconExW")
 	dwmapiDLL                = windows.NewLazySystemDLL("dwmapi.dll")
 	procDwmSetAttribute      = dwmapiDLL.NewProc("DwmSetWindowAttribute")
 	uxthemeDLL               = windows.NewLazySystemDLL("uxtheme.dll")
 	procSetWindowTheme       = uxthemeDLL.NewProc("SetWindowTheme")
 )
+
+const (
+	wmClose    = 0x0010
+	wmDestroy  = 0x0002
+	wmNull     = 0x0000
+	wmTray     = 0x8001
+	trayShowID = 1001
+	trayExitID = 1002
+	swHide     = 0
+	swMinimize = 6
+	swRestore  = 9
+)
+
+type trayGuid struct {
+	Data1 uint32
+	Data2 uint16
+	Data3 uint16
+	Data4 [8]byte
+}
+
+type notifyIconData struct {
+	CbSize           uint32
+	HWnd             uintptr
+	UID              uint32
+	UFlags           uint32
+	UCallbackMessage uint32
+	HIcon            uintptr
+	SzTip            [128]uint16
+	DwState          uint32
+	DwStateMask      uint32
+	SzInfo           [256]uint16
+	UVersion         uint32
+	SzInfoTitle      [64]uint16
+	DwInfoFlags      uint32
+	GuidItem         trayGuid
+	HBalloonIcon     uintptr
+}
+
+var (
+	trayIconAdded   bool
+	closeDialogEval func()
+	allowClose      atomic.Bool
+)
+
+func ensureTrayIcon(hwnd uintptr) {
+	if trayIconAdded || hwnd == 0 {
+		return
+	}
+	var nid notifyIconData
+	nid.CbSize = uint32(unsafe.Sizeof(nid))
+	nid.HWnd = hwnd
+	nid.UID = 1
+	nid.UFlags = 1 | 2 | 4 // NIF_MESSAGE | NIF_ICON | NIF_TIP
+	nid.UCallbackMessage = wmTray
+	icon := uintptr(0)
+	if exe, err := os.Executable(); err == nil {
+		if p, err := windows.UTF16PtrFromString(exe); err == nil {
+			var large, small uintptr
+			count, _, _ := procExtractIconExW.Call(uintptr(unsafe.Pointer(p)), 0,
+				uintptr(unsafe.Pointer(&large)), uintptr(unsafe.Pointer(&small)), 1)
+			if count > 0 && small != 0 {
+				icon = small
+			}
+		}
+	}
+	if icon == 0 {
+		icon, _, _ = procLoadIconW.Call(0, 32512) // IDI_APPLICATION
+	}
+	nid.HIcon = icon
+	tip, _ := windows.UTF16FromString("AgentChat Console")
+	copy(nid.SzTip[:], tip)
+	if ok, _, _ := procShellNotifyIconW.Call(0, uintptr(unsafe.Pointer(&nid))); ok != 0 {
+		trayIconAdded = true
+	}
+}
+
+func removeTrayIcon(hwnd uintptr) {
+	if !trayIconAdded {
+		return
+	}
+	var nid notifyIconData
+	nid.CbSize = uint32(unsafe.Sizeof(nid))
+	nid.HWnd = hwnd
+	nid.UID = 1
+	_, _, _ = procShellNotifyIconW.Call(2, uintptr(unsafe.Pointer(&nid))) // NIM_DELETE
+	trayIconAdded = false
+}
+
+func showMainWindow(hwnd uintptr) {
+	showWindow(hwnd, swRestore)
+	_, _, _ = procSetForegroundWindow.Call(hwnd)
+}
+
+func showTrayMenu(hwnd uintptr) {
+	menu, _, _ := procCreatePopupMenu.Call()
+	if menu == 0 {
+		return
+	}
+	defer procDestroyMenu.Call(menu)
+	show, _ := windows.UTF16PtrFromString("显示 AgentChat Console")
+	quit, _ := windows.UTF16PtrFromString("退出")
+	_, _, _ = procAppendMenuW.Call(menu, 0, trayShowID, uintptr(unsafe.Pointer(show)))
+	_, _, _ = procAppendMenuW.Call(menu, 0, trayExitID, uintptr(unsafe.Pointer(quit)))
+	var pt winPoint
+	_, _, _ = procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))
+	_, _, _ = procSetForegroundWindow.Call(hwnd)
+	const tpmReturnCmd = 0x0100
+	const tpmRightButton = 0x0002
+	cmd, _, _ := procTrackPopupMenu.Call(menu, tpmReturnCmd|tpmRightButton, uintptr(pt.X), uintptr(pt.Y), 0, hwnd, 0)
+	_, _, _ = procPostMessageW.Call(hwnd, wmNull, 0, 0)
+	switch int(cmd) {
+	case trayShowID:
+		showMainWindow(hwnd)
+	case trayExitID:
+		allowClose.Store(true)
+		sendMessage(hwnd, wmClose, 0, 0)
+	}
+}
+
+func closeChoice(hwnd uintptr, choice string) {
+	switch choice {
+	case "minimize":
+		showWindow(hwnd, swMinimize)
+	case "tray":
+		showWindow(hwnd, swHide)
+		ensureTrayIcon(hwnd)
+	case "quit":
+		allowClose.Store(true)
+		removeTrayIcon(hwnd)
+		sendMessage(hwnd, wmClose, 0, 0)
+	}
+}
 
 type winRect struct {
 	Left, Top, Right, Bottom int32
@@ -312,10 +465,32 @@ var minSizeOldProcs sync.Map
 
 func minSizeProc(hwnd, msg, wp uintptr, lp *minMaxInfo) uintptr {
 	const wmGetMinMaxInfo = 0x0024
+	const wmTrayMouseUp = 0x0202
+	const wmTrayMouseDouble = 0x0203
+	const wmTrayMouseRightUp = 0x0205
 	if msg == wmGetMinMaxInfo && lp != nil {
 		lp.MinTrackSize.X = 900
 		lp.MinTrackSize.Y = 600
 		return 0
+	}
+	switch msg {
+	case wmClose:
+		if !allowClose.Load() {
+			if closeDialogEval != nil {
+				closeDialogEval()
+			}
+			return 0
+		}
+	case wmTray:
+		switch uintptr(unsafe.Pointer(lp)) {
+		case wmTrayMouseUp, wmTrayMouseDouble:
+			showMainWindow(hwnd)
+		case wmTrayMouseRightUp:
+			showTrayMenu(hwnd)
+		}
+		return 0
+	case wmDestroy:
+		removeTrayIcon(hwnd)
 	}
 	if old, ok := minSizeOldProcs.Load(hwnd); ok {
 		r, _, _ := procCallWindowProc.Call(old.(uintptr), hwnd, msg, wp, uintptr(unsafe.Pointer(lp)))
