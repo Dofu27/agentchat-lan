@@ -324,6 +324,7 @@ var (
 	procShellExecuteW          = shell32DLL.NewProc("ShellExecuteW")
 	procExtractIconExW         = shell32DLL.NewProc("ExtractIconExW")
 	dwmapiDLL                  = windows.NewLazySystemDLL("dwmapi.dll")
+	procGetLongPathNameW       = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetLongPathNameW")
 	procDwmSetAttribute        = dwmapiDLL.NewProc("DwmSetWindowAttribute")
 	uxthemeDLL                 = windows.NewLazySystemDLL("uxtheme.dll")
 	procSetWindowTheme         = uxthemeDLL.NewProc("SetWindowTheme")
@@ -1437,9 +1438,104 @@ func (a *app) saveDesktopConfig() error {
 	return a.saveConfig(a.cfg)
 }
 
+func longWindowsPath(p string) string {
+	ptr, err := windows.UTF16PtrFromString(p)
+	if err != nil {
+		return p
+	}
+	buf := make([]uint16, 32768)
+	n, _, _ := procGetLongPathNameW.Call(uintptr(unsafe.Pointer(ptr)), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	if n == 0 || n >= uintptr(len(buf)) {
+		return p
+	}
+	return windows.UTF16ToString(buf[:int(n)])
+}
+
+func canonicalPath(path string) string {
+	p := filepath.Clean(path)
+	for _, prefix := range []string{`\\?\UNC\`, `\\?\`, `\??\`} {
+		if strings.HasPrefix(p, prefix) {
+			p = strings.TrimPrefix(p, prefix)
+			if prefix == `\\?\UNC\` {
+				p = `\\` + p
+			}
+			break
+		}
+	}
+	p = longWindowsPath(p)
+	if resolved, err := filepath.EvalSymlinks(p); err == nil {
+		p = resolved
+	}
+	return strings.ToLower(filepath.Clean(p))
+}
+
 func withinPath(path, root string) bool {
-	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(path))
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+	cp, cr := canonicalPath(path), canonicalPath(root)
+	if rel, err := filepath.Rel(cr, cp); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return true
+	}
+	rootInfo, err := os.Stat(cr)
+	if err != nil {
+		return false
+	}
+	for p := cp; ; p = filepath.Dir(p) {
+		if info, statErr := os.Stat(p); statErr == nil && os.SameFile(info, rootInfo) {
+			return true
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return false
+		}
+	}
+}
+
+func secureProgramDataParent(parent string) error {
+	icacls, err := exec.LookPath("icacls.exe")
+	if err != nil {
+		return errors.New("cannot locate icacls.exe")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	out, err := runBoundedCommand(ctx, icacls, []string{
+		parent, "/inheritance:r",
+		"/grant:r", "*S-1-5-18:(OI)(CI)F",
+		"/grant:r", "*S-1-5-32-544:(OI)(CI)F",
+		"/grant:r", "*S-1-5-32-545:(OI)(CI)RX",
+	}, 16<<10)
+	if err != nil {
+		return fmt.Errorf("secure data parent failed: %s", redactOutput(strings.TrimSpace(out)))
+	}
+	return nil
+}
+
+func prepareDataParent(dataPath string) error {
+	parent := filepath.Dir(filepath.Clean(dataPath))
+	info, err := os.Lstat(parent)
+	if os.IsNotExist(err) {
+		programData := os.Getenv("ProgramData")
+		if programData == "" || !withinPath(parent, filepath.Join(programData, "AgentChat")) {
+			return errors.New("data parent directory does not exist; create a protected data directory first")
+		}
+		if err := os.Mkdir(parent, 0o755); err != nil {
+			return fmt.Errorf("create data parent: %w", err)
+		}
+		if err := secureProgramDataParent(parent); err != nil {
+			return err
+		}
+		info, err = os.Lstat(parent)
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return errors.New("data parent must be a regular directory")
+	}
+	chain, err := pinDirectoryChain(parent)
+	if err != nil {
+		return fmt.Errorf("data parent is not a protected directory: %w", err)
+	}
+	chain.Close()
+	return nil
 }
 
 func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
@@ -1503,7 +1599,7 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "non-loopback hub_url must use https"})
 		return
 	}
-	if hostname := parsed.Hostname(); hostname == "0.0.0.0" || hostname == "::" || hostname == "[::]" {
+	if ip := net.ParseIP(strings.Trim(parsed.Hostname(), "[]")); ip != nil && ip.IsUnspecified() {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub_url must use 127.0.0.1 or this machine's LAN address, not a wildcard listen address"})
 		return
 	}
@@ -1528,6 +1624,10 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	client, err := newHubClient(candidate, configPath)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub TLS client could not be built"})
+		return
+	}
+	if err := prepareDataParent(req.Data); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
 	}
 	if _, err := os.Stat(req.Data); err == nil {
@@ -2066,7 +2166,7 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"hub_data":   a.cfg.HubData, "hub_listen": a.cfg.HubListen,
 		"hub_tls_cert": a.cfg.HubCert, "hub_tls_key": a.cfg.HubKey,
 		"default_data":  defaultData,
-		"default_token": filepath.Join(defaultData, "admin.token"),
+		"default_token": filepath.Join(filepath.Dir(defaultData), "admin.token"),
 	})
 }
 

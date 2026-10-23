@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.10] - 2026-10-24
+
+### Security
+
+- Validate and secure the Hub data parent before initialization. The default
+  ProgramData parent is created with a protected DACL; pre-existing writable
+  or reparse-point parents are rejected.
+- Normalize `\\?\` paths, 8.3 aliases, and directory identity when checking
+  whether data is inside the AgentChat install directory.
+- Treat every IPv6 unspecified form, including expanded `0:0:...:0`, as a
+  wildcard Hub URL.
+- Default admin token path is a sibling of the data directory, not inside it.
+
 ## [0.30.9] - 2026-10-24
 
 ### Added
