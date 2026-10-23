@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.2] - 2026-10-23
+
+### Fixed
+
+- Repair UTF-8 encoding damage in the Console language strings that caused a
+  JavaScript syntax error and made Host setup buttons unresponsive.
+- Restore correctly encoded English and Chinese README files.
+
 ## [0.30.1] - 2026-10-23
 
 ### Added
