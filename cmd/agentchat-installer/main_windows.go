@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -54,12 +55,30 @@ func main() {
 	if !*noLaunch {
 		exe := filepath.Join(dir, "AgentChatConsole.exe")
 		cfg := filepath.Join(dir, "desktop.json")
-		cmd := exec.Command(exe, "--config", cfg)
-		cmd.Dir = dir
-		if err := cmd.Start(); err != nil {
-			fatal(fmt.Errorf("launch console: %w", err))
+		if err := launchElevated(exe, `--config "`+strings.ReplaceAll(cfg, `"`, `\"`)+`"`, dir); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not launch the elevated Console: %v\n", err)
+			fmt.Fprintln(os.Stderr, "Start AgentChat Console from the Start menu; Windows will ask for administrator approval.")
 		}
 	}
+}
+
+var (
+	installerShell32           = windows.NewLazySystemDLL("shell32.dll")
+	procInstallerShellExecuteW = installerShell32.NewProc("ShellExecuteW")
+)
+
+func launchElevated(exe, args, dir string) error {
+	verb, _ := windows.UTF16PtrFromString("runas")
+	file, _ := windows.UTF16PtrFromString(exe)
+	params, _ := windows.UTF16PtrFromString(args)
+	work, _ := windows.UTF16PtrFromString(dir)
+	result, _, _ := procInstallerShellExecuteW.Call(0,
+		uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(file)),
+		uintptr(unsafe.Pointer(params)), uintptr(unsafe.Pointer(work)), 1)
+	if result <= 32 {
+		return fmt.Errorf("ShellExecuteW returned %d", result)
+	}
+	return nil
 }
 
 const installMarkerName = ".agentchat-install.json"

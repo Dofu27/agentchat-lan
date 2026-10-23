@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.8] - 2026-10-24
+
+### Changed
+
+- AgentChat Console now declares `requireAdministrator` in its Windows
+  manifest. Every launch, including the installed shortcut, requests
+  administrator approval.
+- The installer launches the Console with ShellExecute `runas`; an installer
+  that cannot elevate reports a warning instead of failing the installation.
+
 ## [0.30.7] - 2026-10-24
 
 ### Fixed
