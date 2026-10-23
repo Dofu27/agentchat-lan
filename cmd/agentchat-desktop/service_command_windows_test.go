@@ -47,7 +47,7 @@ func TestServiceCommandUsesPinnedExecutableAndRoundTripsArguments(t *testing.T) 
 		windows.CloseHandle(h)
 		t.Fatal(err)
 	}
-	g := &serviceBinaryGuard{objects: []servicePathObject{{h, canonical, id}}}
+	g := &serviceBinaryGuard{objects: []servicePathObject{{h, canonical, id, false}}}
 	defer g.Close()
 	for _, data := range []string{`C:\fixture\data\`, `C:\fixture space\data\`, `C:\fixture&data`, `C:\fixture"quoted`} {
 		cfg := config{AgentchatPath: `C:\different\unverified.exe`, HubData: data, HubListen: "127.0.0.1:8443", HubCert: `C:\cert space\certificate.pem`, HubKey: `C:\key space\key.pem`}

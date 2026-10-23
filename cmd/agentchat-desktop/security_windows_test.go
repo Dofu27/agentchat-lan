@@ -152,7 +152,17 @@ func TestProcessJobCancellationBounded(t *testing.T) {
 }
 
 func TestServiceRejectsAncestorJunction(t *testing.T) {
-	dir := t.TempDir()
+	dir, err := os.MkdirTemp("", "agentchat-junction-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var link string
+	t.Cleanup(func() {
+		if link != "" {
+			_ = exec.Command("cmd.exe", "/d", "/c", "rmdir", link).Run()
+		}
+		_ = os.RemoveAll(dir)
+	})
 	protected, outside := filepath.Join(dir, "protected"), filepath.Join(dir, "outside")
 	for _, p := range []string{protected, outside} {
 		if err := os.Mkdir(p, 0700); err != nil {
@@ -166,7 +176,7 @@ func TestServiceRejectsAncestorJunction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	link := filepath.Join(protected, "link")
+	link = filepath.Join(protected, "link")
 	if out, err := exec.Command(filepath.Join(systemDir, "cmd.exe"), "/d", "/c", "mklink", "/J", link, outside).CombinedOutput(); err != nil {
 		t.Fatalf("temporary junction: %v %s", err, out)
 	}

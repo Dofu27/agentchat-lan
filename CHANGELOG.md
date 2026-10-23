@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.7] - 2026-10-24
+
+### Fixed
+
+- Repaired the remaining Windows test fixtures for `servicePathObject` and
+  junction cleanup, restoring the full Windows test and vet suite.
+
 ## [0.30.6] - 2026-10-24
 
 ### Fixed
