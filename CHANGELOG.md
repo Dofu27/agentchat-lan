@@ -4,14 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
-## [Unreleased]
-
-### Release candidate
-
-- Candidate desktop installer: `AgentChatConsole-v0.30.0-dev-installer.exe`.
-  No tag or release has been created; the operator must approve the version.
+## [0.30.0] - 2026-10-23
 
 ### Added
+
+- Windows console close behavior with explicit minimize / background tray /
+  quit choices, a notification-area icon, Explorer-restart recovery, and
+  single-instance window restoration.
+- Chat mentions highlighting, direct-message and room creation controls,
+  per-agent presence indicators, and full local date/time on every message.
 
 - Windows console agent connector wizard: Codex MCP config generation with
   backup/duplicate protection, DSH native bridge setup, and a generic hook
