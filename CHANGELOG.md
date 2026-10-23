@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.12] - 2026-10-24
+
+### Security
+
+- Data directory ACLs are reset before applying the protected whitelist, so
+  explicit Users write ACEs cannot survive inheritance removal.
+- Existing empty data directories are pinned, hardened, and only then
+  inspected for unexpected content.
+- Bridge and Hub initialization executables are opened with read-only sharing
+  and checked against the embedded CLI digest before execution.
+- Data-parent validation permits create-child and write-attribute rights on
+  ancestors, while still rejecting delete, rename, DACL, and owner changes.
+
 ## [0.30.11] - 2026-10-24
 
 ### Security

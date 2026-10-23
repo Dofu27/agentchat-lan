@@ -338,6 +338,96 @@ func (p *pinnedDirectoryChain) Close() {
 	p.handles = nil
 }
 
+func ordinaryUserCanReplacePath(sd *windows.SECURITY_DESCRIPTOR, token windows.Token) (bool, error) {
+	absolute, err := sd.ToAbsolute()
+	if err != nil {
+		return false, err
+	}
+	mapping := fileGenericMapping{windows.FILE_GENERIC_READ, windows.FILE_GENERIC_WRITE, windows.FILE_GENERIC_EXECUTE, 0x1f01ff}
+	privileges := make([]uint64, 512)
+	size := uint32(len(privileges) * 8)
+	var granted, allowed uint32
+	r, _, callErr := accessCheckProc.Call(uintptr(unsafe.Pointer(absolute)), uintptr(token), uintptr(windows.MAXIMUM_ALLOWED), uintptr(unsafe.Pointer(&mapping)), uintptr(unsafe.Pointer(&privileges[0])), uintptr(unsafe.Pointer(&size)), uintptr(unsafe.Pointer(&granted)), uintptr(unsafe.Pointer(&allowed)))
+	runtime.KeepAlive(absolute)
+	if r == 0 {
+		return false, fmt.Errorf("AccessCheck data path: %w", callErr)
+	}
+	const replacement = 0x40 /* FILE_DELETE_CHILD */ | windows.DELETE | windows.WRITE_DAC | windows.WRITE_OWNER
+	return allowed != 0 && granted&replacement != 0, nil
+}
+
+func openDataDirectory(path string) (windows.Handle, error) {
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
+	h, err := windows.CreateFile(p, windows.GENERIC_READ|windows.READ_CONTROL, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return 0, err
+	}
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(h, &info); err != nil || info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 || info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY == 0 {
+		windows.CloseHandle(h)
+		return 0, errors.New("data ancestor is a reparse point or not a directory")
+	}
+	sd, err := windows.GetSecurityInfo(h, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		windows.CloseHandle(h)
+		return 0, err
+	}
+	token, err := ordinaryUserToken()
+	if err != nil {
+		windows.CloseHandle(h)
+		return 0, err
+	}
+	defer token.Close()
+	replaceable, err := ordinaryUserCanReplacePath(sd, token)
+	if err != nil {
+		windows.CloseHandle(h)
+		return 0, err
+	}
+	if replaceable {
+		windows.CloseHandle(h)
+		return 0, errors.New("ordinary user can replace a data ancestor")
+	}
+	if err := rejectForeignServiceWriters(sd); err != nil {
+		windows.CloseHandle(h)
+		return 0, err
+	}
+	return h, nil
+}
+
+func pinDataDirectoryChain(path string) (*pinnedDirectoryChain, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	abs = filepath.Clean(abs)
+	volume := filepath.VolumeName(abs)
+	if len(volume) != 2 || volume[1] != ':' {
+		return nil, errors.New("data directory must be on a local volume")
+	}
+	paths := []string{volume + `\`}
+	current := paths[0]
+	for _, part := range strings.Split(strings.TrimPrefix(abs, volume+`\`), `\`) {
+		if part == "" {
+			continue
+		}
+		current = filepath.Join(current, part)
+		paths = append(paths, current)
+	}
+	p := &pinnedDirectoryChain{}
+	for _, dir := range paths {
+		h, err := openDataDirectory(dir)
+		if err != nil {
+			p.Close()
+			return nil, fmt.Errorf("pin data directory %s: %w", dir, err)
+		}
+		p.handles = append(p.handles, h)
+	}
+	return p, nil
+}
+
 func pinDirectoryChain(path string) (*pinnedDirectoryChain, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {

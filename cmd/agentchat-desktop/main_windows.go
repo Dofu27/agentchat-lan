@@ -948,6 +948,13 @@ func bridgeResult(cfg config, action string) map[string]any {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
+	verified, err := openVerifiedCLI(cfg.AgentchatPath)
+	if err != nil {
+		result["ok"] = false
+		result["error"] = err.Error()
+		return result
+	}
+	defer verified.Close()
 	out, err := runBoundedCommand(ctx, cfg.AgentchatPath, args, 16<<10)
 	result["output"] = redactOutput(strings.TrimSpace(out))
 	result["ok"] = err == nil
@@ -1489,22 +1496,42 @@ func withinPath(path, root string) bool {
 	}
 }
 
+func openVerifiedCLI(path string) (*os.File, error) {
+	expected := strings.ToLower(strings.TrimSpace(expectedCLISHA256))
+	if len(expected) != 64 {
+		return nil, errors.New("CLI digest is not embedded in this Console build")
+	}
+	f, hash, err := openVerifiedFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.EqualFold(hash, expected) {
+		f.Close()
+		return nil, errors.New("CLI does not match the verified release payload")
+	}
+	return f, nil
+}
+
 func secureDataDirectory(path string, usersRead bool) error {
 	systemDir, err := windows.GetSystemDirectory()
 	if err != nil {
 		return errors.New("cannot locate Windows system directory")
 	}
 	icacls := filepath.Join(systemDir, "icacls.exe")
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if out, err := runBoundedCommand(ctx, icacls, []string{path, "/reset", "/T", "/C"}, 16<<10); err != nil {
+		return fmt.Errorf("reset data directory ACL failed: %s", redactOutput(strings.TrimSpace(out)))
+	}
 	args := []string{
 		path, "/inheritance:r",
+		"/setowner", "*S-1-5-32-544",
 		"/grant:r", "*S-1-5-18:(OI)(CI)F",
 		"/grant:r", "*S-1-5-32-544:(OI)(CI)F",
 	}
 	if usersRead {
 		args = append(args, "/grant:r", "*S-1-5-32-545:(OI)(CI)RX")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
 	out, err := runBoundedCommand(ctx, icacls, args, 16<<10)
 	if err != nil {
 		return fmt.Errorf("secure data directory failed: %s", redactOutput(strings.TrimSpace(out)))
@@ -1532,7 +1559,7 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 			return fail(errors.New("data parent directory does not exist; create a protected data directory first"))
 		}
 		ancestor := filepath.Dir(parent)
-		ancestorChain, err := pinDirectoryChain(ancestor)
+		ancestorChain, err := pinDataDirectoryChain(ancestor)
 		if err != nil {
 			return fail(fmt.Errorf("pin data ancestor: %w", err))
 		}
@@ -1551,7 +1578,7 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 	if !parentInfo.IsDir() || parentInfo.Mode()&os.ModeSymlink != 0 {
 		return fail(errors.New("data parent must be a regular directory"))
 	}
-	parentChain, err := pinDirectoryChain(parent)
+	parentChain, err := pinDataDirectoryChain(parent)
 	if err != nil {
 		return fail(fmt.Errorf("data parent is not a protected directory: %w", err))
 	}
@@ -1572,15 +1599,20 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 		if !dataInfo.IsDir() || dataInfo.Mode()&os.ModeSymlink != 0 {
 			return fail(errors.New("data path must be a regular directory"))
 		}
+		dataPin, err := pinDataDirectoryChain(data)
+		if err != nil {
+			return fail(err)
+		}
+		mergeChains(chain, dataPin)
+		if err := secureDataDirectory(data, false); err != nil {
+			return fail(err)
+		}
 		entries, err := os.ReadDir(data)
 		if err != nil {
 			return fail(err)
 		}
 		if len(entries) != 0 {
 			return fail(errors.New("data directory already exists and is not empty; remove it to initialize"))
-		}
-		if err := secureDataDirectory(data, false); err != nil {
-			return fail(err)
 		}
 	}
 	dataChain, err := pinDirectoryChain(data)
@@ -1703,6 +1735,12 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	args := []string{"hub", "init", "--data", req.Data, "--admin-token-file", req.TokenFile, "--json"}
+	verified, err := openVerifiedCLI(base.AgentchatPath)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	defer verified.Close()
 	out, err := runBoundedCommand(ctx, base.AgentchatPath, args, 16<<10)
 	if err != nil {
 		cleanupInit()
