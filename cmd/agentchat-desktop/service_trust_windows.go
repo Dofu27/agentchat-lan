@@ -5,6 +5,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -245,4 +246,60 @@ func trustedServiceBinary(path string) error {
 	}
 	defer g.Close()
 	return nil
+}
+
+// ensureProtectedServiceBinary copies a per-user CLI into Program Files when
+// the user asks to install the machine-wide Hub service. The copy itself
+// requires administrator rights; the resulting path is validated by the same
+// protected-directory/ACL checks used by the service installer.
+func ensureProtectedServiceBinary(path string) (string, error) {
+	if err := trustedServiceBinary(path); err == nil {
+		return path, nil
+	}
+	programFiles := os.Getenv("ProgramFiles")
+	if programFiles == "" {
+		return "", errors.New("ProgramFiles is not configured")
+	}
+	targetDir := filepath.Join(programFiles, "AgentChat")
+	target := filepath.Join(targetDir, "agentchat.exe")
+	if strings.EqualFold(filepath.Clean(path), filepath.Clean(target)) {
+		return "", errors.New("protected service binary is not trusted")
+	}
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return "", errors.New("run the Console as administrator to create the protected service directory")
+	}
+	src, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer src.Close()
+	tmp, err := os.CreateTemp(targetDir, ".agentchat-*.exe")
+	if err != nil {
+		return "", errors.New("run the Console as administrator to install the protected service binary")
+	}
+	tmpPath := tmp.Name()
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	if _, err := io.Copy(tmp, src); err != nil {
+		tmp.Close()
+		return "", err
+	}
+	if err := tmp.Close(); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(tmpPath, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmpPath, target); err != nil {
+		return "", errors.New("run the Console as administrator to replace the protected service binary")
+	}
+	ok = true
+	if err := trustedServiceBinary(target); err != nil {
+		return "", err
+	}
+	return target, nil
 }

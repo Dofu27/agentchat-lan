@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.3] - 2026-10-23
+
+### Fixed
+
+- The Console now installs a protected copy of the CLI under Program Files
+  before registering the machine-wide Hub service, instead of rejecting the
+  per-user installation path.
+- Added a one-click "Restart as administrator" action for service and firewall
+  setup.
+
 ## [0.30.2] - 2026-10-23
 
 ### Fixed

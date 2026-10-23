@@ -265,6 +265,19 @@ func main() {
 		removeTrayIcon(hwnd)
 		sendMessage(hwnd, wmClose, 0, 0)
 	})
+	_ = w.Bind("__winElevate", func() {
+		exe, err := os.Executable()
+		if err != nil {
+			return
+		}
+		verb, _ := windows.UTF16PtrFromString("runas")
+		exePtr, _ := windows.UTF16PtrFromString(exe)
+		argsPtr, _ := windows.UTF16PtrFromString("--config " + quoteWindowsArg(a.configPath))
+		_, _, _ = procShellExecuteW.Call(hwnd, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(exePtr)), uintptr(unsafe.Pointer(argsPtr)), 0, 1)
+		allowClose.Store(true)
+		removeTrayIcon(hwnd)
+		sendMessage(hwnd, wmClose, 0, 0)
+	})
 	w.Navigate(origin + "/")
 	w.Run()
 }
@@ -295,6 +308,7 @@ var (
 	procMessageBoxW            = user32DLL.NewProc("MessageBoxW")
 	procRegisterWindowMessageW = user32DLL.NewProc("RegisterWindowMessageW")
 	procShellNotifyIconW       = shell32DLL.NewProc("Shell_NotifyIconW")
+	procShellExecuteW          = shell32DLL.NewProc("ShellExecuteW")
 	procExtractIconExW         = shell32DLL.NewProc("ExtractIconExW")
 	dwmapiDLL                  = windows.NewLazySystemDLL("dwmapi.dll")
 	procDwmSetAttribute        = dwmapiDLL.NewProc("DwmSetWindowAttribute")
@@ -1646,6 +1660,23 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{"action": req.Action}
 	switch req.Action {
 	case "install":
+		protected, err := ensureProtectedServiceBinary(cfg.AgentchatPath)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+			return
+		}
+		if !strings.EqualFold(protected, cfg.AgentchatPath) {
+			cfg.AgentchatPath = protected
+			a.mu.Lock()
+			if saveErr := a.saveConfig(cfg); saveErr != nil {
+				a.mu.Unlock()
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save protected service binary path"})
+				return
+			}
+			a.cfg = cfg
+			a.configVersion++
+			a.mu.Unlock()
+		}
 		guard, err := openTrustedServiceBinary(cfg.AgentchatPath)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
