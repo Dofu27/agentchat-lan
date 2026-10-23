@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.4] - 2026-10-24
+
+### Security
+
+- The service installer now verifies the CLI against the SHA-256 payload
+  embedded in the Console build, opens the source without write/delete
+  sharing, and pins the protected target directory before writing.
+- Replaced the unverified Program Files copy path and added a stable upgrade
+  path for an existing protected binary.
+
+### Fixed
+
+- Cancelling UAC no longer closes the Console; failed elevation is reported.
+- Added explicit reinstall handling for the protected service binary.
+
 ## [0.30.3] - 2026-10-23
 
 ### Fixed

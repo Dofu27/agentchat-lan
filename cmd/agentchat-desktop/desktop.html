@@ -556,7 +556,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.3</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.4</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -610,6 +610,7 @@
       "host.step4":"Initialize the hub, then install and start the Windows service below.",
       "host.step5":"Open the LAN firewall port. This requires running the Console as administrator.",
       "host.elevate":"Restart as administrator", "host.elevate_hint":"Required to install the protected service binary, control the Windows service, and open the firewall.",
+      "host.elevate_failed":"Administrator restart was cancelled or failed.",
       "host.tls_generate":"Generate certificate", "host.tls_install":"Install certificate for this user",
       "host.tls_failed":"Certificate operation failed", "host.firewall_open":"Open firewall for LAN",
       "host.firewall_remove":"Remove firewall rule", "host.firewall_ok":"Firewall rule updated",
@@ -692,6 +693,7 @@
       "host.step4":"初始化 Hub，然后在下方安装并启动 Windows 服务。",
       "host.step5":"开放局域网防火墙端口。此步骤需要以管理员身份运行 Console。",
       "host.elevate":"以管理员身份重启", "host.elevate_hint":"安装受保护的服务二进制、控制 Windows 服务、开放防火墙都需要管理员权限。",
+      "host.elevate_failed":"管理员重启被取消或失败。",
       "host.tls_generate":"生成证书", "host.tls_install":"为当前用户安装证书",
       "host.tls_failed":"证书操作失败", "host.firewall_open":"开放局域网防火墙",
       "host.firewall_remove":"删除防火墙规则", "host.firewall_ok":"防火墙规则已更新",
@@ -1722,7 +1724,10 @@
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
   $("host-init").addEventListener("click", initHub);
-  $("host-elevate").addEventListener("click", () => { if (window.__winElevate) window.__winElevate(); });
+  $("host-elevate").addEventListener("click", () => {
+    const ok = window.__winElevate ? window.__winElevate() : false;
+    if (!ok) toast(t("host.elevate_failed"), true);
+  });
   $("host-tls-generate").addEventListener("click", () => hubTLS("generate"));
   $("host-tls-install").addEventListener("click", () => hubTLS("install"));
   $("host-firewall-open").addEventListener("click", () => hubFirewall("open"));

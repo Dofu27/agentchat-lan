@@ -13,9 +13,10 @@ cleanup() {
 trap cleanup EXIT
 
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
-  go build -trimpath -ldflags "-s -w -H windowsgui" -o "$assets/AgentChatConsole.exe" ./cmd/agentchat-desktop
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
   go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "$assets/agentchat.exe" ./cmd/agentchat
+cli_sha256="$(sha256sum "$assets/agentchat.exe" | awk '{print $1}')"
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
+  go build -trimpath -ldflags "-s -w -H windowsgui -X main.expectedCLISHA256=${cli_sha256}" -o "$assets/AgentChatConsole.exe" ./cmd/agentchat-desktop
 
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
   go build -trimpath -ldflags "-s -w" \

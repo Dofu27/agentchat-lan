@@ -265,18 +265,22 @@ func main() {
 		removeTrayIcon(hwnd)
 		sendMessage(hwnd, wmClose, 0, 0)
 	})
-	_ = w.Bind("__winElevate", func() {
+	_ = w.Bind("__winElevate", func() bool {
 		exe, err := os.Executable()
 		if err != nil {
-			return
+			return false
 		}
 		verb, _ := windows.UTF16PtrFromString("runas")
 		exePtr, _ := windows.UTF16PtrFromString(exe)
 		argsPtr, _ := windows.UTF16PtrFromString("--config " + quoteWindowsArg(a.configPath))
-		_, _, _ = procShellExecuteW.Call(hwnd, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(exePtr)), uintptr(unsafe.Pointer(argsPtr)), 0, 1)
+		result, _, _ := procShellExecuteW.Call(hwnd, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(exePtr)), uintptr(unsafe.Pointer(argsPtr)), 0, 1)
+		if result <= 32 {
+			return false
+		}
 		allowClose.Store(true)
 		removeTrayIcon(hwnd)
 		sendMessage(hwnd, wmClose, 0, 0)
+		return true
 	})
 	w.Navigate(origin + "/")
 	w.Run()

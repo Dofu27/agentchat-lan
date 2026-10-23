@@ -155,7 +155,7 @@ AgentChat LAN 已申请 SignPath Foundation 的免费代码签名，目前尚未
 
 ## 状态与限制
 
-- 当前版本：**v0.30.3**
+- 当前版本：**v0.30.4**
 - Federation、显式已读回执、多 peer 连接都是 **opt-in**，仍属实验特性。
 - 投递是 at-least-once，不是 exactly-once；没有 HA 或多写保证。
 - Windows 是主要桌面目标；Linux/macOS 提供加固 launcher 和 `.desktop`/`.app`

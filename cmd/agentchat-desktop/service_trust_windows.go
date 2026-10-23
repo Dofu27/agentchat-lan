@@ -3,6 +3,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -248,31 +250,138 @@ func trustedServiceBinary(path string) error {
 	return nil
 }
 
-// ensureProtectedServiceBinary copies a per-user CLI into Program Files when
-// the user asks to install the machine-wide Hub service. The copy itself
-// requires administrator rights; the resulting path is validated by the same
-// protected-directory/ACL checks used by the service installer.
+func openVerifiedFile(path string) (*os.File, string, error) {
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return nil, "", err
+	}
+	h, err := windows.CreateFile(p, windows.GENERIC_READ|windows.READ_CONTROL, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return nil, "", err
+	}
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(h, &info); err != nil || info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 || info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY != 0 {
+		windows.CloseHandle(h)
+		return nil, "", errors.New("service source must be a regular non-reparse file")
+	}
+	f := os.NewFile(uintptr(h), path)
+	hsh := sha256.New()
+	if _, err := io.Copy(hsh, f); err != nil {
+		f.Close()
+		return nil, "", err
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		f.Close()
+		return nil, "", err
+	}
+	return f, hex.EncodeToString(hsh.Sum(nil)), nil
+}
+
+func openProtectedDirectory(path string) (windows.Handle, error) {
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
+	h, err := windows.CreateFile(p, windows.GENERIC_READ|windows.READ_CONTROL, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return 0, err
+	}
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(h, &info); err != nil || info.FileAttributes&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 || info.FileAttributes&windows.FILE_ATTRIBUTE_DIRECTORY == 0 {
+		windows.CloseHandle(h)
+		return 0, errors.New("protected service directory is a reparse point or not a directory")
+	}
+	sd, err := windows.GetSecurityInfo(h, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		windows.CloseHandle(h)
+		return 0, err
+	}
+	token, err := ordinaryUserToken()
+	if err != nil {
+		windows.CloseHandle(h)
+		return 0, err
+	}
+	defer token.Close()
+	writable, err := ordinaryUserCanMutate(sd, token)
+	if err != nil {
+		windows.CloseHandle(h)
+		return 0, err
+	}
+	if writable {
+		windows.CloseHandle(h)
+		return 0, errors.New("ordinary user can mutate protected service directory")
+	}
+	if err := rejectForeignServiceWriters(sd); err != nil {
+		windows.CloseHandle(h)
+		return 0, err
+	}
+	return h, nil
+}
+
+func sha256File(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// ensureProtectedServiceBinary installs the CLI from the exact build payload
+// recorded in expectedCLISHA256. It pins the source without write/delete
+// sharing, verifies the digest, and opens the target ancestors before writing
+// so a junction cannot be used to overwrite an arbitrary directory.
 func ensureProtectedServiceBinary(path string) (string, error) {
-	if err := trustedServiceBinary(path); err == nil {
-		return path, nil
+	expected := strings.ToLower(strings.TrimSpace(expectedCLISHA256))
+	if len(expected) != 64 {
+		return "", errors.New("service payload digest is not embedded in this Console build")
+	}
+	src, sourceHash, err := openVerifiedFile(path)
+	if err != nil {
+		return "", err
+	}
+	defer src.Close()
+	if !strings.EqualFold(sourceHash, expected) {
+		return "", errors.New("service binary does not match the verified release payload")
 	}
 	programFiles := os.Getenv("ProgramFiles")
 	if programFiles == "" {
 		return "", errors.New("ProgramFiles is not configured")
 	}
-	targetDir := filepath.Join(programFiles, "AgentChat")
-	target := filepath.Join(targetDir, "agentchat.exe")
-	if strings.EqualFold(filepath.Clean(path), filepath.Clean(target)) {
-		return "", errors.New("protected service binary is not trusted")
-	}
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
-		return "", errors.New("run the Console as administrator to create the protected service directory")
-	}
-	src, err := os.Open(path)
+	pf, err := openProtectedDirectory(programFiles)
 	if err != nil {
 		return "", err
 	}
-	defer src.Close()
+	defer windows.CloseHandle(pf)
+	targetDir := filepath.Join(programFiles, "AgentChat")
+	if _, err := os.Lstat(targetDir); err != nil {
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+		if err := os.Mkdir(targetDir, 0o755); err != nil {
+			return "", errors.New("run the Console as administrator to create the protected service directory")
+		}
+	}
+	td, err := openProtectedDirectory(targetDir)
+	if err != nil {
+		return "", err
+	}
+	defer windows.CloseHandle(td)
+	target := filepath.Join(targetDir, "agentchat.exe")
+	if info, err := os.Lstat(target); err == nil {
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return "", errors.New("protected service binary path is not a regular file")
+		}
+		if hash, err := sha256File(target); err == nil && strings.EqualFold(hash, expected) {
+			return target, nil
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
 	tmp, err := os.CreateTemp(targetDir, ".agentchat-*.exe")
 	if err != nil {
 		return "", errors.New("run the Console as administrator to install the protected service binary")
@@ -298,6 +407,10 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 		return "", errors.New("run the Console as administrator to replace the protected service binary")
 	}
 	ok = true
+	hash, err := sha256File(target)
+	if err != nil || !strings.EqualFold(hash, expected) {
+		return "", errors.New("protected service binary failed payload verification")
+	}
 	if err := trustedServiceBinary(target); err != nil {
 		return "", err
 	}
