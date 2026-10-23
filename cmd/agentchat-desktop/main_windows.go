@@ -84,6 +84,11 @@ func main() {
 	mutexName, _ := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
 	instanceMutex, _ = windows.CreateMutex(nil, false, mutexName)
 	if instanceMutex != 0 && windows.GetLastError() == windows.ERROR_ALREADY_EXISTS {
+		activateExistingWindow()
+		return
+	}
+	// Even if the mutex check races, never create a second Console window.
+	if activateExistingWindow() {
 		return
 	}
 	var cfgPath string
@@ -229,6 +234,7 @@ func main() {
 	defer w.Destroy()
 	hwnd := uintptr(w.Window())
 	makeFrameless(hwnd)
+	registerTaskbarCreated()
 	ensureTrayIcon(hwnd)
 	closeDialogEval = func() { w.Eval("window.__agentchatAskClose && window.__agentchatAskClose()") }
 	origin := "http://" + ln.Addr().String()
@@ -258,32 +264,36 @@ func main() {
 }
 
 var (
-	user32DLL                = windows.NewLazySystemDLL("user32.dll")
-	shell32DLL               = windows.NewLazySystemDLL("shell32.dll")
-	procReleaseCapture       = user32DLL.NewProc("ReleaseCapture")
-	procSendMessageW         = user32DLL.NewProc("SendMessageW")
-	procPostMessageW         = user32DLL.NewProc("PostMessageW")
-	procShowWindow           = user32DLL.NewProc("ShowWindow")
-	procIsZoomed             = user32DLL.NewProc("IsZoomed")
-	procGetWindowLong        = user32DLL.NewProc("GetWindowLongPtrW")
-	procSetWindowLong        = user32DLL.NewProc("SetWindowLongPtrW")
-	procSetWindowPos         = user32DLL.NewProc("SetWindowPos")
-	procGetWindowRect        = user32DLL.NewProc("GetWindowRect")
-	procCallWindowProc       = user32DLL.NewProc("CallWindowProcW")
-	procSystemParametersInfo = user32DLL.NewProc("SystemParametersInfoW")
-	procLoadIconW            = user32DLL.NewProc("LoadIconW")
-	procGetCursorPos         = user32DLL.NewProc("GetCursorPos")
-	procCreatePopupMenu      = user32DLL.NewProc("CreatePopupMenu")
-	procAppendMenuW          = user32DLL.NewProc("AppendMenuW")
-	procTrackPopupMenu       = user32DLL.NewProc("TrackPopupMenu")
-	procDestroyMenu          = user32DLL.NewProc("DestroyMenu")
-	procSetForegroundWindow  = user32DLL.NewProc("SetForegroundWindow")
-	procShellNotifyIconW     = shell32DLL.NewProc("Shell_NotifyIconW")
-	procExtractIconExW       = shell32DLL.NewProc("ExtractIconExW")
-	dwmapiDLL                = windows.NewLazySystemDLL("dwmapi.dll")
-	procDwmSetAttribute      = dwmapiDLL.NewProc("DwmSetWindowAttribute")
-	uxthemeDLL               = windows.NewLazySystemDLL("uxtheme.dll")
-	procSetWindowTheme       = uxthemeDLL.NewProc("SetWindowTheme")
+	user32DLL                  = windows.NewLazySystemDLL("user32.dll")
+	shell32DLL                 = windows.NewLazySystemDLL("shell32.dll")
+	procReleaseCapture         = user32DLL.NewProc("ReleaseCapture")
+	procSendMessageW           = user32DLL.NewProc("SendMessageW")
+	procPostMessageW           = user32DLL.NewProc("PostMessageW")
+	procShowWindow             = user32DLL.NewProc("ShowWindow")
+	procIsZoomed               = user32DLL.NewProc("IsZoomed")
+	procGetWindowLong          = user32DLL.NewProc("GetWindowLongPtrW")
+	procSetWindowLong          = user32DLL.NewProc("SetWindowLongPtrW")
+	procSetWindowPos           = user32DLL.NewProc("SetWindowPos")
+	procGetWindowRect          = user32DLL.NewProc("GetWindowRect")
+	procCallWindowProc         = user32DLL.NewProc("CallWindowProcW")
+	procSystemParametersInfo   = user32DLL.NewProc("SystemParametersInfoW")
+	procLoadIconW              = user32DLL.NewProc("LoadIconW")
+	procGetCursorPos           = user32DLL.NewProc("GetCursorPos")
+	procCreatePopupMenu        = user32DLL.NewProc("CreatePopupMenu")
+	procAppendMenuW            = user32DLL.NewProc("AppendMenuW")
+	procTrackPopupMenu         = user32DLL.NewProc("TrackPopupMenu")
+	procDestroyMenu            = user32DLL.NewProc("DestroyMenu")
+	procSetForegroundWindow    = user32DLL.NewProc("SetForegroundWindow")
+	procEnumWindows            = user32DLL.NewProc("EnumWindows")
+	procGetWindowTextW         = user32DLL.NewProc("GetWindowTextW")
+	procMessageBoxW            = user32DLL.NewProc("MessageBoxW")
+	procRegisterWindowMessageW = user32DLL.NewProc("RegisterWindowMessageW")
+	procShellNotifyIconW       = shell32DLL.NewProc("Shell_NotifyIconW")
+	procExtractIconExW         = shell32DLL.NewProc("ExtractIconExW")
+	dwmapiDLL                  = windows.NewLazySystemDLL("dwmapi.dll")
+	procDwmSetAttribute        = dwmapiDLL.NewProc("DwmSetWindowAttribute")
+	uxthemeDLL                 = windows.NewLazySystemDLL("uxtheme.dll")
+	procSetWindowTheme         = uxthemeDLL.NewProc("SetWindowTheme")
 )
 
 const (
@@ -324,14 +334,52 @@ type notifyIconData struct {
 }
 
 var (
-	trayIconAdded   bool
-	closeDialogEval func()
-	allowClose      atomic.Bool
+	trayIconAdded     bool
+	taskbarCreatedMsg uint32
+	closeDialogEval   func()
+	allowClose        atomic.Bool
 )
 
-func ensureTrayIcon(hwnd uintptr) {
-	if trayIconAdded || hwnd == 0 {
-		return
+func registerTaskbarCreated() {
+	name, _ := windows.UTF16PtrFromString("TaskbarCreated")
+	msg, _, _ := procRegisterWindowMessageW.Call(uintptr(unsafe.Pointer(name)))
+	taskbarCreatedMsg = uint32(msg)
+}
+
+func showTrayError(hwnd uintptr) {
+	title, _ := windows.UTF16PtrFromString("AgentChat Console")
+	text, _ := windows.UTF16PtrFromString("托盘图标创建失败，窗口保持打开。")
+	_, _, _ = procMessageBoxW.Call(hwnd, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(title)), 0x10)
+}
+
+var activationHWND uintptr
+
+var enumWindowsProc = syscall.NewCallback(func(hwnd, _ uintptr) uintptr {
+	var buf [256]uint16
+	n, _, _ := procGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	if n > 0 && strings.TrimSpace(windows.UTF16ToString(buf[:n])) == "AgentChat Console" {
+		activationHWND = hwnd
+		return 0
+	}
+	return 1
+})
+
+func activateExistingWindow() bool {
+	activationHWND = 0
+	_, _, _ = procEnumWindows.Call(enumWindowsProc, 0)
+	if activationHWND != 0 {
+		showMainWindow(activationHWND)
+		return true
+	}
+	return false
+}
+
+func ensureTrayIcon(hwnd uintptr) bool {
+	if hwnd == 0 {
+		return false
+	}
+	if trayIconAdded {
+		return true
 	}
 	var nid notifyIconData
 	nid.CbSize = uint32(unsafe.Sizeof(nid))
@@ -358,7 +406,10 @@ func ensureTrayIcon(hwnd uintptr) {
 	copy(nid.SzTip[:], tip)
 	if ok, _, _ := procShellNotifyIconW.Call(0, uintptr(unsafe.Pointer(&nid))); ok != 0 {
 		trayIconAdded = true
+		return true
 	}
+	trayIconAdded = false
+	return false
 }
 
 func removeTrayIcon(hwnd uintptr) {
@@ -409,8 +460,12 @@ func closeChoice(hwnd uintptr, choice string) {
 	case "minimize":
 		showWindow(hwnd, swMinimize)
 	case "tray":
+		if !ensureTrayIcon(hwnd) {
+			showMainWindow(hwnd)
+			showTrayError(hwnd)
+			return
+		}
 		showWindow(hwnd, swHide)
-		ensureTrayIcon(hwnd)
 	case "quit":
 		allowClose.Store(true)
 		removeTrayIcon(hwnd)
@@ -471,6 +526,14 @@ func minSizeProc(hwnd, msg, wp uintptr, lp *minMaxInfo) uintptr {
 	if msg == wmGetMinMaxInfo && lp != nil {
 		lp.MinTrackSize.X = 900
 		lp.MinTrackSize.Y = 600
+		return 0
+	}
+	if taskbarCreatedMsg != 0 && msg == uintptr(taskbarCreatedMsg) {
+		trayIconAdded = false
+		if !ensureTrayIcon(hwnd) {
+			showMainWindow(hwnd)
+			showTrayError(hwnd)
+		}
 		return 0
 	}
 	switch msg {
