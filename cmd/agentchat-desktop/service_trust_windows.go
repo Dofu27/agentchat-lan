@@ -26,6 +26,7 @@ type servicePathObject struct {
 	handle windows.Handle
 	path   string
 	id     serviceFileIdentity
+	isDir  bool
 }
 type serviceBinaryGuard struct{ objects []servicePathObject }
 
@@ -144,7 +145,7 @@ type fileGenericMapping struct{ read, write, execute, all uint32 }
 
 // AccessCheck computes effective rights (including deny ACEs and ownership),
 // rather than inferring permissions from a directory name or a Unix mode bit.
-func ordinaryUserCanMutate(sd *windows.SECURITY_DESCRIPTOR, token windows.Token) (bool, error) {
+func ordinaryUserCanMutate(sd *windows.SECURITY_DESCRIPTOR, token windows.Token, isDir bool) (bool, error) {
 	absolute, err := sd.ToAbsolute()
 	if err != nil {
 		return false, err
@@ -158,7 +159,13 @@ func ordinaryUserCanMutate(sd *windows.SECURITY_DESCRIPTOR, token windows.Token)
 	if r == 0 {
 		return false, fmt.Errorf("AccessCheck service object: %w", callErr)
 	}
-	const mutation = windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_EA | windows.FILE_WRITE_ATTRIBUTES | 0x40 /* FILE_DELETE_CHILD */ | windows.DELETE | windows.WRITE_DAC | windows.WRITE_OWNER
+	mutation := uint32(windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA | windows.FILE_WRITE_EA | windows.FILE_WRITE_ATTRIBUTES | 0x40 /* FILE_DELETE_CHILD */ | windows.DELETE | windows.WRITE_DAC | windows.WRITE_OWNER)
+	if isDir {
+		// FILE_APPEND_DATA on a directory is FILE_ADD_SUBDIRECTORY. Creating an
+		// unrelated child does not let an ordinary user replace an existing
+		// pinned component; deletion, rename, DACL, and owner changes still do.
+		mutation &^= windows.FILE_APPEND_DATA
+	}
 	return allowed != 0 && granted&mutation != 0, nil
 }
 
@@ -202,7 +209,6 @@ func openTrustedServiceBinary(path string) (_ *serviceBinaryGuard, retErr error)
 			return nil, fmt.Errorf("pin service path: %w", err)
 		}
 		id, attr, err := fileIdentity(h)
-		g.objects = append(g.objects, servicePathObject{h, path, id})
 		if err != nil {
 			return nil, err
 		}
@@ -210,6 +216,7 @@ func openTrustedServiceBinary(path string) (_ *serviceBinaryGuard, retErr error)
 			return nil, errors.New("service ancestor or executable is a reparse point")
 		}
 		isDir := attr&windows.FILE_ATTRIBUTE_DIRECTORY != 0
+		g.objects = append(g.objects, servicePathObject{h, path, id, isDir})
 		if isDir != (i != len(paths)-1) {
 			return nil, errors.New("service executable must be a regular file beneath directories")
 		}
@@ -227,7 +234,7 @@ func openTrustedServiceBinary(path string) (_ *serviceBinaryGuard, retErr error)
 		if err != nil {
 			return nil, err
 		}
-		writable, err := ordinaryUserCanMutate(sd, token)
+		writable, err := ordinaryUserCanMutate(sd, token, obj.isDir)
 		if err != nil {
 			return nil, err
 		}
@@ -302,7 +309,7 @@ func openProtectedDirectory(path string) (windows.Handle, error) {
 		return 0, err
 	}
 	defer token.Close()
-	writable, err := ordinaryUserCanMutate(sd, token)
+	writable, err := ordinaryUserCanMutate(sd, token, true)
 	if err != nil {
 		windows.CloseHandle(h)
 		return 0, err

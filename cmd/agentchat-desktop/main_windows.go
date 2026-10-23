@@ -93,9 +93,9 @@ func main() {
 			replaceInstance = true
 		}
 	}
+	mutexName, _ := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
+	instanceMutex, _ = windows.CreateMutex(nil, false, mutexName)
 	if !replaceInstance {
-		mutexName, _ := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
-		instanceMutex, _ = windows.CreateMutex(nil, false, mutexName)
 		if instanceMutex != 0 && windows.GetLastError() == windows.ERROR_ALREADY_EXISTS {
 			activateExistingWindow()
 			return

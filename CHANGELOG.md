@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.6] - 2026-10-24
+
+### Fixed
+
+- Directory ACL checks now distinguish FILE_ADD_SUBDIRECTORY from deletion,
+  rename, DACL, and owner changes. A normal volume root such as `C:\` no
+  longer blocks Host service installation.
+- `--replace-instance` still creates and holds the Console mutex; it only skips
+  activating and exiting against the old window.
+
 ## [0.30.5] - 2026-10-24
 
 ### Security

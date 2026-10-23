@@ -204,7 +204,7 @@ func TestServiceAccessCheckOrdinaryUser(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := ordinaryUserCanMutate(sd, token)
+		got, err := ordinaryUserCanMutate(sd, token, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -212,6 +212,18 @@ func TestServiceAccessCheckOrdinaryUser(t *testing.T) {
 			t.Fatalf("AccessCheck writable=%v, want %v", got, tt.writable)
 		}
 	}
+}
+
+func TestPinProgramFilesChain(t *testing.T) {
+	p, err := knownProgramFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain, err := pinDirectoryChain(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chain.Close()
 }
 
 func TestServicePinnedIdentity(t *testing.T) {
@@ -237,7 +249,7 @@ func TestServicePinnedIdentity(t *testing.T) {
 		windows.CloseHandle(h)
 		t.Fatal(err)
 	}
-	g := &serviceBinaryGuard{objects: []servicePathObject{{h, canonical, id}}}
+	g := &serviceBinaryGuard{objects: []servicePathObject{{h, canonical, id, false}}}
 	defer g.Close()
 	if err := g.Verify(); err != nil {
 		t.Fatal(err)
