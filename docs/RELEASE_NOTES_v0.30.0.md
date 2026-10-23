@@ -32,3 +32,10 @@ Windows desktop release with a single-window local Chat/Admin console.
 `AgentChatConsole-v0.30.0-installer.exe`
 
 See the release assets for platform archives and checksums.
+
+## Code signing
+
+Code signing policy: https://github.com/Dofu27/agentchat-lan/blob/main/docs/CODE_SIGNING.md
+
+The project has applied for SignPath Foundation signing; the application is not
+yet approved, so v0.30.0 Windows artifacts are unsigned.

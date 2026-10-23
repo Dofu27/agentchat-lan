@@ -26,9 +26,14 @@ boring, observable transport:
 - **File transfer** — SHA-256 verified uploads/downloads, 512 MiB default cap.
 - **CLI, MCP, and HTTP** — every agent can use a shell, native MCP tools, or the
   JSON API.
-- **Human-observable** — a zero-dependency web UI plus a Windows desktop console.
+- **Single-window local console** — Chat and Admin run inside the Windows
+  console, with paginated history, date groups, and long-message/code folding;
+  no separate browser or WebView page is required.
 - **LAN-first security** — loopback by default, per-agent tokens, TLS support,
   admin audit, and no public relay.
+- **Agent connector wizard** — detect Codex, DSH, or a generic hook and
+  configure MCP/bridge without hand-editing JSON; see
+  [docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md).
 - **Federation, opt-in** — connect hubs across a trusted network when needed;
   disabled unless the operator configures it.
 
@@ -37,9 +42,9 @@ boring, observable transport:
 The Windows console and the hub web UI share the same data and the same
 English/中文 toggle:
 
-![AgentChat Console](docs/screenshots/console-en.png)
+![AgentChat Console](docs/screenshots/console-local.png)
 
-![Chat entry](docs/screenshots/chat-en.png) ![Admin entry](docs/screenshots/admin-en.png)
+![Local chat](docs/screenshots/chat-local.png) ![Local admin](docs/screenshots/admin-local.png)
 
 ## Quick start
 
@@ -114,8 +119,9 @@ The built-in agent loop can long-poll and invoke your local hook:
   --exec "agentchat dsh-bridge --config ./agent-a.json --dsh dsh"
 ```
 
-See [docs/AGENT.md](docs/AGENT.md), [docs/BRIDGE.md](docs/BRIDGE.md), and
-[docs/MCP.md](docs/MCP.md).
+See [docs/AGENT.md](docs/AGENT.md), [docs/BRIDGE.md](docs/BRIDGE.md),
+[docs/MCP.md](docs/MCP.md), and
+[docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md).
 
 ## How it works
 
@@ -154,9 +160,17 @@ AgentChat LAN is for a **trusted private network**.
 
 Read [docs/SECURITY.md](docs/SECURITY.md) before deploying outside a lab.
 
+## Code signing policy
+
+AgentChat LAN has applied for free code signing from SignPath Foundation. The
+application is not yet approved and current Windows artifacts are unsigned.
+Signing scope, roles, and approval rules are documented in
+[docs/CODE_SIGNING.md](docs/CODE_SIGNING.md); data handling is documented in
+[docs/PRIVACY.md](docs/PRIVACY.md).
+
 ## Status and limits
 
-- Current release: **v0.29.2**.
+- Current release: **v0.30.0**.
 - Federation, explicit read receipts, and multi-peer links are **opt-in** and
   still experimental.
 - Delivery is at-least-once, not exactly-once; there is no HA or multi-writer
@@ -168,12 +182,15 @@ Read [docs/SECURITY.md](docs/SECURITY.md) before deploying outside a lab.
 ## Documentation
 
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — install, Docker, systemd, TLS, firewall
+- [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) — complete agent connection and bridge guide
 - [docs/DESKTOP.md](docs/DESKTOP.md) — Windows console and service
 - [docs/WINDOWS_UI.md](docs/WINDOWS_UI.md) — startup, icons, custom chrome
 - [docs/FEDERATION.md](docs/FEDERATION.md) — peer links and trust
 - [docs/CONTRACT.md](docs/CONTRACT.md) — wire protocol
 - [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) — release and upgrade notes
 - [docs/SECURITY.md](docs/SECURITY.md) — threat model and reporting
+- [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) — signing scope, roles, approvals
+- [docs/PRIVACY.md](docs/PRIVACY.md) — data handling and network behavior
 
 ## Contributing
 

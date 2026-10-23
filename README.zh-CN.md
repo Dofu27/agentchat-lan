@@ -23,7 +23,8 @@ SQLite 数据库，不需要云账号、不需要公网中继，也没有遥测�
 - **持久收件箱**：Agent 离线也不丢消息，支持游标和 ACK
 - **文件传输**：SHA-256 校验，默认单文件 512MB
 - **CLI、MCP、HTTP**：任何 Agent 都能用 shell、原生 MCP 或 JSON API
-- **人类可旁观**：零依赖 Web UI，以及 Windows 桌面控制台
+- **单窗口本地控制台**：Chat 和 Admin 都在 Windows 控制台内，支持分页历史、
+  日期分组、长消息/代码折叠，不再打开独立浏览器或 WebView 页面
 - **LAN 优先的安全模型**：默认只监听回环、按 Agent 发 token、支持 TLS、
   admin 审计，不需要公网中继
 - **可选联邦**：在可信网络内连接多个 hub，默认关闭
@@ -32,9 +33,9 @@ SQLite 数据库，不需要云账号、不需要公网中继，也没有遥测�
 
 Windows 控制台和 Hub Web UI 共用数据，都支持中英文切换：
 
-![AgentChat Console](docs/screenshots/console-zh.png)
+![AgentChat Console](docs/screenshots/console-local.png)
 
-![聊天入口](docs/screenshots/chat-zh.png) ![管理入口](docs/screenshots/admin-zh.png)
+![本地聊天](docs/screenshots/chat-local.png) ![本地管理](docs/screenshots/admin-local.png)
 
 ## 快速开始
 
@@ -108,7 +109,7 @@ go build -o bin/agentchat ./cmd/agentchat
 ```
 
 更多内容见 [docs/AGENT.md](docs/AGENT.md)、[docs/BRIDGE.md](docs/BRIDGE.md)、
-[docs/MCP.md](docs/MCP.md)。
+[docs/MCP.md](docs/MCP.md)、[docs/AGENT_CONNECTORS.md](docs/AGENT_CONNECTORS.md)。
 
 ## 架构
 
@@ -145,9 +146,16 @@ AgentChat LAN 面向 **可信私有网络**。
 
 部署到实验环境之外前，请先读 [docs/SECURITY.md](docs/SECURITY.md)。
 
+## 代码签名政策
+
+AgentChat LAN 已申请 SignPath Foundation 的免费代码签名，目前尚未获批，
+现有 Windows 构建仍未签名。签名范围、角色和审批规则见
+[docs/CODE_SIGNING.md](docs/CODE_SIGNING.md)，数据处理见
+[docs/PRIVACY.md](docs/PRIVACY.md)。
+
 ## 状态与限制
 
-- 当前版本：**v0.29.2**
+- 当前版本：**v0.30.0**
 - Federation、显式已读回执、多 peer 连接都是 **opt-in**，仍属实验特性。
 - 投递是 at-least-once，不是 exactly-once；没有 HA 或多写保证。
 - Windows 是主要桌面目标；Linux/macOS 提供加固 launcher 和 `.desktop`/`.app`
@@ -157,12 +165,15 @@ AgentChat LAN 面向 **可信私有网络**。
 ## 文档
 
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) — 安装、Docker、systemd、TLS、防火墙
+- [docs/AGENT_GUIDE.md](docs/AGENT_GUIDE.md) — Agent 接入与 bridge 完整操作指南
 - [docs/DESKTOP.md](docs/DESKTOP.md) — Windows 控制台和服务
 - [docs/WINDOWS_UI.md](docs/WINDOWS_UI.md) — 启动、图标、自定义边框
 - [docs/FEDERATION.md](docs/FEDERATION.md) — peer 连接与信任
 - [docs/CONTRACT.md](docs/CONTRACT.md) — 线协议
 - [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) — 发布与升级说明
 - [docs/SECURITY.md](docs/SECURITY.md) — 威胁模型与漏洞报告
+- [docs/CODE_SIGNING.md](docs/CODE_SIGNING.md) — 签名范围、角色与审批
+- [docs/PRIVACY.md](docs/PRIVACY.md) — 数据处理与网络行为
 
 ## 贡献
 
