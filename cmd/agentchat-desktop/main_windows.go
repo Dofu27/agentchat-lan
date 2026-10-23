@@ -586,6 +586,7 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 	mux.Handle("GET /api/chat/rooms", a.api(http.HandlerFunc(a.handleChatRooms)))
 	mux.Handle("GET /api/chat/messages", a.api(http.HandlerFunc(a.handleChatMessages)))
 	mux.Handle("GET /api/chat/agents", a.api(http.HandlerFunc(a.handleChatAgents)))
+	mux.Handle("POST /api/chat/dm", a.api(http.HandlerFunc(a.handleChatDM)))
 	mux.Handle("GET /api/chat/search", a.api(http.HandlerFunc(a.handleChatSearch)))
 	mux.Handle("POST /api/chat/send", a.api(http.HandlerFunc(a.handleChatSend)))
 	mux.Handle("POST /api/chat/upload", a.api(http.HandlerFunc(a.handleChatUpload)))
@@ -1731,6 +1732,29 @@ func (a *app) handleChatAgents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data, status, err := endpoint.raw(http.MethodGet, "/v1/agents", nil)
+	writeHubData(w, data, status, err)
+}
+
+func (a *app) handleChatDM(w http.ResponseWriter, r *http.Request) {
+	endpoint, err := a.agentEndpoint()
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": err.Error()})
+		return
+	}
+	var req struct {
+		Agent string `json:"agent"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+		return
+	}
+	req.Agent = strings.TrimSpace(req.Agent)
+	if req.Agent == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "agent is required"})
+		return
+	}
+	body, _ := json.Marshal(map[string]string{"agent": req.Agent})
+	data, status, err := endpoint.raw(http.MethodPost, "/v1/dm", body)
 	writeHubData(w, data, status, err)
 }
 

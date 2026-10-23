@@ -50,6 +50,25 @@ func TestLocalChatProxyUsesAgentTokenAndPagination(t *testing.T) {
 	}
 }
 
+func TestLocalChatDMCreatesDirectRoom(t *testing.T) {
+	var gotPath, gotBody string
+	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.RequestURI()
+		data, _ := io.ReadAll(r.Body)
+		gotBody = string(data)
+		_, _ = io.WriteString(w, `{"id":"dm_a_b","kind":"dm"}`)
+	}))
+	defer hub.Close()
+	app := &app{http: hub.Client(), cfg: config{HubURL: hub.URL, AgentConfig: testAgentConfig(t, hub.URL)}}
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/dm", strings.NewReader(`{"agent":"codex-creative"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	app.handleChatDM(rec, req)
+	if rec.Code != http.StatusOK || gotPath != "/v1/dm" || !strings.Contains(gotBody, `"agent":"codex-creative"`) {
+		t.Fatalf("status=%d path=%q body=%q", rec.Code, gotPath, gotBody)
+	}
+}
+
 func TestLocalChatRoomsRejectsMissingConfig(t *testing.T) {
 	app := &app{http: http.DefaultClient, cfg: config{HubURL: "https://127.0.0.1:1"}}
 	rec := httptest.NewRecorder()

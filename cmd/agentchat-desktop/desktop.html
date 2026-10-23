@@ -67,6 +67,15 @@
   .chat-side-head { display:flex; align-items:center; justify-content:space-between; gap:6px; }
   .chat-side-head h3 { margin:0; }
   .chat-side-head button { padding:2px 7px; font-size:12px; line-height:1.2; }
+  .chat-side-actions { display:flex; gap:6px; margin:6px 0 8px; }
+  .chat-side-actions button { flex:1; padding:4px 6px; font-size:11px; }
+  .mention { color:#8fd3ff; background:rgba(84,160,255,.16); border-radius:4px; padding:0 2px; font-weight:600; }
+  .agent-status-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; background:#64748b; vertical-align:middle; }
+  .agent-status-dot.online { background:#3ddc84; }
+  .agent-status-dot.idle { background:#f4c95d; }
+  .agent-status-dot.offline { background:#64748b; }
+  .agent-status-text { color:var(--muted); font-size:10px; margin-left:5px; }
+  .agent-kind { color:var(--muted); font-size:10px; }
   .chat-rail { display:none; position:absolute; top:6px; z-index:5; padding:3px 6px; font-size:13px; line-height:1; }
   .chat-rail-left { left:0; }
   .chat-rail-right { right:0; }
@@ -303,6 +312,10 @@
         <div class="chat-side-head">
           <h3 data-i18n="chat.rooms">Rooms</h3>
           <button id="chat-left-toggle" type="button" title="Show or hide rooms">☰</button>
+        </div>
+        <div class="chat-side-actions">
+          <button id="chat-new-dm" type="button" data-i18n="chat.new_dm">+ DM</button>
+          <button id="chat-new-room" type="button" data-i18n="chat.new_room">+ Room</button>
         </div>
         <div id="chat-rooms"></div>
       </aside>
@@ -568,6 +581,10 @@
       "chat.fold":"Show more", "chat.unfold":"Show less", "chat.sent":"Sent", "chat.history_loaded":"Older messages loaded",
       "chat.agent_info":"Agent info", "chat.mention_agent":"Insert a mention for this agent", "chat.attach":"Attach", "chat.search":"Search", "chat.search_placeholder":"Search this room", "chat.search_empty":"No matches",
       "chat.refreshing":"Refreshing…", "chat.refreshed":"Refreshed", "chat.refresh_failed":"Refresh failed",
+      "chat.new_dm":"+ DM", "chat.new_room":"+ Room", "chat.new_dm_prompt":"Agent name for direct message",
+      "chat.new_room_prompt":"Room id", "chat.new_room_topic":"Room topic (optional)", "chat.dm_created":"Direct message opened",
+      "chat.room_created":"Room created", "chat.last_seen":"Last seen",
+      "chat.status_online":"online", "chat.status_idle":"idle", "chat.status_offline":"offline",
       "chat.invite_placeholder":"Invite code", "chat.name_placeholder":"Agent name", "chat.kind_placeholder":"Kind (codex/dsh/human)",
       "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
       "chat.join_title":"Join a hub", "chat.join":"Join", "chat.joined":"Joined. Agent config saved.",
@@ -634,6 +651,10 @@
       "chat.fold":"展开", "chat.unfold":"收起", "chat.sent":"已发送", "chat.history_loaded":"已加载更早消息",
       "chat.agent_info":"Agent 信息", "chat.mention_agent":"插入提及该 Agent", "chat.attach":"附件", "chat.search":"搜索", "chat.search_placeholder":"搜索当前房间", "chat.search_empty":"没有匹配",
       "chat.refreshing":"刷新中…", "chat.refreshed":"已刷新", "chat.refresh_failed":"刷新失败",
+      "chat.new_dm":"+ 私聊", "chat.new_room":"+ 房间", "chat.new_dm_prompt":"输入私聊 Agent 名称",
+      "chat.new_room_prompt":"输入房间 ID", "chat.new_room_topic":"房间主题（可选）", "chat.dm_created":"已打开私聊",
+      "chat.room_created":"房间已创建", "chat.last_seen":"最后在线",
+      "chat.status_online":"在线", "chat.status_idle":"空闲", "chat.status_offline":"离线",
       "chat.invite_placeholder":"邀请码", "chat.name_placeholder":"Agent 名称", "chat.kind_placeholder":"类型（codex/dsh/human）",
       "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
       "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存。",
@@ -928,7 +949,27 @@
   }
   function chatTime(ts) {
     const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const pad = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+      " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  function chatAppendMentions(el, value) {
+    const text = value || "";
+    const re = /(^|[\s([{（，。:：])@([A-Za-z0-9_.-]+)/g;
+    let last = 0;
+    let match;
+    while ((match = re.exec(text)) !== null) {
+      const prefix = match[1];
+      const name = match[2];
+      const start = match.index + prefix.length;
+      if (start > last) el.appendChild(document.createTextNode(text.slice(last, start)));
+      const mention = document.createElement("span");
+      mention.className = "mention";
+      mention.textContent = "@" + name;
+      el.appendChild(mention);
+      last = start + name.length + 1;
+    }
+    if (last < text.length) el.appendChild(document.createTextNode(text.slice(last)));
   }
   function chatMessageElement(m) {
     const article = document.createElement("article");
@@ -944,7 +985,7 @@
     head.appendChild(author); head.appendChild(time);
     const text = document.createElement("div");
     text.className = "message-text";
-    text.textContent = m.text || "";
+    chatAppendMentions(text, m.text || "");
     if ((m.text || "").includes("```")) text.classList.add("code-message");
     article.appendChild(head); article.appendChild(text);
     const lineCount = (m.text || "").split("\n").length;
@@ -1046,6 +1087,43 @@
       box.appendChild(b);
     }
   }
+  async function chatSelectRoom(id) {
+    if (!id) return;
+    chatState.room = id;
+    chatState.read[id] = Math.max(Number(chatState.read[id] || 0), chatState.last || 0);
+    localStorage.setItem("agentchat_read", JSON.stringify(chatState.read));
+    $("chat-room-title").textContent = "#" + id;
+    await chatLoadLatest();
+    await chatLoadRooms();
+  }
+  async function chatCreateDM() {
+    const name = prompt(t("chat.new_dm_prompt"));
+    if (!name || !name.trim()) return;
+    try {
+      const room = await api("/api/chat/dm", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({agent:name.trim()})
+      });
+      await chatLoadRooms();
+      await chatSelectRoom(room.id || room.room_id);
+      toast(t("chat.dm_created"));
+    } catch (err) { chatError(err); }
+  }
+  async function chatCreateRoom() {
+    const id = prompt(t("chat.new_room_prompt"));
+    if (!id || !id.trim()) return;
+    const roomID = id.trim();
+    const topic = prompt(t("chat.new_room_topic")) || "";
+    try {
+      await api("/api/admin/rooms", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({id:roomID, name:roomID, topic:topic, kind:"room"})
+      });
+      await chatLoadRooms();
+      await chatSelectRoom(roomID);
+      toast(t("chat.room_created"));
+    } catch (err) { chatError(err); }
+  }
   async function chatLoadAgents() {
     const body = await api("/api/chat/agents");
     chatState.agents = body.agents || [];
@@ -1054,8 +1132,24 @@
       const row = document.createElement("button");
       row.type = "button";
       row.className = "agent-item";
-      row.title = t("chat.mention_agent");
-      row.textContent = (agent.name || "?") + (agent.kind ? " · " + agent.kind : "");
+      const status = ["online", "idle", "offline"].includes(agent.status) ? agent.status : "offline";
+      row.title = t("chat.mention_agent") + (agent.last_seen ? " · " + t("chat.last_seen") + " " + chatTime(agent.last_seen) : "");
+      const dot = document.createElement("span");
+      dot.className = "agent-status-dot " + status;
+      const name = document.createElement("span");
+      name.textContent = agent.name || "?";
+      const statusText = document.createElement("span");
+      statusText.className = "agent-status-text";
+      statusText.textContent = t("chat.status_" + status);
+      row.appendChild(dot);
+      row.appendChild(name);
+      if (agent.kind) {
+        const kind = document.createElement("span");
+        kind.className = "agent-kind";
+        kind.textContent = " · " + agent.kind;
+        row.appendChild(kind);
+      }
+      row.appendChild(statusText);
       row.addEventListener("click", () => chatMentionAgent(agent.name));
       box.appendChild(row);
     }
@@ -1549,6 +1643,8 @@
   });
   $("join-submit").addEventListener("click", joinHub);
   $("chat-older").addEventListener("click", () => chatLoadOlder().catch(chatError));
+  $("chat-new-dm").addEventListener("click", chatCreateDM);
+  $("chat-new-room").addEventListener("click", chatCreateRoom);
   $("chat-messages").addEventListener("scroll", updateChatOlder);
   $("chat-send").addEventListener("click", chatSend);
   $("chat-input").addEventListener("keydown", (e) => {
