@@ -318,6 +318,77 @@ func openProtectedDirectory(path string) (windows.Handle, error) {
 	return h, nil
 }
 
+type pinnedDirectoryChain struct {
+	handles []windows.Handle
+}
+
+func (p *pinnedDirectoryChain) Close() {
+	for i := len(p.handles) - 1; i >= 0; i-- {
+		windows.CloseHandle(p.handles[i])
+	}
+	p.handles = nil
+}
+
+func pinDirectoryChain(path string) (*pinnedDirectoryChain, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	abs = filepath.Clean(abs)
+	volume := filepath.VolumeName(abs)
+	if len(volume) != 2 || volume[1] != ':' {
+		return nil, errors.New("protected service directory must be on a local volume")
+	}
+	paths := []string{volume + `\`}
+	current := paths[0]
+	for _, part := range strings.Split(strings.TrimPrefix(abs, volume+`\`), `\`) {
+		if part == "" {
+			continue
+		}
+		current = filepath.Join(current, part)
+		paths = append(paths, current)
+	}
+	p := &pinnedDirectoryChain{}
+	for _, dir := range paths {
+		h, err := openProtectedDirectory(dir)
+		if err != nil {
+			p.Close()
+			return nil, fmt.Errorf("pin protected directory %s: %w", dir, err)
+		}
+		p.handles = append(p.handles, h)
+	}
+	return p, nil
+}
+
+var (
+	knownFolderShell32       = windows.NewLazySystemDLL("shell32.dll")
+	knownFolderOle32         = windows.NewLazySystemDLL("ole32.dll")
+	procSHGetKnownFolderPath = knownFolderShell32.NewProc("SHGetKnownFolderPath")
+	procCoTaskMemFree        = knownFolderOle32.NewProc("CoTaskMemFree")
+	folderIDProgramFiles     = windows.GUID{
+		Data1: 0x905e63b6, Data2: 0xc1bf, Data3: 0x494e,
+		Data4: [8]byte{0xb2, 0x9c, 0x65, 0xb7, 0x32, 0xd3, 0xd2, 0x1a},
+	}
+)
+
+func knownProgramFiles() (string, error) {
+	var p *uint16
+	r, _, _ := procSHGetKnownFolderPath.Call(uintptr(unsafe.Pointer(&folderIDProgramFiles)), 0, 0, uintptr(unsafe.Pointer(&p)))
+	if r != 0 || p == nil {
+		return "", errors.New("cannot resolve the Windows Program Files known folder")
+	}
+	defer procCoTaskMemFree.Call(uintptr(unsafe.Pointer(p)))
+	chars := unsafe.Slice(p, 32768)
+	n := 0
+	for n < len(chars) && chars[n] != 0 {
+		n++
+	}
+	if n == 0 || n == len(chars) {
+		return "", errors.New("invalid Program Files known folder path")
+	}
+	return windows.UTF16ToString(chars[:n]), nil
+}
+
 func sha256File(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -348,15 +419,15 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 	if !strings.EqualFold(sourceHash, expected) {
 		return "", errors.New("service binary does not match the verified release payload")
 	}
-	programFiles := os.Getenv("ProgramFiles")
-	if programFiles == "" {
-		return "", errors.New("ProgramFiles is not configured")
-	}
-	pf, err := openProtectedDirectory(programFiles)
+	programFiles, err := knownProgramFiles()
 	if err != nil {
 		return "", err
 	}
-	defer windows.CloseHandle(pf)
+	pf, err := pinDirectoryChain(programFiles)
+	if err != nil {
+		return "", err
+	}
+	defer pf.Close()
 	targetDir := filepath.Join(programFiles, "AgentChat")
 	if _, err := os.Lstat(targetDir); err != nil {
 		if !os.IsNotExist(err) {
@@ -366,11 +437,11 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 			return "", errors.New("run the Console as administrator to create the protected service directory")
 		}
 	}
-	td, err := openProtectedDirectory(targetDir)
+	td, err := pinDirectoryChain(targetDir)
 	if err != nil {
 		return "", err
 	}
-	defer windows.CloseHandle(td)
+	defer td.Close()
 	target := filepath.Join(targetDir, "agentchat.exe")
 	if info, err := os.Lstat(target); err == nil {
 		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {

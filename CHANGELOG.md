@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.5] - 2026-10-24
+
+### Security
+
+- Resolve Program Files through the Windows known-folder API and pin every
+  directory from the volume root before creating or replacing the protected
+  service binary.
+- Reject reparse points at every ancestor, not only the immediate target
+  directory.
+
+### Fixed
+
+- Use the CLI bundled beside the Console as the upgrade source, so a stale
+  protected target no longer blocks a newer installer.
+- Add an explicit `--replace-instance` handoff for UAC elevation.
+- Await the WebView elevation result before showing a failure.
+
 ## [0.30.4] - 2026-10-24
 
 ### Security

@@ -87,15 +87,23 @@ func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "--uninstall-worker" {
 		os.Exit(runUninstallWorker(os.Args[2:]))
 	}
-	mutexName, _ := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
-	instanceMutex, _ = windows.CreateMutex(nil, false, mutexName)
-	if instanceMutex != 0 && windows.GetLastError() == windows.ERROR_ALREADY_EXISTS {
-		activateExistingWindow()
-		return
+	replaceInstance := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--replace-instance" {
+			replaceInstance = true
+		}
 	}
-	// Even if the mutex check races, never create a second Console window.
-	if activateExistingWindow() {
-		return
+	if !replaceInstance {
+		mutexName, _ := windows.UTF16PtrFromString(`Local\AgentChatConsole`)
+		instanceMutex, _ = windows.CreateMutex(nil, false, mutexName)
+		if instanceMutex != 0 && windows.GetLastError() == windows.ERROR_ALREADY_EXISTS {
+			activateExistingWindow()
+			return
+		}
+		// Even if the mutex check races, never create a second Console window.
+		if activateExistingWindow() {
+			return
+		}
 	}
 	var cfgPath string
 	var service string
@@ -105,6 +113,7 @@ func main() {
 	var listen string
 	flag.StringVar(&cfgPath, "config", "", "desktop config JSON")
 	flag.BoolVar(&headless, "headless", false, "serve the local console API without opening a window")
+	flag.BoolVar(&replaceInstance, "replace-instance", false, "replace an existing console window during an elevation handoff")
 	flag.StringVar(&listen, "listen", "127.0.0.1:0", "local console listen address")
 	flag.StringVar(&service, "service", "AgentChatFedB", "Windows service name")
 	flag.StringVar(&hub, "hub", "https://agentchat.lan:8788", "hub base URL")
@@ -272,7 +281,7 @@ func main() {
 		}
 		verb, _ := windows.UTF16PtrFromString("runas")
 		exePtr, _ := windows.UTF16PtrFromString(exe)
-		argsPtr, _ := windows.UTF16PtrFromString("--config " + quoteWindowsArg(a.configPath))
+		argsPtr, _ := windows.UTF16PtrFromString("--config " + quoteWindowsArg(a.configPath) + " --replace-instance")
 		result, _, _ := procShellExecuteW.Call(hwnd, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(exePtr)), uintptr(unsafe.Pointer(argsPtr)), 0, 1)
 		if result <= 32 {
 			return false
@@ -1664,7 +1673,14 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{"action": req.Action}
 	switch req.Action {
 	case "install":
-		protected, err := ensureProtectedServiceBinary(cfg.AgentchatPath)
+		source := cfg.AgentchatPath
+		if consoleExe, exeErr := os.Executable(); exeErr == nil {
+			bundled := filepath.Join(filepath.Dir(consoleExe), "agentchat.exe")
+			if _, statErr := os.Stat(bundled); statErr == nil {
+				source = bundled
+			}
+		}
+		protected, err := ensureProtectedServiceBinary(source)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return

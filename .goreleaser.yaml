@@ -25,44 +25,6 @@ builds:
     ldflags:
       - -s -w -X main.version={{.Version}}
 
-  - id: agentchat-desktop
-    main: ./cmd/agentchat-desktop
-    binary: AgentChatConsole
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - windows
-    goarch:
-      - amd64
-    ldflags:
-      - -s -w -H windowsgui
-
-  - id: agentchat-desktop-linux
-    main: ./cmd/agentchat-desktop
-    binary: agentchat-desktop
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w
-
-  - id: agentchat-desktop-darwin
-    main: ./cmd/agentchat-desktop
-    binary: agentchat-desktop
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    ldflags:
-      - -s -w
-
 archives:
   - id: agentchat-cli
     builds:
@@ -73,21 +35,6 @@ archives:
       - goos: windows
         formats:
           - zip
-
-  - id: agentchat-desktop
-    builds:
-      - agentchat-desktop
-    formats:
-      - zip
-    name_template: "AgentChatConsole_{{ .Version }}_windows_amd64"
-
-  - id: agentchat-desktop-unix
-    builds:
-      - agentchat-desktop-linux
-      - agentchat-desktop-darwin
-    formats:
-      - tar.gz
-    name_template: "agentchat-desktop_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt
@@ -104,6 +51,5 @@ changelog:
       - "^chore:"
 
 release:
-  draft: false
+  draft: true
   prerelease: auto
-

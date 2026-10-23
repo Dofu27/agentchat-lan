@@ -556,7 +556,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.4</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.5</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -1724,9 +1724,13 @@
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
   $("host-init").addEventListener("click", initHub);
-  $("host-elevate").addEventListener("click", () => {
-    const ok = window.__winElevate ? window.__winElevate() : false;
-    if (!ok) toast(t("host.elevate_failed"), true);
+  $("host-elevate").addEventListener("click", async () => {
+    try {
+      const ok = window.__winElevate ? await window.__winElevate() : false;
+      if (!ok) toast(t("host.elevate_failed"), true);
+    } catch (err) {
+      toast(t("host.elevate_failed"), true);
+    }
   });
   $("host-tls-generate").addEventListener("click", () => hubTLS("generate"));
   $("host-tls-install").addEventListener("click", () => hubTLS("install"));
