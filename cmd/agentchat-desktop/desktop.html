@@ -173,6 +173,7 @@
   </div>
   <div class="row">
     <span id="hub-pill" class="pill">hub …</span>
+    <span id="admin-pill" class="pill">…</span>
     <button id="lang-toggle" type="button">中文</button>
     <button id="refresh" type="button">Refresh</button>
   </div>
@@ -556,7 +557,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.8</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.9</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -663,6 +664,7 @@
       "startup.automatic":"automatic", "startup.manual":"manual", "startup.disabled":"disabled",
       "common.yes":"enabled", "common.no":"disabled", "common.loading":"loading", "common.ok":"healthy", "common.bad":"unreachable",
       "service.not_installed":"service not installed", "service.need_admin":"Run as administrator to control the service.",
+      "admin.yes":"administrator", "admin.no":"standard user",
       "dead.retry_failed":"Retry failed", "dead.confirm":"Retry this dead delivery?"
     },
     zh: {
@@ -746,6 +748,7 @@
       "startup.automatic":"自动", "startup.manual":"手动", "startup.disabled":"禁用",
       "common.yes":"已启用", "common.no":"已关闭", "common.loading":"加载中", "common.ok":"健康", "common.bad":"不可达",
       "service.not_installed":"服务未安装", "service.need_admin":"请以管理员身份运行控制台。",
+      "admin.yes":"管理员", "admin.no":"普通权限",
       "dead.retry_failed":"重投失败", "dead.confirm":"确认重投这条死信？"
     }
   };
@@ -859,6 +862,7 @@
     if (busy) return; busy = true;
     try {
       const status = await api("/api/status");
+      pill("admin-pill", status.is_admin ? t("admin.yes") : t("admin.no"), status.is_admin === true);
       renderService(status.service);
       setText("hub-url", status.hub_url || "");
       setText("hub-health", status.hub_ok ? t("common.ok") : t("common.bad"));
@@ -955,7 +959,9 @@
       await refreshSettings();
       await refresh();
     } catch (err) {
-      $("host-error").textContent = err.message || t("host.failed");
+      const message = err.message || t("host.failed");
+      $("host-error").textContent = message;
+      toast(message, true);
     }
   }
   async function hubTLS(action) {
@@ -975,7 +981,9 @@
       }
       $("host-cert-status").textContent = body.fingerprint ? ("SHA256 " + body.fingerprint.slice(0, 16) + "…") : (body.output || "");
     } catch (err) {
-      $("host-error").textContent = err.message || t("host.tls_failed");
+      const message = err.message || t("host.tls_failed");
+      $("host-error").textContent = message;
+      toast(message, true);
     }
   }
   async function hubFirewall(action) {
@@ -989,7 +997,9 @@
       $("host-firewall-status").textContent = t("host.firewall_ok");
     } catch (err) {
       $("host-firewall-status").textContent = "";
-      $("host-error").textContent = err.message || t("host.firewall_failed");
+      const message = err.message || t("host.firewall_failed");
+      $("host-error").textContent = message;
+      toast(message, true);
     }
   }
   async function completeSetup(role, tab) {

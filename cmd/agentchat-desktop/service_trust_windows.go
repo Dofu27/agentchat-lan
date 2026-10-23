@@ -441,7 +441,7 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 			return "", err
 		}
 		if err := os.Mkdir(targetDir, 0o755); err != nil {
-			return "", errors.New("run the Console as administrator to create the protected service directory")
+			return "", fmt.Errorf("create protected service directory (run the Console as administrator): %w", err)
 		}
 	}
 	td, err := pinDirectoryChain(targetDir)
@@ -462,7 +462,7 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 	}
 	tmp, err := os.CreateTemp(targetDir, ".agentchat-*.exe")
 	if err != nil {
-		return "", errors.New("run the Console as administrator to install the protected service binary")
+		return "", fmt.Errorf("create protected service temporary file (run the Console as administrator): %w", err)
 	}
 	tmpPath := tmp.Name()
 	ok := false
@@ -482,7 +482,7 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 		return "", err
 	}
 	if err := os.Rename(tmpPath, target); err != nil {
-		return "", errors.New("run the Console as administrator to replace the protected service binary")
+		return "", fmt.Errorf("replace protected service binary (run the Console as administrator): %w", err)
 	}
 	ok = true
 	hash, err := sha256File(target)

@@ -1437,6 +1437,11 @@ func (a *app) saveDesktopConfig() error {
 	return a.saveConfig(a.cfg)
 }
 
+func withinPath(path, root string) bool {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(path))
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
 func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Data      string `json:"data"`
@@ -1497,6 +1502,17 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	if parsed.Scheme == "http" && !isLoopbackHostName(parsed.Hostname()) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "non-loopback hub_url must use https"})
 		return
+	}
+	if hostname := parsed.Hostname(); hostname == "0.0.0.0" || hostname == "::" || hostname == "[::]" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub_url must use 127.0.0.1 or this machine's LAN address, not a wildcard listen address"})
+		return
+	}
+	if base := os.Getenv("LOCALAPPDATA"); base != "" {
+		appData := filepath.Join(base, "AgentChat")
+		if withinPath(req.Data, appData) {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "Hub data must not be stored inside the per-user AgentChat install directory; choose a separate local data path"})
+			return
+		}
 	}
 	candidate := base
 	candidate.Service = "AgentChatHub"
@@ -2040,8 +2056,8 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 		a.configVersion++
 	}
 	defaultData := ""
-	if base := os.Getenv("LOCALAPPDATA"); base != "" {
-		defaultData = filepath.Join(base, "AgentChat", "hub")
+	if base := os.Getenv("ProgramData"); base != "" {
+		defaultData = filepath.Join(base, "AgentChat", "hub-data")
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"role": a.cfg.Role, "setup_done": a.cfg.SetupDone, "config_path": a.configPath,
@@ -2581,6 +2597,7 @@ func (a *app) handleStatus(w http.ResponseWriter, r *http.Request) {
 	a.mu.RUnlock()
 	out := map[string]any{
 		"service_name": service, "hub_url": hubURL,
+		"is_admin": windows.GetCurrentProcessToken().IsElevated(),
 	}
 	if st, err := serviceStatus(service); err == nil {
 		out["service"] = st

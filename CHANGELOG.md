@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.9] - 2026-10-24
+
+### Added
+
+- Console header shows whether the process is running as administrator.
+- Host setup rejects wildcard Hub URLs such as `0.0.0.0` and data directories
+  inside the per-user AgentChat installation directory.
+- Default Hub data now uses ProgramData instead of the per-user AppData folder.
+- Host setup errors are also surfaced as notifications.
+
+### Fixed
+
+- Protected service errors now include the underlying Windows error code and
+  path.
+
 ## [0.30.8] - 2026-10-24
 
 ### Changed
