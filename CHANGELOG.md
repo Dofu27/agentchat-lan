@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.30] - 2026-10-25
+
+### Added
+
+- Host setup auto-detects the LAN Hub URL from local IPv4 addresses and the
+  certificate SAN, and adds an Auto-detect button.
+
 ## [0.30.29] - 2026-10-25
 
 ### Fixed

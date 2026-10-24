@@ -899,6 +899,7 @@ func (a *app) startServer(listen string) (net.Listener, *http.Server, error) {
 		_, _ = io.WriteString(w, desktopHTML)
 	})
 	mux.Handle("GET /api/status", a.api(http.HandlerFunc(a.handleStatus)))
+	mux.Handle("GET /api/network", a.api(http.HandlerFunc(a.handleNetwork)))
 	mux.Handle("POST /api/service", a.api(http.HandlerFunc(a.handleService)))
 	mux.Handle("GET /api/logs", a.api(http.HandlerFunc(a.handleLogs)))
 	mux.Handle("GET /api/bridge", a.api(http.HandlerFunc(a.handleBridge)))
@@ -2259,6 +2260,89 @@ func (a *app) handleUninstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data_removed": req.RemoveData})
+}
+
+func (a *app) handleNetwork(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	certPath, keyPath, listen := a.cfg.HubCert, a.cfg.HubKey, a.cfg.HubListen
+	a.mu.RUnlock()
+	scheme := "http"
+	if strings.TrimSpace(certPath) != "" && strings.TrimSpace(keyPath) != "" {
+		scheme = "https"
+	}
+	port := "8787"
+	if _, p, err := net.SplitHostPort(listen); err == nil && p != "" {
+		port = p
+	}
+	certIPs := map[string]bool{}
+	if data, err := os.ReadFile(certPath); err == nil {
+		if block, _ := pem.Decode(data); block != nil {
+			if cert, err := x509.ParseCertificate(block.Bytes); err == nil {
+				for _, ip := range cert.IPAddresses {
+					if v4 := ip.To4(); v4 != nil {
+						certIPs[v4.String()] = true
+					}
+				}
+			}
+		}
+	}
+	var candidates []string
+	seen := map[string]bool{}
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			ip, _, err := net.ParseCIDR(addr.String())
+			if err != nil {
+				continue
+			}
+			v4 := ip.To4()
+			if v4 == nil || v4.IsLoopback() || v4.IsLinkLocalUnicast() {
+				continue
+			}
+			s := v4.String()
+			if !seen[s] {
+				seen[s] = true
+				candidates = append(candidates, s)
+			}
+		}
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		pi, pj := net.ParseIP(candidates[i]).IsPrivate(), net.ParseIP(candidates[j]).IsPrivate()
+		if pi != pj {
+			return pi
+		}
+		ci, cj := certIPs[candidates[i]], certIPs[candidates[j]]
+		if ci != cj {
+			return ci
+		}
+		return candidates[i] < candidates[j]
+	})
+	preferred := ""
+	for _, ip := range candidates {
+		if certIPs[ip] {
+			preferred = ip
+			break
+		}
+	}
+	if preferred == "" && len(candidates) > 0 {
+		preferred = candidates[0]
+	}
+	urls := make([]string, 0, len(candidates))
+	for _, ip := range candidates {
+		urls = append(urls, scheme+"://"+net.JoinHostPort(ip, port))
+	}
+	if preferred == "" {
+		preferred = "127.0.0.1"
+		urls = append(urls, scheme+"://"+net.JoinHostPort(preferred, port))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"preferred": scheme + "://" + net.JoinHostPort(preferred, port),
+		"urls":      urls, "cert_ips": certIPs, "port": port, "scheme": scheme,
+	})
 }
 
 func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {

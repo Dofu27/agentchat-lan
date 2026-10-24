@@ -247,6 +247,7 @@
       <div class="field">
         <label for="host-url" data-i18n="host.url">Hub URL</label>
         <input id="host-url" type="text" autocomplete="off" placeholder="https://192.168.1.10:8787">
+        <button id="host-detect" type="button" data-i18n="host.detect">Auto-detect</button>
         <span class="hint" data-i18n="host.url_hint">URL agents use to reach this hub; include https if TLS is enabled.</span>
       </div>
     </div>
@@ -577,7 +578,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.29</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.30</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -641,6 +642,7 @@
       "host.token":"Admin token file", "host.token_hint":"The admin token is written here once. Keep it private.",
       "host.listen":"Listen address", "host.listen_hint":"Use 127.0.0.1 for this machine only; 0.0.0.0:8787 for LAN.",
       "host.url":"Hub URL", "host.url_hint":"URL agents use to reach this hub; include https if TLS is enabled.",
+      "host.detect":"Auto-detect", "host.detected":"Detected LAN Hub URL",
       "host.cert":"TLS certificate", "host.key":"TLS private key", "host.ca":"Client CA", "host.optional":"Optional",
       "host.failed":"Hub initialization failed",
       "settings.title":"Console role", "settings.save":"Save role", "settings.config":"Desktop config",
@@ -730,6 +732,7 @@
       "host.token":"管理员 token 文件", "host.token_hint":"管理员 token 只写入一次，请妥善保管。",
       "host.listen":"监听地址", "host.listen_hint":"127.0.0.1 只允许本机；局域网用 0.0.0.0:8787。",
       "host.url":"Hub URL", "host.url_hint":"Agent 访问此 Hub 的地址；启用 TLS 时写 https。",
+      "host.detect":"自动检测", "host.detected":"已检测到局域网 Hub 地址",
       "host.cert":"TLS 证书", "host.key":"TLS 私钥", "host.ca":"客户端 CA", "host.optional":"可选",
       "host.failed":"Hub 初始化失败",
       "settings.title":"控制台角色", "settings.save":"保存角色", "settings.config":"桌面配置",
@@ -980,9 +983,10 @@
     $("host-toggle").classList.toggle("hidden", !hubConfigured);
     $("host-toggle").textContent = "展开设置";
     $("host-configured-note").textContent = hubConfigured ? "Hub 已初始化" : "";
-    for (const id of ["host-data","host-token","host-listen","host-url","host-cert","host-key","host-ca","host-init","host-tls-generate","host-tls-install","host-firewall-open","host-firewall-remove","host-elevate"]) {
+    for (const id of ["host-data","host-token","host-listen","host-url","host-detect","host-cert","host-key","host-ca","host-init","host-tls-generate","host-tls-install","host-firewall-open","host-firewall-remove","host-elevate"]) {
       const el = $(id); if (el) el.disabled = hubConfigured;
     }
+    if (!hubConfigured && !$("host-url").value.trim()) detectHubURL(false).catch(() => {});
     applyRole(body.role || "hub");
   }
   async function initHub() {
@@ -1011,7 +1015,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.29/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.30/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1033,6 +1037,19 @@
     });
     input.parentNode.insertBefore(button, input.nextSibling);
   }
+  async function detectHubURL(showToast) {
+    try {
+      const info = await api("/api/network");
+      if (!info || !info.preferred) return;
+      if (!$("host-url").value.trim() || showToast) {
+        $("host-url").value = info.preferred;
+        updateAgentCommand();
+      }
+      if (showToast) toast(t("host.detected") + ": " + info.preferred);
+    } catch (err) {
+      if (showToast) toast(err.message || String(err), true);
+    }
+  }
   async function hubTLS(action) {
     $("host-error").textContent = "";
     try {
@@ -1044,9 +1061,7 @@
       if (body.cert) $("host-cert").value = body.cert;
       if (body.key) $("host-key").value = body.key;
       if (!$("host-url").value.trim()) {
-        const listen = $("host-listen").value.trim() || "0.0.0.0:8787";
-        const port = listen.split(":").pop();
-        $("host-url").value = "https://127.0.0.1:" + port;
+        await detectHubURL(false);
       }
       $("host-cert-status").textContent = body.fingerprint ? ("SHA256 " + body.fingerprint.slice(0, 16) + "…") : (body.output || "");
     } catch (err) {
@@ -1831,6 +1846,7 @@
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
   $("host-init").addEventListener("click", initHub);
   $("host-url").addEventListener("input", updateAgentCommand);
+  $("host-detect").addEventListener("click", () => detectHubURL(true));
   $("host-toggle").addEventListener("click", () => {
     const body = $("host-body");
     body.classList.toggle("hidden");

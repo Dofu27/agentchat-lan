@@ -1,6 +1,6 @@
 #define MyAppName "AgentChat LAN"
 #ifndef AppVersion
-  #define AppVersion "0.30.29"
+  #define AppVersion "0.30.30"
 #endif
 #ifndef StageDir
   #define StageDir "..\build\inno"
