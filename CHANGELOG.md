@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.14] - 2026-10-24
+
+### Security
+
+- Create data directories atomically with a protected security descriptor,
+  eliminating the Mkdir-then-harden window.
+- Create the admin token file atomically with a protected DACL and explicit
+  owner, rather than relying on POSIX mode bits.
+- Durably write and sync the token before committing the Hub initialization.
+- Keep the full directory guard open through initialization.
+
 ## [0.30.13] - 2026-10-24
 
 ### Security

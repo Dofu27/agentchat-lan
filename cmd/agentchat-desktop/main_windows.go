@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -326,6 +327,9 @@ var (
 	procExtractIconExW         = shell32DLL.NewProc("ExtractIconExW")
 	dwmapiDLL                  = windows.NewLazySystemDLL("dwmapi.dll")
 	procGetLongPathNameW       = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetLongPathNameW")
+	secureKernel32DLL          = windows.NewLazySystemDLL("kernel32.dll")
+	procCreateDirectoryW       = secureKernel32DLL.NewProc("CreateDirectoryW")
+	procCreateFileSecureW      = secureKernel32DLL.NewProc("CreateFileW")
 	procDwmSetAttribute        = dwmapiDLL.NewProc("DwmSetWindowAttribute")
 	uxthemeDLL                 = windows.NewLazySystemDLL("uxtheme.dll")
 	procSetWindowTheme         = uxthemeDLL.NewProc("SetWindowTheme")
@@ -1512,27 +1516,69 @@ func openVerifiedCLI(path string) (*os.File, error) {
 	return f, nil
 }
 
-func secureDataDirectory(path string, usersRead bool) error {
-	systemDir, err := windows.GetSystemDirectory()
+type winSecurityAttributes struct {
+	Length             uint32
+	SecurityDescriptor uintptr
+	InheritHandle      int32
+}
+
+func createSecureDirectory(path, sddl string) error {
+	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
-		return errors.New("cannot locate Windows system directory")
+		return err
 	}
-	icacls := filepath.Join(systemDir, "icacls.exe")
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	args := []string{
-		path, "/inheritance:r",
-		"/grant:r", "*S-1-5-18:(OI)(CI)F",
-		"/grant:r", "*S-1-5-32-544:(OI)(CI)F",
-	}
-	if usersRead {
-		args = append(args, "/grant:r", "*S-1-5-32-545:(OI)(CI)RX")
-	}
-	out, err := runBoundedCommand(ctx, icacls, args, 16<<10)
+	p, err := windows.UTF16PtrFromString(path)
 	if err != nil {
-		return fmt.Errorf("secure data directory failed: %s", redactOutput(strings.TrimSpace(out)))
+		return err
+	}
+	sa := winSecurityAttributes{
+		Length:             uint32(unsafe.Sizeof(winSecurityAttributes{})),
+		SecurityDescriptor: uintptr(unsafe.Pointer(sd)),
+	}
+	r, _, callErr := procCreateDirectoryW.Call(uintptr(unsafe.Pointer(p)), uintptr(unsafe.Pointer(&sa)))
+	runtime.KeepAlive(sd)
+	if r == 0 {
+		return fmt.Errorf("create protected directory: %w", callErr)
 	}
 	return nil
+}
+
+func createSecureTokenFile(path, token string) error {
+	sd, err := windows.SecurityDescriptorFromString("O:BAG:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)")
+	if err != nil {
+		return err
+	}
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	sa := winSecurityAttributes{
+		Length:             uint32(unsafe.Sizeof(winSecurityAttributes{})),
+		SecurityDescriptor: uintptr(unsafe.Pointer(sd)),
+	}
+	h, _, callErr := procCreateFileSecureW.Call(
+		uintptr(unsafe.Pointer(p)),
+		uintptr(windows.GENERIC_WRITE),
+		0,
+		uintptr(unsafe.Pointer(&sa)),
+		uintptr(windows.CREATE_NEW),
+		uintptr(windows.FILE_ATTRIBUTE_NORMAL),
+		0,
+	)
+	runtime.KeepAlive(sd)
+	if h == ^uintptr(0) {
+		return fmt.Errorf("create admin token file: %w", callErr)
+	}
+	f := os.NewFile(h, path)
+	if _, err := f.WriteString(token + "\n"); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 func mergeChains(dst, src *pinnedDirectoryChain) {
@@ -1560,11 +1606,8 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 			return fail(fmt.Errorf("pin data ancestor: %w", err))
 		}
 		mergeChains(chain, ancestorChain)
-		if err := os.Mkdir(parent, 0o755); err != nil {
+		if err := createSecureDirectory(parent, "O:BAG:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FR;;;BU)"); err != nil {
 			return fail(fmt.Errorf("create data parent: %w", err))
-		}
-		if err := secureDataDirectory(parent, true); err != nil {
-			return fail(err)
 		}
 		parentInfo, err = os.Lstat(parent)
 	}
@@ -1583,11 +1626,8 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 	dataInfo, err := os.Lstat(data)
 	switch {
 	case os.IsNotExist(err):
-		if err := os.Mkdir(data, 0o755); err != nil {
+		if err := createSecureDirectory(data, "O:BAG:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)"); err != nil {
 			return fail(fmt.Errorf("create data directory: %w", err))
-		}
-		if err := secureDataDirectory(data, false); err != nil {
-			return fail(err)
 		}
 	case err != nil:
 		return fail(err)
@@ -1716,28 +1756,18 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	cleanupInit := func() {}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	token, err := hubpkg.Init(ctx, filepath.Join(req.Data, "agentchat.db"))
-	if err != nil {
-		cleanupInit()
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": redactOutput(err.Error())})
-		return
-	}
+	token := protocol.NewToken("adm")
 	if err := os.MkdirAll(filepath.Dir(req.TokenFile), 0o700); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot create admin token directory"})
 		return
 	}
-	tokenFile, err := os.OpenFile(req.TokenFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token could not be written"})
+	if err := createSecureTokenFile(req.TokenFile, token); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "admin token could not be written"})
 		return
 	}
-	if _, err := tokenFile.WriteString(token + "\n"); err != nil {
-		tokenFile.Close()
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token write failed"})
-		return
-	}
-	if err := tokenFile.Close(); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token close failed"})
+	if err := hubpkg.InitWithToken(ctx, filepath.Join(req.Data, "agentchat.db"), token); err != nil {
+		cleanupInit()
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": redactOutput(err.Error())})
 		return
 	}
 	tokenData := []byte(token)
