@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.13] - 2026-10-24
+
+### Security
+
+- Hub initialization now calls `internal/hub.Init` directly; it no longer
+  executes an AgentChat CLI from a user-writable path.
+- Bridge execution uses the verified protected Program Files CLI.
+- Data directory ACLs are applied non-recursively to a newly created empty
+  directory only. Pre-existing data directories are rejected rather than
+  recursively reset, so a child junction cannot redirect an ACL write.
+- Data directory validation uses the data-specific ancestor rule through the
+  final pin, so a normal ProgramData ACL is accepted.
+
 ## [0.30.12] - 2026-10-24
 
 ### Security

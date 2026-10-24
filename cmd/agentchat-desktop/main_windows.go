@@ -20,6 +20,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	hubpkg "github.com/Dofu27/agentchat-lan/internal/hub"
 	"io"
 	"log"
 	"math/big"
@@ -948,14 +949,13 @@ func bridgeResult(cfg config, action string) map[string]any {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
-	verified, err := openVerifiedCLI(cfg.AgentchatPath)
+	protected, err := ensureProtectedServiceBinary(cfg.AgentchatPath)
 	if err != nil {
 		result["ok"] = false
 		result["error"] = err.Error()
 		return result
 	}
-	defer verified.Close()
-	out, err := runBoundedCommand(ctx, cfg.AgentchatPath, args, 16<<10)
+	out, err := runBoundedCommand(ctx, protected, args, 16<<10)
 	result["output"] = redactOutput(strings.TrimSpace(out))
 	result["ok"] = err == nil
 	if err != nil {
@@ -1520,12 +1520,8 @@ func secureDataDirectory(path string, usersRead bool) error {
 	icacls := filepath.Join(systemDir, "icacls.exe")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	if out, err := runBoundedCommand(ctx, icacls, []string{path, "/reset", "/T", "/C"}, 16<<10); err != nil {
-		return fmt.Errorf("reset data directory ACL failed: %s", redactOutput(strings.TrimSpace(out)))
-	}
 	args := []string{
 		path, "/inheritance:r",
-		"/setowner", "*S-1-5-32-544",
 		"/grant:r", "*S-1-5-18:(OI)(CI)F",
 		"/grant:r", "*S-1-5-32-544:(OI)(CI)F",
 	}
@@ -1599,23 +1595,9 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 		if !dataInfo.IsDir() || dataInfo.Mode()&os.ModeSymlink != 0 {
 			return fail(errors.New("data path must be a regular directory"))
 		}
-		dataPin, err := pinDataDirectoryChain(data)
-		if err != nil {
-			return fail(err)
-		}
-		mergeChains(chain, dataPin)
-		if err := secureDataDirectory(data, false); err != nil {
-			return fail(err)
-		}
-		entries, err := os.ReadDir(data)
-		if err != nil {
-			return fail(err)
-		}
-		if len(entries) != 0 {
-			return fail(errors.New("data directory already exists and is not empty; remove it to initialize"))
-		}
+		return fail(errors.New("data directory already exists; remove it to initialize"))
 	}
-	dataChain, err := pinDirectoryChain(data)
+	dataChain, err := pinDataDirectoryChain(data)
 	if err != nil {
 		return fail(fmt.Errorf("data directory is not protected: %w", err))
 	}
@@ -1734,25 +1716,31 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	cleanupInit := func() {}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	args := []string{"hub", "init", "--data", req.Data, "--admin-token-file", req.TokenFile, "--json"}
-	verified, err := openVerifiedCLI(base.AgentchatPath)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
-		return
-	}
-	defer verified.Close()
-	out, err := runBoundedCommand(ctx, base.AgentchatPath, args, 16<<10)
+	token, err := hubpkg.Init(ctx, filepath.Join(req.Data, "agentchat.db"))
 	if err != nil {
 		cleanupInit()
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": redactOutput(strings.TrimSpace(out))})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub init failed", "output": redactOutput(err.Error())})
 		return
 	}
-	tokenData, err := os.ReadFile(req.TokenFile)
+	if err := os.MkdirAll(filepath.Dir(req.TokenFile), 0o700); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot create admin token directory"})
+		return
+	}
+	tokenFile, err := os.OpenFile(req.TokenFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
-		cleanupInit()
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token could not be read"})
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token could not be written"})
 		return
 	}
+	if _, err := tokenFile.WriteString(token + "\n"); err != nil {
+		tokenFile.Close()
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token write failed"})
+		return
+	}
+	if err := tokenFile.Close(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub initialized but admin token close failed"})
+		return
+	}
+	tokenData := []byte(token)
 	a.mu.Lock()
 	if a.configVersion != expectedVersion {
 		a.mu.Unlock()
