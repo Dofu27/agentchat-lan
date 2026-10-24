@@ -530,7 +530,10 @@ func ensureServiceStoppedForReplace(name string) error {
 	defer m.Disconnect()
 	s, err := m.OpenService(name)
 	if err != nil {
-		return nil // not installed
+		if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
+			return nil
+		}
+		return fmt.Errorf("open service %s: %w", name, err)
 	}
 	defer s.Close()
 	status, err := s.Query()

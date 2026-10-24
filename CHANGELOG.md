@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.24] - 2026-10-25
+
+### Fixed
+
+- Service replacement now treats only ERROR_SERVICE_DOES_NOT_EXIST as
+  "service not installed"; access-denied and other OpenService errors stop the
+  replacement.
+
 ## [0.30.23] - 2026-10-25
 
 ### Fixed
