@@ -99,7 +99,9 @@ func main() {
 	instanceMutex, _ = windows.CreateMutex(nil, false, mutexName)
 	if !replaceInstance {
 		if instanceMutex != 0 && windows.GetLastError() == windows.ERROR_ALREADY_EXISTS {
-			activateExistingWindow()
+			if !activateExistingWindow() {
+				notifyAlreadyRunning()
+			}
 			return
 		}
 		// Even if the mutex check races, never create a second Console window.
@@ -352,6 +354,7 @@ var (
 	procTrackPopupMenu         = user32DLL.NewProc("TrackPopupMenu")
 	procDestroyMenu            = user32DLL.NewProc("DestroyMenu")
 	procSetForegroundWindow    = user32DLL.NewProc("SetForegroundWindow")
+	procBringWindowToTop       = user32DLL.NewProc("BringWindowToTop")
 	procEnumWindows            = user32DLL.NewProc("EnumWindows")
 	procGetWindowTextW         = user32DLL.NewProc("GetWindowTextW")
 	procMessageBoxW            = user32DLL.NewProc("MessageBoxW")
@@ -430,7 +433,7 @@ var activationHWND uintptr
 var enumWindowsProc = syscall.NewCallback(func(hwnd, _ uintptr) uintptr {
 	var buf [256]uint16
 	n, _, _ := procGetWindowTextW.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
-	if n > 0 && strings.TrimSpace(windows.UTF16ToString(buf[:n])) == "AgentChat Console" {
+	if n > 0 && strings.Contains(strings.TrimSpace(windows.UTF16ToString(buf[:n])), "AgentChat Console") {
 		activationHWND = hwnd
 		return 0
 	}
@@ -445,6 +448,12 @@ func activateExistingWindow() bool {
 		return true
 	}
 	return false
+}
+
+func notifyAlreadyRunning() {
+	title, _ := windows.UTF16PtrFromString("AgentChat Console")
+	text, _ := windows.UTF16PtrFromString("AgentChat Console 已在运行。请查看任务栏或通知区域。")
+	_, _, _ = procMessageBoxW.Call(0, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(title)), 0x40)
 }
 
 func ensureTrayIcon(hwnd uintptr) bool {
@@ -499,6 +508,9 @@ func removeTrayIcon(hwnd uintptr) {
 
 func showMainWindow(hwnd uintptr) {
 	showWindow(hwnd, swRestore)
+	_, _, _ = procBringWindowToTop.Call(hwnd)
+	const swpNoMoveNoSizeShow = 0x0001 | 0x0002 | 0x0040
+	_, _, _ = procSetWindowPos.Call(hwnd, 0, 0, 0, 0, 0, swpNoMoveNoSizeShow)
 	_, _, _ = procSetForegroundWindow.Call(hwnd)
 }
 

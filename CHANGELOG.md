@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.29] - 2026-10-25
+
+### Fixed
+
+- Opening the shortcut while the Console is already running now restores and
+  foregrounds the existing window. If no window can be found, a message box
+  explains that the Console is already running.
+
 ## [0.30.28] - 2026-10-25
 
 ### Fixed
