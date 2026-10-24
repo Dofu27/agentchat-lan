@@ -272,6 +272,7 @@
     <div class="row" style="margin-top:10px">
       <button id="host-tls-generate" type="button" data-i18n="host.tls_generate">Generate certificate</button>
       <button id="host-tls-install" type="button" data-i18n="host.tls_install">Install certificate for this user</button>
+      <button id="host-tls-reset" class="danger" type="button" data-i18n="host.tls_reset">Reset certificate</button>
       <span id="host-cert-status" class="muted small"></span>
     </div>
     <div class="row" style="margin-top:8px">
@@ -579,7 +580,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.31</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.32</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -636,6 +637,8 @@
       "host.agent_command":"Command to send to an agent", "host.copy_command":"Copy command",
       "host.elevate_failed":"Administrator restart was cancelled or failed.",
       "host.tls_generate":"Generate certificate", "host.tls_install":"Install certificate for this user",
+      "host.tls_reset":"Reset certificate", "host.tls_reset_confirm":"Delete the trusted certificate and generate/install a new one? Restart the Hub service afterward.",
+      "host.tls_reset_done":"Certificate reset; restart the Hub service",
       "host.tls_failed":"Certificate operation failed", "host.firewall_open":"Open firewall for LAN",
       "host.firewall_remove":"Remove firewall rule", "host.firewall_ok":"Firewall rule updated",
       "host.firewall_failed":"Firewall change failed; run the Console as administrator",
@@ -729,6 +732,8 @@
       "host.agent_command":"发给 Agent 的配置指令", "host.copy_command":"复制指令",
       "host.elevate_failed":"管理员重启被取消或失败。",
       "host.tls_generate":"生成证书", "host.tls_install":"为当前用户安装证书",
+      "host.tls_reset":"重置证书", "host.tls_reset_confirm":"删除已信任证书，并重新生成和安装新证书？完成后需要重启 Hub 服务。",
+      "host.tls_reset_done":"证书已重置，请重启 Hub 服务",
       "host.tls_failed":"证书操作失败", "host.firewall_open":"开放局域网防火墙",
       "host.firewall_remove":"删除防火墙规则", "host.firewall_ok":"防火墙规则已更新",
       "host.firewall_failed":"防火墙修改失败；请以管理员身份运行 Console",
@@ -990,7 +995,7 @@
     $("host-toggle").classList.toggle("hidden", !hubConfigured);
     $("host-toggle").textContent = "展开设置";
     $("host-configured-note").textContent = hubConfigured ? "Hub 已初始化" : "";
-    for (const id of ["host-data","host-token","host-listen","host-url","host-detect","host-cert","host-key","host-ca","host-init","host-tls-generate","host-tls-install","host-firewall-open","host-firewall-remove","host-elevate"]) {
+    for (const id of ["host-data","host-token","host-listen","host-url","host-detect","host-cert","host-key","host-ca","host-init","host-tls-generate","host-tls-install","host-tls-reset","host-firewall-open","host-firewall-remove","host-elevate"]) {
       const el = $(id); if (el) el.disabled = hubConfigured;
     }
     if (!hubConfigured && !$("host-url").value.trim()) detectHubURL(false).catch(() => {});
@@ -1023,7 +1028,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.31/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.32/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1887,6 +1892,11 @@
   });
   $("host-tls-generate").addEventListener("click", () => hubTLS("generate"));
   $("host-tls-install").addEventListener("click", () => hubTLS("install"));
+  $("host-tls-reset").addEventListener("click", async () => {
+    if (!window.confirm(t("host.tls_reset_confirm"))) return;
+    await hubTLS("reset");
+    toast(t("host.tls_reset_done"), false);
+  });
   $("host-firewall-open").addEventListener("click", () => hubFirewall("open"));
   $("host-firewall-remove").addEventListener("click", () => hubFirewall("remove"));
   let chatStatusTimer = null;

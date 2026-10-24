@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.32] - 2026-10-25
+
+### Added
+
+- Host setup Reset certificate button removes the trusted certificate,
+  regenerates the TLS files, and installs the new certificate. Restart the Hub
+  service afterward.
+
 ## [0.30.31] - 2026-10-25
 
 ### Added
