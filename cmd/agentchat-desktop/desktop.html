@@ -174,6 +174,13 @@
     </nav>
   </div>
   <div class="row">
+    <select id="role-select" title="Console role">
+      <option value="hub" data-i18n="role.hub">Hub host</option>
+      <option value="client" data-i18n="role.client">Chat client</option>
+      <option value="bridge" data-i18n="role.bridge">Agent bridge</option>
+      <option value="observer" data-i18n="role.observer">Observer</option>
+    </select>
+    <button id="role-save" type="button" data-i18n="settings.save">Save role</button>
     <span id="hub-pill" class="pill">hub …</span>
     <span id="admin-pill" class="pill">…</span>
     <button id="lang-toggle" type="button">中文</button>
@@ -199,6 +206,11 @@
   </section>
   <section class="wide" id="host-setup">
     <h2 data-i18n="host.title">Host setup</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button id="host-toggle" class="hidden" type="button">展开设置</button>
+      <span id="host-configured-note" class="muted small"></span>
+    </div>
+    <div id="host-body">
     <div class="row" style="margin-bottom:10px">
       <button id="host-elevate" type="button" data-i18n="host.elevate">Restart as administrator</button>
       <span class="muted small" data-i18n="host.elevate_hint">Required to install the protected service binary, control the Windows service, and open the firewall.</span>
@@ -272,6 +284,7 @@
     </div>
     <pre id="host-output" class="logs" style="height:140px"></pre>
     <div id="host-error" class="small" style="margin-top:8px"></div>
+    </div>
   </section>
   <section>
     <h2 data-i18n="service.title">Windows service</h2>
@@ -527,16 +540,7 @@
       <button id="settings-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
       <button id="settings-about-btn" type="button" data-i18n="tab.about">About</button>
     </div>
-    <h2 data-i18n="settings.title">Console role</h2>
-    <div class="row">
-      <select id="role-select">
-        <option value="hub" data-i18n="role.hub">Hub host</option>
-        <option value="client" data-i18n="role.client">Chat client</option>
-        <option value="bridge" data-i18n="role.bridge">Agent bridge</option>
-        <option value="observer" data-i18n="role.observer">Observer</option>
-      </select>
-      <button id="role-save" class="primary" type="button" data-i18n="settings.save">Save role</button>
-    </div>
+    <h2 data-i18n="settings.title">Settings</h2>
     <div class="kv">
       <span class="k" data-i18n="settings.config">Desktop config</span><span class="v" id="settings-config"></span>
       <span class="k" data-i18n="settings.agent">Agent config</span><span class="v" id="settings-agent"></span>
@@ -570,7 +574,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.17</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.18</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -961,6 +965,10 @@
     const hubConfigured = !!body.hub_data;
     $("host-setup").classList.toggle("hidden", body.role !== "hub");
     $("host-setup").classList.toggle("configured", hubConfigured);
+    $("host-body").classList.toggle("hidden", hubConfigured);
+    $("host-toggle").classList.toggle("hidden", !hubConfigured);
+    $("host-toggle").textContent = "展开设置";
+    $("host-configured-note").textContent = hubConfigured ? "Hub 已初始化" : "";
     for (const id of ["host-data","host-token","host-listen","host-url","host-cert","host-key","host-ca","host-init","host-tls-generate","host-tls-install","host-firewall-open","host-firewall-remove","host-elevate"]) {
       const el = $(id); if (el) el.disabled = hubConfigured;
     }
@@ -991,7 +999,14 @@
   function updateAgentCommand() {
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
-      "agentchat join --hub " + url + " --invite <INVITE> --name <AGENT_NAME> --kind dsh";
+      "先阅读：\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.18/docs/AGENT_GUIDE.md\n\n" +
+      "确认版本与参数：\n" +
+      "agentchat version\n" +
+      "agentchat join --help\n\n" +
+      "然后执行：\n" +
+      "agentchat join --hub " + url + " --invite <INVITE> --name <AGENT_NAME> --kind dsh\n\n" +
+      "如果是 Codex 或 DSH，请继续按文档配置对应的 MCP/bridge。";
   }
   function addPathPicker(inputID, kind, title, filter) {
     const input = $(inputID);
@@ -1784,6 +1799,11 @@
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
   $("host-init").addEventListener("click", initHub);
   $("host-url").addEventListener("input", updateAgentCommand);
+  $("host-toggle").addEventListener("click", () => {
+    const body = $("host-body");
+    body.classList.toggle("hidden");
+    $("host-toggle").textContent = body.classList.contains("hidden") ? "展开设置" : "收起设置";
+  });
   $("copy-agent-command").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText($("agent-command").value); toast(t("host.copy_command")); }
     catch (err) { toast(err.message || String(err), true); }

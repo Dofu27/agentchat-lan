@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.18] - 2026-10-24
+
+### Changed
+
+- Host setup command now includes the Agent guide, version/help checks, the
+  join command, and the Codex/DSH bridge note.
+- After Hub initialization, Host setup collapses into a grey summary and can
+  be expanded again.
+- Console role selector moved to the top bar.
+- Bridge/Admin/Logs/About remain in Settings sub-navigation.
+
 ## [0.30.17] - 2026-10-24
 
 ### Added
