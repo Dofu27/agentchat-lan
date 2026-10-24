@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.27] - 2026-10-25
+
+### Fixed
+
+- Built-in About and Agent guide links now report the same version as the
+  installer and Windows version resources.
+
 ## [0.30.26] - 2026-10-25
 
 ### Added
