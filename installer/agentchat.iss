@@ -1,6 +1,6 @@
 #define MyAppName "AgentChat LAN"
 #ifndef AppVersion
-  #define AppVersion "0.30.27"
+  #define AppVersion "0.30.28"
 #endif
 #ifndef StageDir
   #define StageDir "..\build\inno"
@@ -48,7 +48,7 @@ Name: "{group}\卸载 AgentChat LAN"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\AgentChat Console"; Filename: "{app}\AgentChatConsole.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\AgentChatConsole.exe"; Description: "启动 AgentChat Console"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\AgentChatConsole.exe"; Description: "启动 AgentChat Console（需要管理员）"; Flags: shellexec nowait postinstall skipifsilent
 
 [Code]
 var

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.28] - 2026-10-25
+
+### Fixed
+
+- The setup finish page launches the Console through ShellExecute so the
+  requireAdministrator manifest triggers UAC instead of CreateProcess error 740.
+
 ## [0.30.27] - 2026-10-25
 
 ### Fixed
