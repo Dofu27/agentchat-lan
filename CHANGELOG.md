@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.22] - 2026-10-25
+
+### Fixed
+
+- Managed agent config deletion is limited to the fixed LOCALAPPDATA AgentChat
+  directory with a pinned reparse-free ancestor chain and a pinned file handle.
+- Deletion failures are reported instead of silently succeeding.
+- Protected service binary replacement backs up the old file and rolls back
+  on create/copy/sync/verification failure.
+
 ## [0.30.21] - 2026-10-25
 
 ### Fixed

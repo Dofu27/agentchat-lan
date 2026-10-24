@@ -2267,15 +2267,28 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.Action == "leave_hub" || req.Action == "reset_all" {
 			candidate := a.cfg
+			managedRoot := filepath.Join(os.Getenv("LOCALAPPDATA"), "AgentChat")
+			managedConfig := filepath.Join(managedRoot, "agentchat.json")
 			agentConfig := strings.TrimSpace(candidate.AgentConfig)
-			managedConfig := filepath.Join(filepath.Dir(a.configPath), "agentchat.json")
-			deleteAgent := agentConfig != "" && strings.EqualFold(canonicalPath(agentConfig), canonicalPath(managedConfig))
+			deleteAgent := agentConfig != "" && strings.EqualFold(filepath.Clean(agentConfig), filepath.Clean(managedConfig))
+			var pinned pinnedFile
+			var managedChain *pinnedDirectoryChain
 			if deleteAgent {
-				if info, err := os.Lstat(agentConfig); err == nil {
-					if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
-						deleteAgent = false
-					}
+				rootInfo, err := os.Lstat(managedRoot)
+				if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+					deleteAgent = false
+				} else if managedChain, err = pinReparseChain(managedRoot); err != nil {
+					deleteAgent = false
+				} else if _, err := os.Lstat(managedConfig); err != nil {
+					deleteAgent = false
+				} else if pinned, err = pinFile(managedConfig); err != nil {
+					managedChain.Close()
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot pin managed agent config"})
+					return
 				}
+			}
+			if managedChain != nil {
+				defer managedChain.Close()
 			}
 			candidate.AgentConfig = ""
 			candidate.SetupDone = false
@@ -2290,6 +2303,7 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 				candidate.TokenFile = ""
 			}
 			if err := a.saveConfig(candidate); err != nil {
+				pinned.close()
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save desktop config"})
 				return
 			}
@@ -2298,8 +2312,11 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 				a.token = ""
 			}
 			a.configVersion++
-			if deleteAgent {
-				_ = os.Remove(agentConfig)
+			if pinned.handle != 0 {
+				if err := pinned.delete(); err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "settings saved but managed agent config could not be deleted"})
+					return
+				}
 			}
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "action": req.Action})
 			return

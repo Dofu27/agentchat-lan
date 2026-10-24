@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -397,6 +398,37 @@ func openDataDirectory(path string) (windows.Handle, error) {
 	return h, nil
 }
 
+func pinReparseChain(path string) (*pinnedDirectoryChain, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	abs = filepath.Clean(abs)
+	volume := filepath.VolumeName(abs)
+	if len(volume) != 2 || volume[1] != ':' {
+		return nil, errors.New("managed path must be on a local volume")
+	}
+	paths := []string{volume + `\`}
+	current := paths[0]
+	for _, part := range strings.Split(strings.TrimPrefix(abs, volume+`\`), `\`) {
+		if part == "" {
+			continue
+		}
+		current = filepath.Join(current, part)
+		paths = append(paths, current)
+	}
+	p := &pinnedDirectoryChain{}
+	for _, dir := range paths {
+		h, _, err := openPinnedDirectory(dir)
+		if err != nil {
+			p.Close()
+			return nil, fmt.Errorf("pin managed directory %s: %w", dir, err)
+		}
+		p.handles = append(p.handles, h)
+	}
+	return p, nil
+}
+
 func pinDataDirectoryChain(path string) (*pinnedDirectoryChain, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -552,35 +584,49 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
+	backup := ""
 	if _, err := os.Lstat(target); err == nil {
-		if err := os.Remove(target); err != nil {
+		backup = target + ".old-" + fmt.Sprintf("%d", time.Now().UnixNano())
+		if err := os.Rename(target, backup); err != nil {
 			return "", fmt.Errorf("replace protected service binary (stop the service first): %w", err)
+		}
+	}
+	rollback := func() {
+		_ = os.Remove(target)
+		if backup != "" {
+			_ = os.Rename(backup, target)
 		}
 	}
 	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o755)
 	if err != nil {
+		rollback()
 		return "", fmt.Errorf("create protected service binary (run the Console as administrator): %w", err)
 	}
 	if _, err := io.Copy(out, src); err != nil {
 		out.Close()
-		_ = os.Remove(target)
+		rollback()
 		return "", err
 	}
 	if err := out.Sync(); err != nil {
 		out.Close()
-		_ = os.Remove(target)
+		rollback()
 		return "", err
 	}
 	if err := out.Close(); err != nil {
-		_ = os.Remove(target)
+		rollback()
 		return "", err
 	}
 	hash, err := sha256File(target)
 	if err != nil || !strings.EqualFold(hash, expected) {
+		rollback()
 		return "", errors.New("protected service binary failed payload verification")
 	}
 	if err := trustedServiceBinary(target); err != nil {
+		rollback()
 		return "", err
+	}
+	if backup != "" {
+		_ = os.Remove(backup)
 	}
 	return target, nil
 }
