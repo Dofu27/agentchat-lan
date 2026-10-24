@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.16] - 2026-10-24
+
+### Fixed
+
+- Move the Chat "Join a hub" form inside the Chat view so it is visible when
+  no agent config exists, instead of being laid out below the viewport.
+
 ## [0.30.15] - 2026-10-24
 
 ### Security
