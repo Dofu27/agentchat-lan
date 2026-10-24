@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -127,6 +128,54 @@ func directoryIdentity(path string) (uint32, uint32, uint32, error) {
 	return vol, hi, lo, nil
 }
 
+func webView2Present() bool {
+	for _, root := range []string{
+		filepath.Join(os.Getenv("ProgramFiles(x86)"), "Microsoft", "EdgeWebView", "Application"),
+		filepath.Join(os.Getenv("ProgramFiles"), "Microsoft", "EdgeWebView", "Application"),
+		filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "EdgeWebView", "Application"),
+	} {
+		if entries, err := os.ReadDir(root); err == nil && len(entries) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func ensureWebView2() error {
+	if webView2Present() {
+		return nil
+	}
+	data, err := assets.ReadFile("assets/MicrosoftEdgeWebView2RuntimeInstallerX64.exe")
+	if err != nil {
+		return errors.New("WebView2 is missing and this installer does not contain the offline runtime")
+	}
+	tmp, err := os.CreateTemp("", "AgentChat-WebView2-*.exe")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	ps := filepath.Join(os.Getenv("WINDIR"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+	command := "Start-Process -FilePath '" + strings.ReplaceAll(tmpPath, "'", "''") +
+		"' -ArgumentList '/silent','/install' -Verb RunAs -Wait"
+	cmd := exec.Command(ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("WebView2 installation failed: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	if !webView2Present() {
+		return errors.New("WebView2 installation completed but runtime was not detected")
+	}
+	return nil
+}
+
 func installDesktop(dir, role, hub string, startup bool) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
@@ -139,6 +188,9 @@ func installDesktop(dir, role, hub string, startup bool) error {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o755); err != nil {
 			return err
 		}
+	}
+	if err := ensureWebView2(); err != nil {
+		return err
 	}
 	cfgPath := filepath.Join(dir, "desktop.json")
 	configCreated := false

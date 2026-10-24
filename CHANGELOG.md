@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.25] - 2026-10-25
+
+### Added
+
+- Offline installer payload for Microsoft Edge WebView2 Runtime x64.
+- Installer detects WebView2, installs the bundled runtime with a UAC prompt
+  when missing, then verifies the runtime before launching the Console.
+
 ## [0.30.24] - 2026-10-25
 
 ### Fixed
