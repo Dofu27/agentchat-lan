@@ -138,6 +138,11 @@ var
   ResultCode: Integer;
 begin
   Result := '';
+  if CompareText(ExpandConstant('{app}'), ExpandConstant('{autopf}\AgentChat')) = 0 then
+  begin
+    Result := '该目录由 AgentChat Hub 服务使用。请选择 AgentChat Console 专用目录，避免覆盖服务二进制。';
+    exit;
+  end;
   if WebView2Installed() then
     exit;
 
