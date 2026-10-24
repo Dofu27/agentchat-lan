@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.20] - 2026-10-24
+
+### Added
+
+- Settings action to leave the current Hub and remove the local agent config.
+- Settings action to restore all Console defaults while preserving Hub data
+  and the Windows service.
+
 ## [0.30.19] - 2026-10-24
 
 ### Changed

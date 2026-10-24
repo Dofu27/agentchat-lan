@@ -8,12 +8,12 @@ permissions:
   contents: write
 
 jobs:
-  update-v03019:
+  update-v03020:
     if: contains(github.event.head_commit.message, '[release-notes]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Update v0.30.19 release body
+      - name: Update v0.30.20 release body
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit v0.30.19 --draft=false --notes-file docs/RELEASE_NOTES_v0.30.19.md
+        run: gh release edit v0.30.20 --draft=false --notes-file docs/RELEASE_NOTES_v0.30.20.md

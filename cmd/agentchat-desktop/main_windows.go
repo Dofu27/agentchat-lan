@@ -2249,12 +2249,44 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 	defer a.mu.Unlock()
 	if r.Method == http.MethodPost {
 		var req struct {
+			Action    string  `json:"action"`
 			Role      string  `json:"role"`
 			SetupDone *bool   `json:"setup_done"`
 			TokenFile *string `json:"token_file"`
 		}
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
+			return
+		}
+		if req.Action == "leave_hub" || req.Action == "reset_all" {
+			candidate := a.cfg
+			agentConfig := strings.TrimSpace(candidate.AgentConfig)
+			if agentConfig != "" {
+				if err := os.Remove(agentConfig); err != nil && !os.IsNotExist(err) {
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot remove agent config"})
+					return
+				}
+			}
+			candidate.AgentConfig = ""
+			candidate.SetupDone = false
+			if req.Action == "reset_all" {
+				candidate.Role = "hub"
+				candidate.HubURL = ""
+				candidate.HubData = ""
+				candidate.HubListen = ""
+				candidate.HubCert = ""
+				candidate.HubKey = ""
+				candidate.CAFile = ""
+				candidate.TokenFile = ""
+				a.token = ""
+			}
+			if err := a.saveConfig(candidate); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save desktop config"})
+				return
+			}
+			a.cfg = candidate
+			a.configVersion++
+			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "action": req.Action})
 			return
 		}
 		candidate := a.cfg
