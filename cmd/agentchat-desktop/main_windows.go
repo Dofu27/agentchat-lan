@@ -1606,7 +1606,7 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 			return fail(fmt.Errorf("pin data ancestor: %w", err))
 		}
 		mergeChains(chain, ancestorChain)
-		if err := createSecureDirectory(parent, "O:BAG:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FR;;;BU)"); err != nil {
+		if err := createSecureDirectory(parent, "O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FR;;;BU)"); err != nil {
 			return fail(fmt.Errorf("create data parent: %w", err))
 		}
 		parentInfo, err = os.Lstat(parent)
@@ -1626,7 +1626,7 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 	dataInfo, err := os.Lstat(data)
 	switch {
 	case os.IsNotExist(err):
-		if err := createSecureDirectory(data, "O:BAG:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)"); err != nil {
+		if err := createSecureDirectory(data, "O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"); err != nil {
 			return fail(fmt.Errorf("create data directory: %w", err))
 		}
 	case err != nil:

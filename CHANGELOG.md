@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.15] - 2026-10-24
+
+### Security
+
+- Add OI/CI inheritance flags to the data directory SYSTEM and Administrators
+  ACEs so the SQLite database, WAL/SHM files, and future children inherit the
+  protected whitelist.
+- Add OI/CI to the default ProgramData parent grants.
+
 ## [0.30.14] - 2026-10-24
 
 ### Security

@@ -170,7 +170,7 @@ Signing scope, roles, and approval rules are documented in
 
 ## Status and limits
 
-- Current release: **v0.30.14**.
+- Current release: **v0.30.15**.
 - Federation, explicit read receipts, and multi-peer links are **opt-in** and
   still experimental.
 - Delivery is at-least-once, not exactly-once; there is no HA or multi-writer
