@@ -249,6 +249,7 @@
         <input id="host-url" type="text" autocomplete="off" placeholder="https://192.168.1.10:8787">
         <button id="host-detect" type="button" data-i18n="host.detect">Auto-detect</button>
         <span class="hint" data-i18n="host.url_hint">URL agents use to reach this hub; include https if TLS is enabled.</span>
+        <span id="host-url-warning" class="hint" style="color:var(--warn)"></span>
       </div>
     </div>
     <div class="row" style="margin-top:8px">
@@ -578,7 +579,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.30</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.31</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -643,6 +644,9 @@
       "host.listen":"Listen address", "host.listen_hint":"Use 127.0.0.1 for this machine only; 0.0.0.0:8787 for LAN.",
       "host.url":"Hub URL", "host.url_hint":"URL agents use to reach this hub; include https if TLS is enabled.",
       "host.detect":"Auto-detect", "host.detected":"Detected LAN Hub URL",
+      "host.url_warn":"With multiple adapters or VPNs, verify the selected address. Regenerate the certificate if the IP changes.",
+      "host.multi_warn":"Multiple LAN addresses detected; confirm the one clients should use.",
+      "host.cert_warn":"The current certificate does not include the selected IP; clients may fail TLS verification.",
       "host.cert":"TLS certificate", "host.key":"TLS private key", "host.ca":"Client CA", "host.optional":"Optional",
       "host.failed":"Hub initialization failed",
       "settings.title":"Console role", "settings.save":"Save role", "settings.config":"Desktop config",
@@ -733,6 +737,9 @@
       "host.listen":"监听地址", "host.listen_hint":"127.0.0.1 只允许本机；局域网用 0.0.0.0:8787。",
       "host.url":"Hub URL", "host.url_hint":"Agent 访问此 Hub 的地址；启用 TLS 时写 https。",
       "host.detect":"自动检测", "host.detected":"已检测到局域网 Hub 地址",
+      "host.url_warn":"有多个网卡或 VPN 时请确认地址；IP 改变后请重新生成证书。",
+      "host.multi_warn":"检测到多个局域网地址，请确认客户端应使用哪一个。",
+      "host.cert_warn":"当前证书不包含所选 IP，客户端可能无法通过 TLS 校验。",
       "host.cert":"TLS 证书", "host.key":"TLS 私钥", "host.ca":"客户端 CA", "host.optional":"可选",
       "host.failed":"Hub 初始化失败",
       "settings.title":"控制台角色", "settings.save":"保存角色", "settings.config":"桌面配置",
@@ -987,6 +994,7 @@
       const el = $(id); if (el) el.disabled = hubConfigured;
     }
     if (!hubConfigured && !$("host-url").value.trim()) detectHubURL(false).catch(() => {});
+    if (!$("host-url-warning").textContent) $("host-url-warning").textContent = t("host.url_warn");
     applyRole(body.role || "hub");
   }
   async function initHub() {
@@ -1015,7 +1023,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.30/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.31/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1045,6 +1053,12 @@
         $("host-url").value = info.preferred;
         updateAgentCommand();
       }
+      const match = info.preferred.match(/^[a-z]+:\/\/([^:/]+)/i);
+      const ip = match ? match[1] : "";
+      const messages = [t("host.url_warn")];
+      if ((info.urls || []).length > 1) messages.push(t("host.multi_warn"));
+      if (info.scheme === "https" && (!info.cert_ips || !info.cert_ips[ip])) messages.push(t("host.cert_warn"));
+      $("host-url-warning").textContent = messages.join(" ");
       if (showToast) toast(t("host.detected") + ": " + info.preferred);
     } catch (err) {
       if (showToast) toast(err.message || String(err), true);
