@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.21] - 2026-10-25
+
+### Fixed
+
+- Leave/reset deletes only the managed agent config path; externally supplied
+  configs are detached but never removed.
+- Reset saves configuration before clearing live token state or deleting the
+  agent file.
+- Folder picker uses FolderBrowserDialog `Description` and `SelectedPath`.
+- Reset explicitly clears stale Host form values.
+- Service setup serializes with leave/reset and cannot restore a stale config
+  snapshot.
+- An existing protected service binary can be replaced when it is stopped;
+  a running binary produces an actionable error.
+
 ## [0.30.20] - 2026-10-24
 
 ### Added

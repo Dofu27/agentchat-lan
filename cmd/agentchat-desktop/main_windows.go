@@ -283,14 +283,19 @@ func main() {
 		}
 		ps := filepath.Join(systemDir, "WindowsPowerShell", "v1.0", "powershell.exe")
 		script := `Add-Type -AssemblyName System.Windows.Forms
-$d = $null
-if ($env:ACPICK_KIND -eq "folder") { $d = New-Object System.Windows.Forms.FolderBrowserDialog }
-elseif ($env:ACPICK_KIND -eq "save") { $d = New-Object System.Windows.Forms.SaveFileDialog }
-else { $d = New-Object System.Windows.Forms.OpenFileDialog }
-$d.Title = $env:ACPICK_TITLE
-if ($env:ACPICK_FILTER) { $d.Filter = $env:ACPICK_FILTER }
-if ($env:ACPICK_INITIAL) { $d.InitialDirectory = $env:ACPICK_INITIAL }
-if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }`
+if ($env:ACPICK_KIND -eq "folder") {
+  $d = New-Object System.Windows.Forms.FolderBrowserDialog
+  $d.Description = $env:ACPICK_TITLE
+  if ($env:ACPICK_INITIAL) { $d.SelectedPath = $env:ACPICK_INITIAL }
+  if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }
+} else {
+  if ($env:ACPICK_KIND -eq "save") { $d = New-Object System.Windows.Forms.SaveFileDialog }
+  else { $d = New-Object System.Windows.Forms.OpenFileDialog }
+  $d.Title = $env:ACPICK_TITLE
+  if ($env:ACPICK_FILTER) { $d.Filter = $env:ACPICK_FILTER }
+  if ($env:ACPICK_INITIAL) { $d.InitialDirectory = $env:ACPICK_INITIAL }
+  if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }
+}`
 		cmd := exec.Command(ps, "-NoProfile", "-STA", "-WindowStyle", "Hidden", "-Command", script)
 		cmd.Env = append(os.Environ(),
 			"ACPICK_KIND="+kind,
@@ -1907,6 +1912,8 @@ func hubServiceBinPath(cfg config, guard *serviceBinaryGuard) (string, error) {
 }
 
 func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
+	a.setupMu.Lock()
+	defer a.setupMu.Unlock()
 	a.mu.RLock()
 	cfg := a.cfg
 	a.mu.RUnlock()
@@ -2261,10 +2268,13 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 		if req.Action == "leave_hub" || req.Action == "reset_all" {
 			candidate := a.cfg
 			agentConfig := strings.TrimSpace(candidate.AgentConfig)
-			if agentConfig != "" {
-				if err := os.Remove(agentConfig); err != nil && !os.IsNotExist(err) {
-					writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot remove agent config"})
-					return
+			managedConfig := filepath.Join(filepath.Dir(a.configPath), "agentchat.json")
+			deleteAgent := agentConfig != "" && strings.EqualFold(canonicalPath(agentConfig), canonicalPath(managedConfig))
+			if deleteAgent {
+				if info, err := os.Lstat(agentConfig); err == nil {
+					if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+						deleteAgent = false
+					}
 				}
 			}
 			candidate.AgentConfig = ""
@@ -2278,14 +2288,19 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 				candidate.HubKey = ""
 				candidate.CAFile = ""
 				candidate.TokenFile = ""
-				a.token = ""
 			}
 			if err := a.saveConfig(candidate); err != nil {
 				writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save desktop config"})
 				return
 			}
 			a.cfg = candidate
+			if req.Action == "reset_all" {
+				a.token = ""
+			}
 			a.configVersion++
+			if deleteAgent {
+				_ = os.Remove(agentConfig)
+			}
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "action": req.Action})
 			return
 		}

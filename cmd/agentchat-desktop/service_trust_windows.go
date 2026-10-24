@@ -553,7 +553,9 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 		return "", err
 	}
 	if _, err := os.Lstat(target); err == nil {
-		return "", errors.New("protected service binary is already present but has a different version; stop the service and update it")
+		if err := os.Remove(target); err != nil {
+			return "", fmt.Errorf("replace protected service binary (stop the service first): %w", err)
+		}
 	}
 	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o755)
 	if err != nil {

@@ -577,7 +577,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.20</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.21</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -1011,7 +1011,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.20/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.21/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1808,6 +1808,12 @@
     try {
       await api("/api/settings", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action }) });
       settingsStatus(action === "leave_hub" ? t("settings.leave_done") : t("settings.reset_done"), false);
+      if (action === "reset_all") {
+        for (const id of ["host-data","host-token","host-listen","host-url","host-cert","host-key","host-ca"]) {
+          const el = $(id); if (el) el.value = "";
+        }
+        $("host-body").classList.remove("hidden");
+      }
       await refreshSettings();
       await refresh();
       await refreshChat().catch(() => {});
