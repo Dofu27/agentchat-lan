@@ -1,6 +1,6 @@
 #define MyAppName "AgentChat LAN"
 #ifndef AppVersion
-  #define AppVersion "0.30.32"
+  #define AppVersion "0.30.33"
 #endif
 #ifndef StageDir
   #define StageDir "..\build\inno"
@@ -15,7 +15,7 @@ AppPublisher=豆腐
 AppPublisherURL=https://github.com/Dofu27/agentchat-lan
 AppSupportURL=https://github.com/Dofu27/agentchat-lan
 AppUpdatesURL=https://github.com/Dofu27/agentchat-lan/releases
-DefaultDirName={autopf}\AgentChat
+DefaultDirName={autopf}\AgentChat Console
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\dist
@@ -109,7 +109,7 @@ procedure SaveDesktopConfig();
 var
   ConfigDir, ConfigPath, Json, Role, HubURL, ExePath: String;
 begin
-  ConfigDir := ExpandConstant('{localappdata}\AgentChat');
+  ConfigDir := ExpandConstant('{userappdata}\AgentChat');
   ConfigPath := ConfigDir + '\desktop.json';
   if FileExists(ConfigPath) then
     exit;

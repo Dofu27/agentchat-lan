@@ -9,7 +9,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/subtle"
 	"crypto/tls"
@@ -2157,40 +2156,41 @@ func certificateFingerprint(certPath string) (string, error) {
 
 func resetLocalCertificate() (string, string, string, error) {
 	dir, certPath, keyPath := localTLSFiles()
-	if data, err := os.ReadFile(certPath); err == nil {
-		if block, _ := pem.Decode(data); block != nil {
-			if cert, err := x509.ParseCertificate(block.Bytes); err == nil {
-				sum := sha1.Sum(cert.Raw)
-				thumb := strings.ToUpper(hex.EncodeToString(sum[:]))
-				systemDir, _ := windows.GetSystemDirectory()
-				ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-				defer cancel()
-				_, _ = runBoundedCommand(ctx, filepath.Join(systemDir, "certutil.exe"),
-					[]string{"-delstore", "-user", "Root", thumb}, 16<<10)
-			}
-		}
-	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", "", "", err
 	}
-	for _, path := range []string{certPath, keyPath} {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-			return "", "", "", err
+	oldCert, _ := os.ReadFile(certPath)
+	oldKey, _ := os.ReadFile(keyPath)
+	restore := func() error {
+		var errs []error
+		if oldCert != nil {
+			if err := os.WriteFile(certPath, oldCert, 0o600); err != nil {
+				errs = append(errs, err)
+			}
 		}
+		if oldKey != nil {
+			if err := os.WriteFile(keyPath, oldKey, 0o600); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		return errors.Join(errs...)
 	}
 	cert, key, fingerprint, err := generateHubCertificate()
 	if err != nil {
+		_ = restore()
 		return "", "", "", err
 	}
 	systemDir, err := windows.GetSystemDirectory()
 	if err != nil {
+		_ = restore()
 		return "", "", "", err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	if out, err := runBoundedCommand(ctx, filepath.Join(systemDir, "certutil.exe"),
 		[]string{"-addstore", "-user", "Root", cert}, 16<<10); err != nil {
-		return "", "", "", errors.New(redactOutput(strings.TrimSpace(out)))
+		restoreErr := restore()
+		return "", "", "", fmt.Errorf("certificate install failed: %s (restore: %v)", redactOutput(strings.TrimSpace(out)), restoreErr)
 	}
 	return cert, key, fingerprint, nil
 }
@@ -2314,10 +2314,8 @@ func (a *app) handleNetwork(w http.ResponseWriter, r *http.Request) {
 	a.mu.RLock()
 	certPath, keyPath, listen := a.cfg.HubCert, a.cfg.HubKey, a.cfg.HubListen
 	a.mu.RUnlock()
-	scheme := "http"
-	if strings.TrimSpace(certPath) != "" && strings.TrimSpace(keyPath) != "" {
-		scheme = "https"
-	}
+	scheme := "https"
+	tlsConfigured := strings.TrimSpace(certPath) != "" && strings.TrimSpace(keyPath) != ""
 	port := "8787"
 	if _, p, err := net.SplitHostPort(listen); err == nil && p != "" {
 		port = p
@@ -2390,6 +2388,7 @@ func (a *app) handleNetwork(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"preferred": scheme + "://" + net.JoinHostPort(preferred, port),
 		"urls":      urls, "cert_ips": certIPs, "port": port, "scheme": scheme,
+		"tls_configured": tlsConfigured,
 	})
 }
 

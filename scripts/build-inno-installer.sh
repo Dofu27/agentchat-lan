@@ -4,7 +4,7 @@ set -euo pipefail
 # Build the Inno Setup wizard. Requires ISCC.exe (Inno Setup 6) on PATH or
 # ISCC environment variable pointing to it.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${VERSION:-0.30.25}"
+VERSION="${VERSION:-0.30.33}"
 STAGE="$ROOT/build/inno-stage"
 DIST="$ROOT/dist"
 mkdir -p "$STAGE" "$DIST"
@@ -15,8 +15,9 @@ export GOOS=windows GOARCH=amd64 CGO_ENABLED=0
 
 "$WINRES" make --in "$ROOT/winres/desktop.json" --out "$ROOT/cmd/agentchat-desktop/rsrc" --arch amd64
 "$WINRES" make --in "$ROOT/winres/cli.json" --out "$ROOT/cmd/agentchat/rsrc" --arch amd64
-"$GO_BIN" build -trimpath -ldflags="-H=windowsgui -s -w" -o "$STAGE/AgentChatConsole.exe" "$ROOT/cmd/agentchat-desktop"
-"$GO_BIN" build -trimpath -ldflags="-s -w" -o "$STAGE/agentchat.exe" "$ROOT/cmd/agentchat"
+"$GO_BIN" build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o "$STAGE/agentchat.exe" "$ROOT/cmd/agentchat"
+CLI_SHA="$(sha256sum "$STAGE/agentchat.exe" | awk '{print $1}')"
+"$GO_BIN" build -trimpath -ldflags="-H=windowsgui -s -w -X main.expectedCLISHA256=$CLI_SHA" -o "$STAGE/AgentChatConsole.exe" "$ROOT/cmd/agentchat-desktop"
 
 WEBVIEW2="$STAGE/MicrosoftEdgeWebView2RuntimeInstallerX64.exe"
 WEBVIEW2_SHA="04b9f08d839c8c06f34a85acea0d9f1568d3d8aa309a77619aaa46bb29ade0f8"

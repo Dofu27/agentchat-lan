@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.33] - 2026-10-25
+
+### Fixed
+
+- Inno build injects the final CLI SHA256 into the Console.
+- Installer installs the Console into `Program Files\AgentChat Console`, separate
+  from the Hub service payload, and writes config under `%APPDATA%`.
+- Certificate reset keeps the previous certificate until the new certificate
+  installs successfully; reset failures are reported instead of a success toast.
+- Configured Hub has an accessible certificate-reset button.
+- LAN detection always suggests HTTPS and warns when TLS is not configured.
+
 ## [0.30.32] - 2026-10-25
 
 ### Added

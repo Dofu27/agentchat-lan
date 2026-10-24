@@ -207,6 +207,8 @@
     <h2 data-i18n="host.title">Host setup</h2>
     <div class="row" style="margin-bottom:8px">
       <button id="host-toggle" class="hidden" type="button">展开设置</button>
+      <button id="host-tls-reset-global" class="hidden" type="button" data-i18n="host.tls_reset">Reset certificate</button>
+      <span id="host-url-warning-global" class="hint" style="color:var(--warn)"></span>
       <span id="host-configured-note" class="muted small"></span>
     </div>
     <div id="host-body">
@@ -580,7 +582,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.32</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.33</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -649,6 +651,7 @@
       "host.detect":"Auto-detect", "host.detected":"Detected LAN Hub URL",
       "host.url_warn":"With multiple adapters or VPNs, verify the selected address. Regenerate the certificate if the IP changes.",
       "host.multi_warn":"Multiple LAN addresses detected; confirm the one clients should use.",
+      "host.tls_required":"Generate a TLS certificate before initializing the Hub.",
       "host.cert_warn":"The current certificate does not include the selected IP; clients may fail TLS verification.",
       "host.cert":"TLS certificate", "host.key":"TLS private key", "host.ca":"Client CA", "host.optional":"Optional",
       "host.failed":"Hub initialization failed",
@@ -744,6 +747,7 @@
       "host.detect":"自动检测", "host.detected":"已检测到局域网 Hub 地址",
       "host.url_warn":"有多个网卡或 VPN 时请确认地址；IP 改变后请重新生成证书。",
       "host.multi_warn":"检测到多个局域网地址，请确认客户端应使用哪一个。",
+      "host.tls_required":"请先生成 TLS 证书，再初始化 Hub。",
       "host.cert_warn":"当前证书不包含所选 IP，客户端可能无法通过 TLS 校验。",
       "host.cert":"TLS 证书", "host.key":"TLS 私钥", "host.ca":"客户端 CA", "host.optional":"可选",
       "host.failed":"Hub 初始化失败",
@@ -994,6 +998,8 @@
     $("host-body").classList.toggle("hidden", hubConfigured);
     $("host-toggle").classList.toggle("hidden", !hubConfigured);
     $("host-toggle").textContent = "展开设置";
+    $("host-tls-reset-global").classList.toggle("hidden", !hubConfigured);
+    $("host-url-warning-global").textContent = $("host-url-warning").textContent;
     $("host-configured-note").textContent = hubConfigured ? "Hub 已初始化" : "";
     for (const id of ["host-data","host-token","host-listen","host-url","host-detect","host-cert","host-key","host-ca","host-init","host-tls-generate","host-tls-install","host-tls-reset","host-firewall-open","host-firewall-remove","host-elevate"]) {
       const el = $(id); if (el) el.disabled = hubConfigured;
@@ -1028,7 +1034,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.32/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.33/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1058,12 +1064,14 @@
         $("host-url").value = info.preferred;
         updateAgentCommand();
       }
-      const match = info.preferred.match(/^[a-z]+:\/\/([^:/]+)/i);
+      const match = $("host-url").value.match(/^[a-z]+:\/\/([^:/]+)/i);
       const ip = match ? match[1] : "";
       const messages = [t("host.url_warn")];
+      if (info.tls_configured === false) messages.push(t("host.tls_required"));
       if ((info.urls || []).length > 1) messages.push(t("host.multi_warn"));
       if (info.scheme === "https" && (!info.cert_ips || !info.cert_ips[ip])) messages.push(t("host.cert_warn"));
       $("host-url-warning").textContent = messages.join(" ");
+      $("host-url-warning-global").textContent = $("host-url-warning").textContent;
       if (showToast) toast(t("host.detected") + ": " + info.preferred);
     } catch (err) {
       if (showToast) toast(err.message || String(err), true);
@@ -1083,10 +1091,12 @@
         await detectHubURL(false);
       }
       $("host-cert-status").textContent = body.fingerprint ? ("SHA256 " + body.fingerprint.slice(0, 16) + "…") : (body.output || "");
+      return true;
     } catch (err) {
       const message = err.message || t("host.tls_failed");
       $("host-error").textContent = message;
       toast(message, true);
+      return false;
     }
   }
   async function hubFirewall(action) {
@@ -1894,8 +1904,11 @@
   $("host-tls-install").addEventListener("click", () => hubTLS("install"));
   $("host-tls-reset").addEventListener("click", async () => {
     if (!window.confirm(t("host.tls_reset_confirm"))) return;
-    await hubTLS("reset");
-    toast(t("host.tls_reset_done"), false);
+    if (await hubTLS("reset")) toast(t("host.tls_reset_done"), false);
+  });
+  $("host-tls-reset-global").addEventListener("click", async () => {
+    if (!window.confirm(t("host.tls_reset_confirm"))) return;
+    if (await hubTLS("reset")) toast(t("host.tls_reset_done"), false);
   });
   $("host-firewall-open").addEventListener("click", () => hubFirewall("open"));
   $("host-firewall-remove").addEventListener("click", () => hubFirewall("remove"));
