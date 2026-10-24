@@ -552,31 +552,27 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", err
 	}
-	tmp, err := os.CreateTemp(targetDir, ".agentchat-*.exe")
+	if _, err := os.Lstat(target); err == nil {
+		return "", errors.New("protected service binary is already present but has a different version; stop the service and update it")
+	}
+	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o755)
 	if err != nil {
-		return "", fmt.Errorf("create protected service temporary file (run the Console as administrator): %w", err)
+		return "", fmt.Errorf("create protected service binary (run the Console as administrator): %w", err)
 	}
-	tmpPath := tmp.Name()
-	ok := false
-	defer func() {
-		if !ok {
-			_ = os.Remove(tmpPath)
-		}
-	}()
-	if _, err := io.Copy(tmp, src); err != nil {
-		tmp.Close()
+	if _, err := io.Copy(out, src); err != nil {
+		out.Close()
+		_ = os.Remove(target)
 		return "", err
 	}
-	if err := tmp.Close(); err != nil {
+	if err := out.Sync(); err != nil {
+		out.Close()
+		_ = os.Remove(target)
 		return "", err
 	}
-	if err := os.Chmod(tmpPath, 0o755); err != nil {
+	if err := out.Close(); err != nil {
+		_ = os.Remove(target)
 		return "", err
 	}
-	if err := os.Rename(tmpPath, target); err != nil {
-		return "", fmt.Errorf("replace protected service binary (run the Console as administrator): %w", err)
-	}
-	ok = true
 	hash, err := sha256File(target)
 	if err != nil || !strings.EqualFold(hash, expected) {
 		return "", errors.New("protected service binary failed payload verification")

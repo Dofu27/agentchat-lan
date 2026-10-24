@@ -79,6 +79,8 @@
   .close-dialog .close-actions button { width:100%; padding:8px 10px; }
   .host-steps { margin:0 0 14px; padding-left:22px; color:var(--muted); font-size:12px; line-height:1.7; }
   .host-steps li { margin:2px 0; }
+  #host-setup.configured { opacity:.62; }
+  #host-setup.configured .host-steps { text-decoration:line-through; }
   .agent-status-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; background:#64748b; vertical-align:middle; }
   .agent-status-dot.online { background:#3ddc84; }
   .agent-status-dot.idle { background:#f4c95d; }
@@ -164,11 +166,11 @@
     <nav class="tabs" role="tablist">
       <button id="tab-overview-btn" type="button" class="active" data-i18n="tab.overview">Overview</button>
       <button id="tab-chat-btn" type="button" data-i18n="tab.chat">Chat</button>
-      <button id="tab-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
-      <button id="tab-admin-btn" type="button" data-i18n="tab.admin">Admin</button>
-      <button id="tab-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
+      <button id="tab-bridge-btn" type="button" class="hidden" style="display:none" data-i18n="tab.bridge">Bridge</button>
+      <button id="tab-admin-btn" type="button" class="hidden" style="display:none" data-i18n="tab.admin">Admin</button>
+      <button id="tab-logs-btn" type="button" class="hidden" style="display:none" data-i18n="tab.logs">Logs</button>
       <button id="tab-settings-btn" type="button" data-i18n="tab.settings">Settings</button>
-      <button id="tab-about-btn" type="button" data-i18n="tab.about">About</button>
+      <button id="tab-about-btn" type="button" class="hidden" style="display:none" data-i18n="tab.about">About</button>
     </nav>
   </div>
   <div class="row">
@@ -208,6 +210,11 @@
       <li data-i18n="host.step4">Initialize the hub, then install and start the Windows service below.</li>
       <li data-i18n="host.step5">Open the LAN firewall port. This step requires running the Console as administrator.</li>
     </ol>
+    <div class="field" style="margin-bottom:10px">
+      <label data-i18n="host.agent_command">Command to send to an agent</label>
+      <textarea id="agent-command" rows="3" readonly style="width:100%"></textarea>
+      <button id="copy-agent-command" type="button" data-i18n="host.copy_command">Copy command</button>
+    </div>
     <div class="row">
       <div class="field">
         <label for="host-data" data-i18n="host.data">Data directory</label>
@@ -514,6 +521,12 @@
 </main>
 <main id="settings-view" class="hidden">
   <section class="wide">
+    <div class="row settings-subnav">
+      <button id="settings-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
+      <button id="settings-admin-btn" type="button" data-i18n="tab.admin">Admin</button>
+      <button id="settings-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
+      <button id="settings-about-btn" type="button" data-i18n="tab.about">About</button>
+    </div>
     <h2 data-i18n="settings.title">Console role</h2>
     <div class="row">
       <select id="role-select">
@@ -557,7 +570,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.16</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.17</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -611,6 +624,7 @@
       "host.step4":"Initialize the hub, then install and start the Windows service below.",
       "host.step5":"Open the LAN firewall port. This requires running the Console as administrator.",
       "host.elevate":"Restart as administrator", "host.elevate_hint":"Required to install the protected service binary, control the Windows service, and open the firewall.",
+      "host.agent_command":"Command to send to an agent", "host.copy_command":"Copy command",
       "host.elevate_failed":"Administrator restart was cancelled or failed.",
       "host.tls_generate":"Generate certificate", "host.tls_install":"Install certificate for this user",
       "host.tls_failed":"Certificate operation failed", "host.firewall_open":"Open firewall for LAN",
@@ -655,7 +669,7 @@
       "bridge.binary":"agentchat binary", "bridge.confirm":"Uninstall the bridge startup entry?",
       "bridge.install_failed":"Bridge command failed", "bridge.done":"Bridge status refreshed.",
       "logs.pause":"Pause", "logs.resume":"Resume", "logs.refresh":"Refresh", "logs.empty":"No log file yet.",
-      "service.title":"Windows service", "service.install":"Install hub service", "service.start":"Start", "service.stop":"Stop", "service.restart":"Restart",
+      "service.title":"Windows service", "service.install":"Install hub service", "service.installed":"Service installed", "service.start":"Start", "service.stop":"Stop", "service.restart":"Restart",
       "service.start_with_windows":"Start with Windows", "service.hub":"Hub", "service.health":"Health",
       "fed.title":"Federation", "fed.runtime":"Runtime", "fed.node":"Node", "fed.peer":"Peer", "fed.link":"Link", "fed.outbox":"Outbox",
       "dead.title":"Dead letters", "dead.hint":"Retry re-arms a dead delivery. Remote deduplication still applies.",
@@ -695,6 +709,7 @@
       "host.step4":"初始化 Hub，然后在下方安装并启动 Windows 服务。",
       "host.step5":"开放局域网防火墙端口。此步骤需要以管理员身份运行 Console。",
       "host.elevate":"以管理员身份重启", "host.elevate_hint":"安装受保护的服务二进制、控制 Windows 服务、开放防火墙都需要管理员权限。",
+      "host.agent_command":"发给 Agent 的配置指令", "host.copy_command":"复制指令",
       "host.elevate_failed":"管理员重启被取消或失败。",
       "host.tls_generate":"生成证书", "host.tls_install":"为当前用户安装证书",
       "host.tls_failed":"证书操作失败", "host.firewall_open":"开放局域网防火墙",
@@ -739,7 +754,7 @@
       "bridge.binary":"agentchat 可执行文件", "bridge.confirm":"确认卸载桥接启动项？",
       "bridge.install_failed":"桥接命令失败", "bridge.done":"桥接状态已刷新。",
       "logs.pause":"暂停", "logs.resume":"继续", "logs.refresh":"刷新", "logs.empty":"还没有日志文件。",
-      "service.title":"Windows 服务", "service.install":"安装 Hub 服务", "service.start":"启动", "service.stop":"停止", "service.restart":"重启",
+      "service.title":"Windows 服务", "service.install":"安装 Hub 服务", "service.installed":"服务已安装", "service.start":"启动", "service.stop":"停止", "service.restart":"重启",
       "service.start_with_windows":"开机自动启动", "service.hub":"Hub", "service.health":"健康",
       "fed.title":"联邦", "fed.runtime":"运行状态", "fed.node":"节点", "fed.peer":"对端", "fed.link":"房间链接", "fed.outbox":"发件箱",
       "dead.title":"死信", "dead.hint":"重投只会重新激活死信；对端幂等仍然生效。",
@@ -788,9 +803,13 @@
   function renderService(st) {
     if (!st || !st.installed) {
       pill("service-state", t("service.not_installed"), false);
+      $("install-service").disabled = false;
+      $("install-service").textContent = t("service.install");
       $("start").disabled = true; $("stop").disabled = true; $("restart").disabled = true; $("startup").disabled = true;
       return;
     }
+    $("install-service").disabled = true;
+    $("install-service").textContent = t("service.installed");
     pill("service-state", t("state." + st.state) || st.state, st.state === "running");
     setText("service-name", st.name || "");
     setText("service-pid", st.pid ? "PID " + st.pid : "");
@@ -939,7 +958,12 @@
     $("welcome").classList.toggle("hidden", !!body.setup_done);
     if (!$("host-data").value) $("host-data").value = body.hub_data || body.default_data || "";
     if (!$("host-token").value) $("host-token").value = body.token_file || body.default_token || "";
-    $("host-setup").classList.toggle("hidden", body.role !== "hub" || !!body.hub_data);
+    const hubConfigured = !!body.hub_data;
+    $("host-setup").classList.toggle("hidden", body.role !== "hub");
+    $("host-setup").classList.toggle("configured", hubConfigured);
+    for (const id of ["host-data","host-token","host-listen","host-url","host-cert","host-key","host-ca","host-init","host-tls-generate","host-tls-install","host-firewall-open","host-firewall-remove","host-elevate"]) {
+      const el = $(id); if (el) el.disabled = hubConfigured;
+    }
     applyRole(body.role || "hub");
   }
   async function initHub() {
@@ -963,6 +987,25 @@
       $("host-error").textContent = message;
       toast(message, true);
     }
+  }
+  function updateAgentCommand() {
+    const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
+    $("agent-command").value =
+      "agentchat join --hub " + url + " --invite <INVITE> --name <AGENT_NAME> --kind dsh";
+  }
+  function addPathPicker(inputID, kind, title, filter) {
+    const input = $(inputID);
+    if (!input || !window.__winPickPath) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "…";
+    button.title = title;
+    button.style.marginLeft = "6px";
+    button.addEventListener("click", async () => {
+      const picked = await window.__winPickPath(kind, title, filter || "", input.value || "");
+      if (picked) input.value = picked;
+    });
+    input.parentNode.insertBefore(button, input.nextSibling);
   }
   async function hubTLS(action) {
     $("host-error").textContent = "";
@@ -1703,8 +1746,11 @@
     $("tab-bridge-btn").classList.toggle("active", tab === "bridge");
     $("tab-admin-btn").classList.toggle("active", tab === "admin");
     $("tab-logs-btn").classList.toggle("active", tab === "logs");
-    $("tab-settings-btn").classList.toggle("active", tab === "settings");
+    $("tab-settings-btn").classList.toggle("active", ["settings","bridge","admin","logs","about"].includes(tab));
     $("tab-about-btn").classList.toggle("active", tab === "about");
+    for (const [id, name] of [["settings-bridge-btn","bridge"],["settings-admin-btn","admin"],["settings-logs-btn","logs"],["settings-about-btn","about"]]) {
+      const btn = $(id); if (btn) btn.classList.toggle("active", tab === name);
+    }
     if (tab === "logs") refreshLogs();
     if (tab === "chat") {
       refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); });
@@ -1726,6 +1772,9 @@
   $("tab-admin-btn").addEventListener("click", () => showTab("admin"));
   $("tab-settings-btn").addEventListener("click", () => showTab("settings"));
   $("tab-about-btn").addEventListener("click", () => showTab("about"));
+  for (const [id, name] of [["settings-bridge-btn","bridge"],["settings-admin-btn","admin"],["settings-logs-btn","logs"],["settings-about-btn","about"]]) {
+    const btn = $(id); if (btn) btn.addEventListener("click", () => showTab(name));
+  }
   $("role-save").addEventListener("click", saveRole);
   $("settings-token-save").addEventListener("click", saveAdminToken);
   $("settings-status-close").addEventListener("click", () => settingsStatus("", false));
@@ -1734,6 +1783,18 @@
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
   $("host-init").addEventListener("click", initHub);
+  $("host-url").addEventListener("input", updateAgentCommand);
+  $("copy-agent-command").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("agent-command").value); toast(t("host.copy_command")); }
+    catch (err) { toast(err.message || String(err), true); }
+  });
+  addPathPicker("host-data", "folder", t("host.data"), "");
+  addPathPicker("host-token", "save", t("host.token"), "All files|*.*");
+  addPathPicker("host-cert", "file", t("host.cert"), "Certificates|*.crt;*.pem|All files|*.*");
+  addPathPicker("host-key", "file", t("host.key"), "Keys|*.key;*.pem|All files|*.*");
+  addPathPicker("connector-path", "file", t("bridge.binary"), "Executables|*.exe|All files|*.*");
+  addPathPicker("connector-agent-config", "file", t("chat.config"), "JSON|*.json|All files|*.*");
+  updateAgentCommand();
   $("host-elevate").addEventListener("click", async () => {
     try {
       const ok = window.__winElevate ? await window.__winElevate() : false;

@@ -276,6 +276,35 @@ func main() {
 		removeTrayIcon(hwnd)
 		sendMessage(hwnd, wmClose, 0, 0)
 	})
+	_ = w.Bind("__winPickPath", func(kind, title, filter, initial string) string {
+		systemDir, err := windows.GetSystemDirectory()
+		if err != nil {
+			return ""
+		}
+		ps := filepath.Join(systemDir, "WindowsPowerShell", "v1.0", "powershell.exe")
+		script := `Add-Type -AssemblyName System.Windows.Forms
+$d = $null
+if ($env:ACPICK_KIND -eq "folder") { $d = New-Object System.Windows.Forms.FolderBrowserDialog }
+elseif ($env:ACPICK_KIND -eq "save") { $d = New-Object System.Windows.Forms.SaveFileDialog }
+else { $d = New-Object System.Windows.Forms.OpenFileDialog }
+$d.Title = $env:ACPICK_TITLE
+if ($env:ACPICK_FILTER) { $d.Filter = $env:ACPICK_FILTER }
+if ($env:ACPICK_INITIAL) { $d.InitialDirectory = $env:ACPICK_INITIAL }
+if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }`
+		cmd := exec.Command(ps, "-NoProfile", "-STA", "-WindowStyle", "Hidden", "-Command", script)
+		cmd.Env = append(os.Environ(),
+			"ACPICK_KIND="+kind,
+			"ACPICK_TITLE="+title,
+			"ACPICK_FILTER="+filter,
+			"ACPICK_INITIAL="+initial,
+		)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		out, err := cmd.Output()
+		if err != nil {
+			return ""
+		}
+		return strings.TrimSpace(string(out))
+	})
 	_ = w.Bind("__winElevate", func() bool {
 		exe, err := os.Executable()
 		if err != nil {
@@ -1704,6 +1733,10 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	}
 	if parsed.Scheme == "http" && !isLoopbackHostName(parsed.Hostname()) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "non-loopback hub_url must use https"})
+		return
+	}
+	if parsed.Scheme == "https" && (req.TLSCert == "" || req.TLSKey == "") {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "https hub_url requires a TLS certificate and private key"})
 		return
 	}
 	hostname := strings.Trim(parsed.Hostname(), "[]")

@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.17] - 2026-10-24
+
+### Added
+
+- Native file/folder pickers for data, token, certificate, key, bridge binary,
+  and agent config fields.
+- A copyable agent join command in Host setup.
+- Settings sub-navigation for Bridge, Admin, Logs, and About.
+
+### Fixed
+
+- HTTPS Hub URLs are rejected unless a certificate and key are configured.
+- Installed services disable the Install button and use Restart.
+- Host setup remains visible after initialization, greyed out instead of
+  disappearing.
+- Protected service binary installation no longer uses a temporary file and
+  rename, avoiding file-in-use failures.
+
 ## [0.30.16] - 2026-10-24
 
 ### Fixed
