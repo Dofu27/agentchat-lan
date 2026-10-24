@@ -2275,12 +2275,21 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 			var managedChain *pinnedDirectoryChain
 			if deleteAgent {
 				rootInfo, err := os.Lstat(managedRoot)
-				if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+				if os.IsNotExist(err) {
 					deleteAgent = false
+				} else if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot validate managed agent directory"})
+					return
 				} else if managedChain, err = pinReparseChain(managedRoot); err != nil {
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot pin managed agent directory"})
+					return
+				} else if info, err := os.Lstat(managedConfig); os.IsNotExist(err) {
 					deleteAgent = false
-				} else if _, err := os.Lstat(managedConfig); err != nil {
-					deleteAgent = false
+					_ = info
+				} else if err != nil {
+					managedChain.Close()
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot inspect managed agent config"})
+					return
 				} else if pinned, err = pinFile(managedConfig); err != nil {
 					managedChain.Close()
 					writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot pin managed agent config"})

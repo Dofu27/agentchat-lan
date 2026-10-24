@@ -16,6 +16,8 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
 )
 
 var securityDLL = windows.NewLazySystemDLL("advapi32.dll")
@@ -520,6 +522,27 @@ func knownProgramFiles() (string, error) {
 	return windows.UTF16ToString(chars[:n]), nil
 }
 
+func ensureServiceStoppedForReplace(name string) error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return fmt.Errorf("cannot connect to service manager: %w", err)
+	}
+	defer m.Disconnect()
+	s, err := m.OpenService(name)
+	if err != nil {
+		return nil // not installed
+	}
+	defer s.Close()
+	status, err := s.Query()
+	if err != nil {
+		return err
+	}
+	if status.State != svc.Stopped {
+		return fmt.Errorf("service %s must be stopped before replacing its binary", name)
+	}
+	return nil
+}
+
 func sha256File(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -586,47 +609,58 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 	}
 	backup := ""
 	if _, err := os.Lstat(target); err == nil {
+		if err := ensureServiceStoppedForReplace("AgentChatHub"); err != nil {
+			return "", err
+		}
 		backup = target + ".old-" + fmt.Sprintf("%d", time.Now().UnixNano())
 		if err := os.Rename(target, backup); err != nil {
 			return "", fmt.Errorf("replace protected service binary (stop the service first): %w", err)
 		}
 	}
-	rollback := func() {
-		_ = os.Remove(target)
-		if backup != "" {
-			_ = os.Rename(backup, target)
+	rollback := func() error {
+		var errs []error
+		if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, err)
 		}
+		if backup != "" {
+			if err := os.Rename(backup, target); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		return errors.Join(errs...)
+	}
+	failRollback := func(primary error) (string, error) {
+		if rb := rollback(); rb != nil {
+			return "", fmt.Errorf("%w; rollback failed, backup=%s: %v", primary, backup, rb)
+		}
+		return "", primary
 	}
 	out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o755)
 	if err != nil {
-		rollback()
-		return "", fmt.Errorf("create protected service binary (run the Console as administrator): %w", err)
+		return failRollback(fmt.Errorf("create protected service binary (run the Console as administrator): %w", err))
 	}
 	if _, err := io.Copy(out, src); err != nil {
 		out.Close()
-		rollback()
-		return "", err
+		return failRollback(err)
 	}
 	if err := out.Sync(); err != nil {
 		out.Close()
-		rollback()
-		return "", err
+		return failRollback(err)
 	}
 	if err := out.Close(); err != nil {
-		rollback()
-		return "", err
+		return failRollback(err)
 	}
 	hash, err := sha256File(target)
 	if err != nil || !strings.EqualFold(hash, expected) {
-		rollback()
-		return "", errors.New("protected service binary failed payload verification")
+		return failRollback(errors.New("protected service binary failed payload verification"))
 	}
 	if err := trustedServiceBinary(target); err != nil {
-		rollback()
-		return "", err
+		return failRollback(err)
 	}
 	if backup != "" {
-		_ = os.Remove(backup)
+		if err := os.Remove(backup); err != nil {
+			return "", fmt.Errorf("new protected service binary installed but backup cleanup failed (%s): %w", backup, err)
+		}
 	}
 	return target, nil
 }

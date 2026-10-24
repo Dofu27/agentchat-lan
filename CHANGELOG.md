@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.23] - 2026-10-25
+
+### Fixed
+
+- Managed-path parent pin failures now fail the Settings action before saving.
+- Service binary rollback failures are reported with the backup path.
+- Replacement checks SCM state and refuses to move a running service binary.
+
 ## [0.30.22] - 2026-10-25
 
 ### Fixed
