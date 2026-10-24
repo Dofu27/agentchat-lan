@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.26] - 2026-10-25
+
+### Added
+
+- Inno Setup installation wizard with language selection, install path,
+  role selection, Hub URL, desktop shortcut task, WebView2 bootstrap, and
+  post-install Console launch.
+
 ## [0.30.25] - 2026-10-25
 
 ### Added
