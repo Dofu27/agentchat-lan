@@ -190,6 +190,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /v1/admin/agents", s.adminAuth(http.HandlerFunc(s.handleCreateUserAgent)))
 	mux.Handle("POST /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleCreateInvite)))
 	mux.Handle("GET /v1/admin/invites", s.adminAuth(http.HandlerFunc(s.handleListInvites)))
+	mux.Handle("DELETE /v1/admin/invites/{id}", s.adminAuth(http.HandlerFunc(s.handleDeleteInvite)))
 	mux.Handle("DELETE /v1/admin/agents/{id}", s.adminAuth(http.HandlerFunc(s.handleRevokeAgent)))
 	mux.Handle("POST /v1/admin/agents/{id}/token", s.adminAuth(http.HandlerFunc(s.handleRotateAgentToken)))
 	mux.Handle("GET /v1/admin/audit", s.adminAuth(http.HandlerFunc(s.handleAudit)))
@@ -588,6 +589,17 @@ func (s *Server) handleListInvites(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"invites": invites})
+}
+func (s *Server) handleDeleteInvite(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.DeleteInvite(r.Context(), r.PathValue("id"), "admin"); err != nil {
+		if errors.Is(err, store.ErrInviteInvalid) {
+			writeError(w, http.StatusNotFound, "invite_not_found", "invite not found", nil)
+			return
+		}
+		s.internalError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 func (s *Server) handleRotateAdminToken(w http.ResponseWriter, r *http.Request) {
 	token, err := s.store.RotateAdminToken(r.Context(), "admin")

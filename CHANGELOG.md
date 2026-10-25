@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.42] - 2026-10-26
+
+### Added
+
+- One-click local self-join from the Chat join panel.
+- Invite deletion in Admin, with a delete button on each active invite.
+
+### Changed
+
+- Firewall controls live outside the collapsed Host setup body and remain
+  reachable after initialization.
+
+### Fixed
+
+- Hub service replacement checks the configured service and AgentChatHub.
+- Clear Hub data can stop the service, remove data/token, and reset the Host
+  data setting for re-initialization.
+
 ## [0.30.41] - 2026-10-25
 
 ### Fixed

@@ -329,6 +329,7 @@ type Invite struct {
 	Uses int
 }
 type InviteInfo struct {
+	ID        string    `json:"id"`
 	Room      string    `json:"room"`
 	Name      string    `json:"name"`
 	ExpiresAt time.Time `json:"expires_at"`
@@ -447,9 +448,10 @@ func (s *Store) CreateInvite(ctx context.Context, code string, in Invite, actor 
 	return expires, tx.Commit()
 }
 
-// ListInvites returns active invite metadata without exposing codes or hashes.
+// ListInvites returns active invite metadata. ID is the stored code hash and is
+// only used for administrative revocation, never for joining.
 func (s *Store) ListInvites(ctx context.Context) ([]InviteInfo, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT room_id,name,expires_at,uses_left FROM invites WHERE uses_left>0 AND expires_at>? ORDER BY expires_at`, time.Now().UTC().Format(time.RFC3339Nano))
+	rows, err := s.db.QueryContext(ctx, `SELECT code_hash,room_id,name,expires_at,uses_left FROM invites WHERE uses_left>0 AND expires_at>? ORDER BY expires_at`, time.Now().UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return nil, err
 	}
@@ -458,13 +460,43 @@ func (s *Store) ListInvites(ctx context.Context) ([]InviteInfo, error) {
 	for rows.Next() {
 		var i InviteInfo
 		var e string
-		if err = rows.Scan(&i.Room, &i.Name, &e, &i.Uses); err != nil {
+		if err = rows.Scan(&i.ID, &i.Room, &i.Name, &e, &i.Uses); err != nil {
 			return nil, err
 		}
 		i.ExpiresAt, _ = time.Parse(time.RFC3339Nano, e)
 		out = append(out, i)
 	}
 	return out, rows.Err()
+}
+
+// DeleteInvite revokes an invite by its listed ID (the stored code hash).
+func (s *Store) DeleteInvite(ctx context.Context, id, actor string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("invite id is required")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `DELETE FROM invites WHERE code_hash=?`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrInviteInvalid
+	}
+	if err := insertAudit(ctx, tx, actor, "invite.deleted", map[string]any{"id": id}); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Join consumes one invite use and creates an agent with a hashed bearer token.

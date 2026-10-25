@@ -209,6 +209,9 @@
       <button id="host-toggle" class="hidden" type="button">展开设置</button>
       <button id="host-tls-reset-global" class="hidden" type="button" data-i18n="host.tls_reset">Reset certificate</button>
       <button id="host-clear-data-global" class="hidden" type="button" data-i18n="host.clear_data">Clear Hub data</button>
+      <button id="host-firewall-open" type="button" data-i18n="host.firewall_open">Open firewall for LAN</button>
+      <button id="host-firewall-remove" type="button" data-i18n="host.firewall_remove">Remove firewall rule</button>
+      <span id="host-firewall-status" class="muted small"></span>
       <span id="host-global-status" class="small" aria-live="polite"></span>
       <span id="host-url-warning-global" class="hint" style="color:var(--warn)"></span>
       <span id="host-configured-note" class="muted small"></span>
@@ -279,11 +282,6 @@
       <button id="host-tls-install" type="button" data-i18n="host.tls_install">Install certificate for this user</button>
       <button id="host-tls-reset" class="danger" type="button" data-i18n="host.tls_reset">Reset certificate</button>
       <span id="host-cert-status" class="muted small"></span>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <button id="host-firewall-open" type="button" data-i18n="host.firewall_open">Open firewall for LAN</button>
-      <button id="host-firewall-remove" type="button" data-i18n="host.firewall_remove">Remove firewall rule</button>
-      <span id="host-firewall-status" class="muted small"></span>
     </div>
     <div class="row" style="margin-top:10px">
       <button id="host-init" class="primary" type="button" data-i18n="host.init">Initialize hub</button>
@@ -409,6 +407,7 @@
         <input id="join-name" type="text" autocomplete="off" placeholder="Agent name" data-i18n-placeholder="chat.name_placeholder">
         <input id="join-kind" type="text" autocomplete="off" placeholder="human" value="human" data-i18n-placeholder="chat.kind_placeholder">
         <button id="join-submit" class="primary" type="button" data-i18n="chat.join">Join</button>
+        <button id="self-join" type="button" data-i18n="chat.self_join">One-click join this Hub</button>
       </div>
       <div id="join-error" class="small" style="margin-top:8px"></div>
     </section>
@@ -586,7 +585,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.41</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.42</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -619,6 +618,7 @@
       "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.admin":"Admin", "tab.logs":"Logs", "tab.settings":"Settings", "tab.about":"About",
       "admin.title":"Administration", "admin.agents":"Agents", "admin.invites":"Invites", "admin.audit":"Audit",
       "admin.create_invite":"Create invite", "admin.invite_created":"Invite created", "admin.no_data":"No data",
+      "admin.delete_invite":"Delete", "admin.delete_invite_confirm":"Delete this invite code?",
       "admin.create_agent":"Create agent", "admin.agent_created":"Agent created", "admin.rotate":"Rotate token",
       "admin.revoke":"Revoke", "admin.revoke_confirm":"Revoke this agent?", "admin.token_confirm":"Rotate this agent token?",
       "admin.rooms":"Rooms", "admin.create_room":"Create room", "admin.archive_room":"Archive",
@@ -690,7 +690,7 @@
       "chat.status_online":"online", "chat.status_idle":"idle", "chat.status_offline":"offline",
       "chat.invite_placeholder":"Invite code", "chat.name_placeholder":"Agent name", "chat.kind_placeholder":"Kind (codex/dsh/human)",
       "chat.unavailable":"Set agent_config in desktop.json to enable chat.",
-      "chat.join_title":"Join a hub", "chat.join":"Join", "chat.joined":"Joined. Agent config saved.",
+      "chat.join_title":"Join a hub", "chat.join":"Join", "chat.self_join":"One-click join this Hub", "chat.joined":"Joined. Agent config saved.",
       "chat.join_failed":"Join failed", "chat.join_exists":"Agent config already exists.",
       "connector.title":"Connect an agent", "connector.detect":"Detect", "connector.configure":"Configure",
       "connector.hint":"Codex uses MCP; DSH uses the native bridge; Generic runs your command.",
@@ -720,6 +720,7 @@
       "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.admin":"管理", "tab.logs":"日志", "tab.settings":"设置", "tab.about":"关于",
       "admin.title":"管理", "admin.agents":"Agent", "admin.invites":"邀请码", "admin.audit":"审计",
       "admin.create_invite":"生成邀请码", "admin.invite_created":"邀请码已生成", "admin.no_data":"暂无数据",
+      "admin.delete_invite":"删除", "admin.delete_invite_confirm":"删除这个邀请码？",
       "admin.create_agent":"创建 Agent", "admin.agent_created":"Agent 已创建", "admin.rotate":"轮换 token",
       "admin.revoke":"撤销", "admin.revoke_confirm":"撤销这个 Agent？", "admin.token_confirm":"轮换这个 Agent 的 token？",
       "admin.rooms":"房间", "admin.create_room":"创建房间", "admin.archive_room":"归档",
@@ -791,7 +792,7 @@
       "chat.status_online":"在线", "chat.status_idle":"空闲", "chat.status_offline":"离线",
       "chat.invite_placeholder":"邀请码", "chat.name_placeholder":"Agent 名称", "chat.kind_placeholder":"类型（codex/dsh/human）",
       "chat.unavailable":"请在 desktop.json 配置 agent_config 后启用聊天。",
-      "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.joined":"已加入，agent 配置已保存。",
+      "chat.join_title":"加入 Hub", "chat.join":"加入", "chat.self_join":"一键加入本机 Hub", "chat.joined":"已加入，agent 配置已保存。",
       "chat.join_failed":"加入失败", "chat.join_exists":"agent 配置已存在，未覆盖。",
       "connector.title":"连接 Agent", "connector.detect":"检测", "connector.configure":"配置",
       "connector.hint":"Codex 使用 MCP；DSH 使用原生 bridge；通用型运行你的命令。",
@@ -1059,7 +1060,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.41/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.42/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1604,6 +1605,28 @@
       $("join-error").textContent = err.message || t("chat.join_failed");
     } finally { $("join-submit").disabled = false; }
   }
+  async function selfJoin() {
+    const name = $("join-name").value.trim() || "main-pc";
+    const kind = $("join-kind").value.trim() || "human";
+    $("join-error").textContent = "";
+    $("self-join").disabled = true;
+    try {
+      const invite = await api("/api/admin/invites", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ room:"general", uses:1, ttl_seconds:3600 })
+      });
+      if (!invite.code) throw new Error(t("chat.join_failed"));
+      await api("/api/client/join", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ invite:invite.code, name, kind })
+      });
+      $("join-name").value = "";
+      $("join-error").textContent = t("chat.joined");
+      await refreshChat();
+    } catch (err) {
+      $("join-error").textContent = err.message || t("chat.join_failed");
+    } finally { $("self-join").disabled = false; }
+  }
   function adminRows(container, rows) {
     container.replaceChildren();
     if (!rows.length) {
@@ -1663,12 +1686,49 @@
       adminRows($("admin-federation"), federation ? [JSON.stringify(federation).slice(0, 1200)] : [t("admin.no_data")]);
       adminAgentRows(agents.agents || []);
       const inv = Array.isArray(invites) ? invites : (invites.invites || []);
-      adminRows($("admin-invites"), inv.map((i) => (i.room || i.room_id || "") + " · " + (i.code || "") + " · uses " + String(i.uses_left ?? i.uses ?? "")));
+      adminInviteRows(inv);
       const events = Array.isArray(audit) ? audit : (audit.events || audit.audit || []);
       adminRows($("admin-audit"), events.map((e) => (e.ts || "") + " · " + (e.action || "") + " · " + (e.actor_id || e.actor || "")));
     } catch (err) {
       $("admin-error").textContent = err.message || String(err);
     }
+  }
+  function adminInviteRows(invites) {
+    const box = $("admin-invites");
+    box.replaceChildren();
+    if (!invites.length) {
+      const empty = document.createElement("div");
+      empty.className = "admin-row muted";
+      empty.textContent = t("admin.no_data");
+      box.appendChild(empty);
+      return;
+    }
+    invites.forEach((i) => {
+      const row = document.createElement("div");
+      row.className = "admin-row";
+      const label = document.createElement("span");
+      label.textContent = (i.room || i.room_id || "") + " · uses " +
+        String(i.uses_left ?? i.uses ?? "") + (i.expires_at ? " · " + String(i.expires_at).slice(0, 16) : "");
+      const actions = document.createElement("span");
+      actions.className = "admin-actions";
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "danger";
+      del.textContent = t("admin.delete_invite");
+      del.onclick = async () => {
+        if (!i.id || !window.confirm(t("admin.delete_invite_confirm"))) return;
+        try {
+          await api("/api/admin/invites/" + encodeURIComponent(i.id), { method:"DELETE" });
+          await refreshAdmin();
+        } catch (err) {
+          $("admin-error").textContent = err.message || String(err);
+        }
+      };
+      actions.appendChild(del);
+      row.appendChild(label);
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
   }
   async function adminCreateAgent() {
     const name = $("admin-agent-name").value.trim();
@@ -1998,6 +2058,7 @@
     }
   });
   $("join-submit").addEventListener("click", joinHub);
+  $("self-join").addEventListener("click", selfJoin);
   $("chat-older").addEventListener("click", () => chatLoadOlder().catch(chatError));
   $("chat-new-dm").addEventListener("click", chatCreateDM);
   $("chat-new-room").addEventListener("click", chatCreateRoom);

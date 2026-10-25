@@ -494,11 +494,11 @@ func pinDirectoryChain(path string) (*pinnedDirectoryChain, error) {
 }
 
 var (
-	knownFolderShell32       = windows.NewLazySystemDLL("shell32.dll")
-	knownFolderOle32         = windows.NewLazySystemDLL("ole32.dll")
+	knownFolderShell32 = windows.NewLazySystemDLL("shell32.dll")
+	knownFolderOle32   = windows.NewLazySystemDLL("ole32.dll")
 	procSHGetKnownFolderPath = knownFolderShell32.NewProc("SHGetKnownFolderPath")
-	procCoTaskMemFree        = knownFolderOle32.NewProc("CoTaskMemFree")
-	folderIDProgramFiles     = windows.GUID{
+	procCoTaskMemFree         = knownFolderOle32.NewProc("CoTaskMemFree")
+	folderIDProgramFiles      = windows.GUID{
 		Data1: 0x905e63b6, Data2: 0xc1bf, Data3: 0x494e,
 		Data4: [8]byte{0xb2, 0x9c, 0x65, 0xb7, 0x32, 0xd3, 0xd2, 0x1a},
 	}
