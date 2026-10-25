@@ -8,19 +8,19 @@
     "#1": {
       "0000": {
         "fixed": {
-          "file_version": "0.30.45.0",
-          "product_version": "0.30.45.0"
+          "file_version": "0.30.46.0",
+          "product_version": "0.30.46.0"
         },
         "info": {
           "0409": {
             "CompanyName": "Dofu27",
             "FileDescription": "AgentChat CLI",
-            "FileVersion": "0.30.45.0",
+            "FileVersion": "0.30.46.0",
             "InternalName": "agentchat",
             "LegalCopyright": "MIT",
             "OriginalFilename": "agentchat.exe",
             "ProductName": "AgentChat LAN",
-            "ProductVersion": "0.30.45"
+            "ProductVersion": "0.30.46"
           }
         }
       }

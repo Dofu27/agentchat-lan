@@ -186,14 +186,6 @@
     <button id="refresh" type="button">Refresh</button>
   </div>
 </header>
-<nav id="overview-subnav" class="row settings-subnav">
-  <button id="overview-home-btn" type="button" data-i18n="tab.overview">Overview</button>
-  <button id="overview-general-btn" type="button" data-i18n="tab.general">General</button>
-  <button id="overview-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
-  <button id="overview-admin-btn" type="button" data-i18n="tab.admin">Admin</button>
-  <button id="overview-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
-  <button id="overview-about-btn" type="button" data-i18n="tab.about">About</button>
-</nav>
 <main id="overview-view">
   <section class="wide" id="welcome">
     <h2 data-i18n="welcome.title">Welcome to AgentChat LAN</h2>
@@ -588,7 +580,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.45</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.46</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -1063,7 +1055,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.45/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.46/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1897,50 +1889,31 @@
     }
   }
   function showTab(tab) {
-    activeTab = tab;
-    $("overview-view").classList.toggle("hidden", tab !== "overview");
-    $("chat-view").classList.toggle("hidden", tab !== "chat");
-    $("bridge-view").classList.toggle("hidden", tab !== "bridge");
-    $("admin-view").classList.toggle("hidden", tab !== "admin");
-    $("logs-view").classList.toggle("hidden", tab !== "logs");
-    $("settings-view").classList.toggle("hidden", tab !== "settings");
-    $("about-view").classList.toggle("hidden", tab !== "about");
-    const overviewArea = ["overview","settings","bridge","admin","logs","about"].includes(tab);
-    $("overview-subnav").classList.toggle("hidden", !overviewArea);
-    $("tab-overview-btn").classList.toggle("active", overviewArea);
-    $("tab-chat-btn").classList.toggle("active", tab === "chat");
-    $("tab-bridge-btn").classList.toggle("active", tab === "bridge");
-    $("tab-admin-btn").classList.toggle("active", tab === "admin");
-    $("tab-logs-btn").classList.toggle("active", tab === "logs");
-    $("tab-settings-btn").classList.toggle("active", tab === "settings");
-    $("tab-about-btn").classList.toggle("active", tab === "about");
-    for (const [id, name] of [["overview-home-btn","overview"],["overview-general-btn","settings"],["overview-bridge-btn","bridge"],["overview-admin-btn","admin"],["overview-logs-btn","logs"],["overview-about-btn","about"]]) {
-      const btn = $(id); if (btn) btn.classList.toggle("active", tab === name);
+    const chat = tab === "chat";
+    activeTab = chat ? "chat" : "overview";
+    for (const id of ["overview-view","settings-view","bridge-view","admin-view","logs-view","about-view"]) {
+      $(id).classList.toggle("hidden", chat);
     }
-    if (tab === "logs") refreshLogs();
-    if (tab === "chat") {
+    $("chat-view").classList.toggle("hidden", !chat);
+    $("tab-overview-btn").classList.toggle("active", !chat);
+    $("tab-chat-btn").classList.toggle("active", chat);
+    if (chat) {
       refreshChat().catch((err) => { $("chat-error").textContent = err.message || String(err); });
       if (!chatState.timer) chatState.timer = setInterval(chatPoll, 4000);
-    } else if (chatState.timer) {
+      return;
+    }
+    if (chatState.timer) {
       clearInterval(chatState.timer);
       chatState.timer = null;
     }
-    if (tab === "bridge") {
-      refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); });
-      refreshConnectors().catch((err) => { $("connector-error").textContent = err.message || String(err); });
-    }
-    if (tab === "admin") refreshAdmin();
-    if (tab === "settings") refreshSettings().catch((err) => { $("settings-error").textContent = err.message || String(err); });
+    refreshSettings().catch((err) => { $("settings-error").textContent = err.message || String(err); });
+    refreshBridge().catch((err) => { $("bridge-error").textContent = err.message || String(err); });
+    refreshConnectors().catch((err) => { $("connector-error").textContent = err.message || String(err); });
+    refreshAdmin();
+    refreshLogs();
   }
   $("tab-overview-btn").addEventListener("click", () => showTab("overview"));
   $("tab-chat-btn").addEventListener("click", () => showTab("chat"));
-  $("tab-bridge-btn").addEventListener("click", () => showTab("bridge"));
-  $("tab-admin-btn").addEventListener("click", () => showTab("admin"));
-  $("tab-settings-btn").addEventListener("click", () => showTab("settings"));
-  $("tab-about-btn").addEventListener("click", () => showTab("about"));
-  for (const [id, name] of [["overview-home-btn","overview"],["overview-general-btn","settings"],["overview-bridge-btn","bridge"],["overview-admin-btn","admin"],["overview-logs-btn","logs"],["overview-about-btn","about"]]) {
-    const btn = $(id); if (btn) btn.addEventListener("click", () => showTab(name));
-  }
   $("role-save").addEventListener("click", saveRole);
   async function settingsAction(action) {
     const message = action === "leave_hub" ? t("settings.leave_confirm") : t("settings.reset_confirm");

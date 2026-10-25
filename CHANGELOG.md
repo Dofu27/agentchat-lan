@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.46] - 2026-10-26
+
+### Changed
+
+- Removed the Overview sub-navigation. Overview now shows Host setup, General,
+  Bridge, Admin, Logs, and About in one continuously scrollable page.
+- Top navigation remains only Overview and Chat.
+
 ## [0.30.45] - 2026-10-26
 
 ### Changed
