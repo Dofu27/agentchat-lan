@@ -208,6 +208,7 @@
     <div class="row" style="margin-bottom:8px">
       <button id="host-toggle" class="hidden" type="button">展开设置</button>
       <button id="host-tls-reset-global" class="hidden" type="button" data-i18n="host.tls_reset">Reset certificate</button>
+      <button id="host-clear-data-global" class="hidden" type="button" data-i18n="host.clear_data">Clear Hub data</button>
       <span id="host-url-warning-global" class="hint" style="color:var(--warn)"></span>
       <span id="host-configured-note" class="muted small"></span>
     </div>
@@ -584,7 +585,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.37</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.38</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -1009,6 +1010,7 @@
     $("host-toggle").classList.toggle("hidden", !hubConfigured);
     $("host-toggle").textContent = "展开设置";
     $("host-tls-reset-global").classList.toggle("hidden", !hubConfigured);
+    $("host-clear-data-global").classList.toggle("hidden", !hubConfigured);
     if (!$("host-url-warning").textContent) $("host-url-warning").textContent = t("host.url_warn");
     $("host-url-warning-global").textContent = $("host-url-warning").textContent;
     $("host-configured-note").textContent = hubConfigured ? "Hub 已初始化" : "";
@@ -1051,7 +1053,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.37/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.38/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1894,6 +1896,19 @@
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
   $("host-init").addEventListener("click", initHub);
   $("host-clear-data").addEventListener("click", async () => {
+    if (!window.confirm(t("host.clear_confirm"))) return;
+    $("host-error").textContent = "";
+    $("host-output").textContent = "";
+    try {
+      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data" }) });
+      $("host-output").textContent = t("host.clear_done");
+      await refreshSettings();
+      await refresh();
+    } catch (err) {
+      $("host-error").textContent = err.message || t("host.clear_failed");
+    }
+  });
+  $("host-clear-data-global").addEventListener("click", async () => {
     if (!window.confirm(t("host.clear_confirm"))) return;
     $("host-error").textContent = "";
     $("host-output").textContent = "";

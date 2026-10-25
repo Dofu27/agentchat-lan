@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	hubpkg "github.com/Dofu27/agentchat-lan/internal/hub"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
@@ -20,7 +21,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	hubpkg "github.com/Dofu27/agentchat-lan/internal/hub"
 	"io"
 	"log"
 	"math/big"
@@ -332,54 +332,54 @@ if ($env:ACPICK_KIND -eq "folder") {
 }
 
 var (
-	user32DLL                  = windows.NewLazySystemDLL("user32.dll")
-	shell32DLL                 = windows.NewLazySystemDLL("shell32.dll")
-	procReleaseCapture         = user32DLL.NewProc("ReleaseCapture")
-	procSendMessageW           = user32DLL.NewProc("SendMessageW")
-	procPostMessageW           = user32DLL.NewProc("PostMessageW")
-	procShowWindow             = user32DLL.NewProc("ShowWindow")
-	procIsZoomed               = user32DLL.NewProc("IsZoomed")
-	procGetWindowLong          = user32DLL.NewProc("GetWindowLongPtrW")
-	procSetWindowLong          = user32DLL.NewProc("SetWindowLongPtrW")
-	procSetWindowPos           = user32DLL.NewProc("SetWindowPos")
-	procGetWindowRect          = user32DLL.NewProc("GetWindowRect")
-	procCallWindowProc         = user32DLL.NewProc("CallWindowProcW")
-	procSystemParametersInfo   = user32DLL.NewProc("SystemParametersInfoW")
-	procLoadIconW              = user32DLL.NewProc("LoadIconW")
-	procGetCursorPos           = user32DLL.NewProc("GetCursorPos")
-	procCreatePopupMenu        = user32DLL.NewProc("CreatePopupMenu")
-	procAppendMenuW            = user32DLL.NewProc("AppendMenuW")
-	procTrackPopupMenu         = user32DLL.NewProc("TrackPopupMenu")
-	procDestroyMenu            = user32DLL.NewProc("DestroyMenu")
-	procSetForegroundWindow    = user32DLL.NewProc("SetForegroundWindow")
-	procBringWindowToTop       = user32DLL.NewProc("BringWindowToTop")
-	procEnumWindows            = user32DLL.NewProc("EnumWindows")
-	procGetWindowTextW         = user32DLL.NewProc("GetWindowTextW")
-	procMessageBoxW            = user32DLL.NewProc("MessageBoxW")
+	user32DLL                = windows.NewLazySystemDLL("user32.dll")
+	shell32DLL               = windows.NewLazySystemDLL("shell32.dll")
+	procReleaseCapture       = user32DLL.NewProc("ReleaseCapture")
+	procSendMessageW         = user32DLL.NewProc("SendMessageW")
+	procPostMessageW         = user32DLL.NewProc("PostMessageW")
+	procShowWindow           = user32DLL.NewProc("ShowWindow")
+	procIsZoomed             = user32DLL.NewProc("IsZoomed")
+	procGetWindowLong        = user32DLL.NewProc("GetWindowLongPtrW")
+	procSetWindowLong        = user32DLL.NewProc("SetWindowLongPtrW")
+	procSetWindowPos         = user32DLL.NewProc("SetWindowPos")
+	procGetWindowRect        = user32DLL.NewProc("GetWindowRect")
+	procCallWindowProc       = user32DLL.NewProc("CallWindowProcW")
+	procSystemParametersInfo = user32DLL.NewProc("SystemParametersInfoW")
+	procLoadIconW            = user32DLL.NewProc("LoadIconW")
+	procGetCursorPos         = user32DLL.NewProc("GetCursorPos")
+	procCreatePopupMenu      = user32DLL.NewProc("CreatePopupMenu")
+	procAppendMenuW          = user32DLL.NewProc("AppendMenuW")
+	procTrackPopupMenu       = user32DLL.NewProc("TrackPopupMenu")
+	procDestroyMenu          = user32DLL.NewProc("DestroyMenu")
+	procSetForegroundWindow  = user32DLL.NewProc("SetForegroundWindow")
+	procBringWindowToTop     = user32DLL.NewProc("BringWindowToTop")
+	procEnumWindows          = user32DLL.NewProc("EnumWindows")
+	procGetWindowTextW       = user32DLL.NewProc("GetWindowTextW")
+	procMessageBoxW          = user32DLL.NewProc("MessageBoxW")
 	procRegisterWindowMessageW = user32DLL.NewProc("RegisterWindowMessageW")
-	procShellNotifyIconW       = shell32DLL.NewProc("Shell_NotifyIconW")
-	procShellExecuteW          = shell32DLL.NewProc("ShellExecuteW")
-	procExtractIconExW         = shell32DLL.NewProc("ExtractIconExW")
-	dwmapiDLL                  = windows.NewLazySystemDLL("dwmapi.dll")
-	procGetLongPathNameW       = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetLongPathNameW")
-	secureKernel32DLL          = windows.NewLazySystemDLL("kernel32.dll")
-	procCreateDirectoryW       = secureKernel32DLL.NewProc("CreateDirectoryW")
-	procCreateFileSecureW      = secureKernel32DLL.NewProc("CreateFileW")
-	procDwmSetAttribute        = dwmapiDLL.NewProc("DwmSetWindowAttribute")
-	uxthemeDLL                 = windows.NewLazySystemDLL("uxtheme.dll")
-	procSetWindowTheme         = uxthemeDLL.NewProc("SetWindowTheme")
+	procShellNotifyIconW     = shell32DLL.NewProc("Shell_NotifyIconW")
+	procShellExecuteW        = shell32DLL.NewProc("ShellExecuteW")
+	procExtractIconExW       = shell32DLL.NewProc("ExtractIconExW")
+	dwmapiDLL                = windows.NewLazySystemDLL("dwmapi.dll")
+	procGetLongPathNameW     = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetLongPathNameW")
+	secureKernel32DLL        = windows.NewLazySystemDLL("kernel32.dll")
+	procCreateDirectoryW     = secureKernel32DLL.NewProc("CreateDirectoryW")
+	procCreateFileSecureW    = secureKernel32DLL.NewProc("CreateFileW")
+	procDwmSetAttribute      = dwmapiDLL.NewProc("DwmSetWindowAttribute")
+	uxthemeDLL               = windows.NewLazySystemDLL("uxtheme.dll")
+	procSetWindowTheme       = uxthemeDLL.NewProc("SetWindowTheme")
 )
 
 const (
-	wmClose    = 0x0010
-	wmDestroy  = 0x0002
-	wmNull     = 0x0000
-	wmTray     = 0x8001
-	trayShowID = 1001
-	trayExitID = 1002
-	swHide     = 0
-	swMinimize = 6
-	swRestore  = 9
+	wmClose      = 0x0010
+	wmDestroy    = 0x0002
+	wmNull       = 0x0000
+	wmTray       = 0x8001
+	trayShowID   = 1001
+	trayExitID   = 1002
+	swHide       = 0
+	swMinimize   = 6
+	swRestore    = 9
 )
 
 type trayGuid struct {
@@ -408,10 +408,10 @@ type notifyIconData struct {
 }
 
 var (
-	trayIconAdded     bool
+	trayIconAdded    bool
 	taskbarCreatedMsg uint32
-	closeDialogEval   func()
-	allowClose        atomic.Bool
+	closeDialogEval  func()
+	allowClose       atomic.Bool
 )
 
 func registerTaskbarCreated() {
