@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.41] - 2026-10-25
+
+### Fixed
+
+- Clear Hub data falls back to the Host setup data field when the desktop
+  config has no `hub_data`, matching the state left by an interrupted or
+  manually edited setup.
+
 ## [0.30.40] - 2026-10-25
 
 ### Fixed
