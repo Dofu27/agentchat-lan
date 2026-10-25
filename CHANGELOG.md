@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.36] - 2026-10-25
+
+### Fixed
+
+- Inno Setup now refuses any legacy AppId installation or any target containing
+  `agentchat.exe`, including mixed old/new layouts. It explains the safe
+  migration order before the old uninstaller is run.
+
 ## [0.30.35] - 2026-10-25
 
 ### Fixed

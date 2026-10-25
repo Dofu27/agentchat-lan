@@ -1,6 +1,6 @@
 #define MyAppName "AgentChat LAN"
 #ifndef AppVersion
-  #define AppVersion "0.30.35"
+  #define AppVersion "0.30.36"
 #endif
 #ifndef StageDir
   #define StageDir "..\build\inno"
@@ -138,15 +138,21 @@ begin
   Result := SaveStringToFile(ConfigPath, Json, False);
 end;
 
+function OldAppIdInstalled(): Boolean;
+begin
+  Result :=
+    RegKeyExists(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{8D20A77B-6F0B-4B6E-9A10-7C68B9D3F1A2}_is1') or
+    RegKeyExists(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{8D20A77B-6F0B-4B6E-9A10-7C68B9D3F1A2}_is1');
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
   Result := '';
-  if FileExists(ExpandConstant('{app}\agentchat.exe')) and
-     not FileExists(ExpandConstant('{app}\agentchat-console.exe')) then
+  if OldAppIdInstalled() or FileExists(ExpandConstant('{app}\agentchat.exe')) then
   begin
-    Result := '检测到旧版 AgentChat Console 目录。请先卸载旧版，并确认 Hub 服务的 agentchat.exe 仍保留，再安装此版本。';
+    Result := '检测到旧版 AgentChat Console 安装。请先停止 AgentChatHub，备份 C:\Program Files\AgentChat\agentchat.exe，运行旧版卸载器，确认该文件仍在，再安装此版本。旧版卸载器可能删除共享目录中的服务文件。';
     exit;
   end;
   if CompareText(ExpandConstant('{app}'), ExpandConstant('{autopf}\AgentChat')) = 0 then
