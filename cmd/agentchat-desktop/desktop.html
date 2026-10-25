@@ -585,7 +585,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.38</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.39</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -654,7 +654,7 @@
       "host.url":"Hub URL", "host.url_hint":"URL agents use to reach this hub; include https if TLS is enabled.",
       "host.detect":"Auto-detect", "host.detected":"Detected LAN Hub URL",
       "host.detect_status":"Detected: ", "host.already_admin":"Already administrator",
-      "host.clear_data":"Clear Hub data", "host.clear_confirm":"Delete the Hub data directory? Stop the Hub service first. Admin token, service, and config are preserved.",
+      "host.clear_data":"Clear Hub data", "host.clear_confirm":"Delete the Hub data directory and its admin token? Stop the Hub service first. The service and desktop config are preserved.",
       "host.clear_done":"Hub data deleted", "host.clear_failed":"Could not clear Hub data",
       "host.url_warn":"With multiple adapters or VPNs, verify the selected address. Regenerate the certificate if the IP changes.",
       "host.multi_warn":"Multiple LAN addresses detected; confirm the one clients should use.",
@@ -754,7 +754,7 @@
       "host.url":"Hub URL", "host.url_hint":"Agent 访问此 Hub 的地址；启用 TLS 时写 https。",
       "host.detect":"自动检测", "host.detected":"已检测到局域网 Hub 地址",
       "host.detect_status":"已检测：", "host.already_admin":"已是管理员",
-      "host.clear_data":"清空 Hub 数据", "host.clear_confirm":"删除 Hub 数据目录？请先停止 Hub 服务。admin token、服务和配置会保留。",
+      "host.clear_data":"清空 Hub 数据", "host.clear_confirm":"删除 Hub 数据目录及其 admin token？请先停止 Hub 服务。服务和桌面配置会保留。",
       "host.clear_done":"Hub 数据已删除", "host.clear_failed":"无法清空 Hub 数据",
       "host.url_warn":"有多个网卡或 VPN 时请确认地址；IP 改变后请重新生成证书。",
       "host.multi_warn":"检测到多个局域网地址，请确认客户端应使用哪一个。",
@@ -1053,7 +1053,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.38/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.39/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1900,7 +1900,7 @@
     $("host-error").textContent = "";
     $("host-output").textContent = "";
     try {
-      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data" }) });
+      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", remove_token:true }) });
       $("host-output").textContent = t("host.clear_done");
       await refreshSettings();
       await refresh();
@@ -1913,7 +1913,7 @@
     $("host-error").textContent = "";
     $("host-output").textContent = "";
     try {
-      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data" }) });
+      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", remove_token:true }) });
       $("host-output").textContent = t("host.clear_done");
       await refreshSettings();
       await refresh();

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.39] - 2026-10-25
+
+### Fixed
+
+- Clear Hub data now also removes the managed admin token, so the Hub can be
+  initialized again without a token-exists conflict.
+
 ## [0.30.38] - 2026-10-25
 
 ### Fixed
