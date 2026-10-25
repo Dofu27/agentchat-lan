@@ -250,6 +250,7 @@
         <label for="host-url" data-i18n="host.url">Hub URL</label>
         <input id="host-url" type="text" autocomplete="off" placeholder="https://192.168.1.10:8787">
         <button id="host-detect" type="button" data-i18n="host.detect">Auto-detect</button>
+        <span id="host-detect-status" class="muted small"></span>
         <span class="hint" data-i18n="host.url_hint">URL agents use to reach this hub; include https if TLS is enabled.</span>
         <span id="host-url-warning" class="hint" style="color:var(--warn)"></span>
       </div>
@@ -284,6 +285,7 @@
     </div>
     <div class="row" style="margin-top:10px">
       <button id="host-init" class="primary" type="button" data-i18n="host.init">Initialize hub</button>
+      <button id="host-clear-data" class="danger" type="button" data-i18n="host.clear_data">Clear Hub data</button>
       <span class="muted small" data-i18n="host.hint">Creates the database and admin token; service installation follows the printed command.</span>
     </div>
     <pre id="host-output" class="logs" style="height:140px"></pre>
@@ -582,7 +584,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.36</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.37</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -643,12 +645,16 @@
       "host.tls_reset_done":"Certificate reset; restart the Hub service",
       "host.tls_failed":"Certificate operation failed", "host.firewall_open":"Open firewall for LAN",
       "host.firewall_remove":"Remove firewall rule", "host.firewall_ok":"Firewall rule updated",
+      "host.firewall_working":"Updating firewall…",
       "host.firewall_failed":"Firewall change failed; run the Console as administrator",
       "host.data":"Data directory", "host.data_hint":"Where the database and uploaded files are stored.",
       "host.token":"Admin token file", "host.token_hint":"The admin token is written here once. Keep it private.",
       "host.listen":"Listen address", "host.listen_hint":"Use 127.0.0.1 for this machine only; 0.0.0.0:8787 for LAN.",
       "host.url":"Hub URL", "host.url_hint":"URL agents use to reach this hub; include https if TLS is enabled.",
       "host.detect":"Auto-detect", "host.detected":"Detected LAN Hub URL",
+      "host.detect_status":"Detected: ", "host.already_admin":"Already administrator",
+      "host.clear_data":"Clear Hub data", "host.clear_confirm":"Delete the Hub data directory? Stop the Hub service first. Admin token, service, and config are preserved.",
+      "host.clear_done":"Hub data deleted", "host.clear_failed":"Could not clear Hub data",
       "host.url_warn":"With multiple adapters or VPNs, verify the selected address. Regenerate the certificate if the IP changes.",
       "host.multi_warn":"Multiple LAN addresses detected; confirm the one clients should use.",
       "host.tls_required":"Generate a TLS certificate before initializing the Hub.",
@@ -739,12 +745,16 @@
       "host.tls_reset_done":"证书已重置，请重启 Hub 服务",
       "host.tls_failed":"证书操作失败", "host.firewall_open":"开放局域网防火墙",
       "host.firewall_remove":"删除防火墙规则", "host.firewall_ok":"防火墙规则已更新",
+      "host.firewall_working":"正在更新防火墙…",
       "host.firewall_failed":"防火墙修改失败；请以管理员身份运行 Console",
       "host.data":"数据目录", "host.data_hint":"数据库和上传文件存放的位置。",
       "host.token":"管理员 token 文件", "host.token_hint":"管理员 token 只写入一次，请妥善保管。",
       "host.listen":"监听地址", "host.listen_hint":"127.0.0.1 只允许本机；局域网用 0.0.0.0:8787。",
       "host.url":"Hub URL", "host.url_hint":"Agent 访问此 Hub 的地址；启用 TLS 时写 https。",
       "host.detect":"自动检测", "host.detected":"已检测到局域网 Hub 地址",
+      "host.detect_status":"已检测：", "host.already_admin":"已是管理员",
+      "host.clear_data":"清空 Hub 数据", "host.clear_confirm":"删除 Hub 数据目录？请先停止 Hub 服务。admin token、服务和配置会保留。",
+      "host.clear_done":"Hub 数据已删除", "host.clear_failed":"无法清空 Hub 数据",
       "host.url_warn":"有多个网卡或 VPN 时请确认地址；IP 改变后请重新生成证书。",
       "host.multi_warn":"检测到多个局域网地址，请确认客户端应使用哪一个。",
       "host.tls_required":"请先生成 TLS 证书，再初始化 Hub。",
@@ -1005,6 +1015,13 @@
     for (const id of ["host-data","host-token","host-listen","host-url","host-detect","host-cert","host-key","host-ca","host-init","host-tls-generate","host-tls-install","host-tls-reset","host-firewall-open","host-firewall-remove","host-elevate"]) {
       const el = $(id); if (el) el.disabled = hubConfigured;
     }
+    if (body.is_admin === true) {
+      $("host-elevate").disabled = true;
+      $("host-elevate").textContent = t("host.already_admin");
+    } else if (!hubConfigured) {
+      $("host-elevate").disabled = false;
+      $("host-elevate").textContent = t("host.elevate");
+    }
     if (!hubConfigured && !$("host-url").value.trim()) detectHubURL(false).catch(() => {});
     applyRole(body.role || "hub");
   }
@@ -1034,7 +1051,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.36/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.37/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1072,6 +1089,7 @@
       if (info.scheme === "https" && (!info.cert_ips || !info.cert_ips[ip])) messages.push(t("host.cert_warn"));
       $("host-url-warning").textContent = messages.join(" ");
       $("host-url-warning-global").textContent = $("host-url-warning").textContent;
+      $("host-detect-status").textContent = t("host.detect_status") + info.preferred;
       if (showToast) toast(t("host.detected") + ": " + info.preferred);
     } catch (err) {
       if (showToast) toast(err.message || String(err), true);
@@ -1101,6 +1119,7 @@
   }
   async function hubFirewall(action) {
     $("host-error").textContent = "";
+    $("host-firewall-status").textContent = t("host.firewall_working");
     try {
       const body = await api("/api/hub/firewall", {
         method:"POST", headers:{"Content-Type":"application/json"},
@@ -1109,8 +1128,8 @@
       if (!body.ok) throw new Error(body.error || t("host.firewall_failed"));
       $("host-firewall-status").textContent = t("host.firewall_ok");
     } catch (err) {
-      $("host-firewall-status").textContent = "";
       const message = err.message || t("host.firewall_failed");
+      $("host-firewall-status").textContent = message;
       $("host-error").textContent = message;
       toast(message, true);
     }
@@ -1874,6 +1893,19 @@
   $("welcome-join").addEventListener("click", () => completeSetup("client", "chat"));
   $("welcome-bridge").addEventListener("click", () => completeSetup("bridge", "bridge"));
   $("host-init").addEventListener("click", initHub);
+  $("host-clear-data").addEventListener("click", async () => {
+    if (!window.confirm(t("host.clear_confirm"))) return;
+    $("host-error").textContent = "";
+    $("host-output").textContent = "";
+    try {
+      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data" }) });
+      $("host-output").textContent = t("host.clear_done");
+      await refreshSettings();
+      await refresh();
+    } catch (err) {
+      $("host-error").textContent = err.message || t("host.clear_failed");
+    }
+  });
   $("host-url").addEventListener("input", updateAgentCommand);
   $("host-detect").addEventListener("click", () => detectHubURL(true));
   $("host-toggle").addEventListener("click", () => {

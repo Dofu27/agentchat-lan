@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.37] - 2026-10-25
+
+### Fixed
+
+- Administrator restart button is disabled and reports "already administrator"
+  when the Console is elevated.
+- Auto-detect shows a visible detected-URL status.
+- Certificate install status uses a clean message/fingerprint instead of raw
+  certutil output.
+- Firewall actions show working/success/failure state in the UI.
+- Added a confirmed "Clear Hub data" action with service-running and path
+  safety checks, so an existing data directory can be removed before re-init.
+
 ## [0.30.36] - 2026-10-25
 
 ### Fixed
