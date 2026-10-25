@@ -209,6 +209,7 @@
       <button id="host-toggle" class="hidden" type="button">展开设置</button>
       <button id="host-tls-reset-global" class="hidden" type="button" data-i18n="host.tls_reset">Reset certificate</button>
       <button id="host-clear-data-global" class="hidden" type="button" data-i18n="host.clear_data">Clear Hub data</button>
+      <span id="host-global-status" class="small" aria-live="polite"></span>
       <span id="host-url-warning-global" class="hint" style="color:var(--warn)"></span>
       <span id="host-configured-note" class="muted small"></span>
     </div>
@@ -585,7 +586,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.39</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.40</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -656,6 +657,7 @@
       "host.detect_status":"Detected: ", "host.already_admin":"Already administrator",
       "host.clear_data":"Clear Hub data", "host.clear_confirm":"Delete the Hub data directory and its admin token? Stop the Hub service first. The service and desktop config are preserved.",
       "host.clear_done":"Hub data deleted", "host.clear_failed":"Could not clear Hub data",
+      "host.clear_working":"Stopping the Hub service and clearing data…",
       "host.url_warn":"With multiple adapters or VPNs, verify the selected address. Regenerate the certificate if the IP changes.",
       "host.multi_warn":"Multiple LAN addresses detected; confirm the one clients should use.",
       "host.tls_required":"Generate a TLS certificate before initializing the Hub.",
@@ -756,6 +758,7 @@
       "host.detect_status":"已检测：", "host.already_admin":"已是管理员",
       "host.clear_data":"清空 Hub 数据", "host.clear_confirm":"删除 Hub 数据目录及其 admin token？请先停止 Hub 服务。服务和桌面配置会保留。",
       "host.clear_done":"Hub 数据已删除", "host.clear_failed":"无法清空 Hub 数据",
+      "host.clear_working":"正在停止 Hub 服务并清空数据…",
       "host.url_warn":"有多个网卡或 VPN 时请确认地址；IP 改变后请重新生成证书。",
       "host.multi_warn":"检测到多个局域网地址，请确认客户端应使用哪一个。",
       "host.tls_required":"请先生成 TLS 证书，再初始化 Hub。",
@@ -1014,8 +1017,11 @@
     if (!$("host-url-warning").textContent) $("host-url-warning").textContent = t("host.url_warn");
     $("host-url-warning-global").textContent = $("host-url-warning").textContent;
     $("host-configured-note").textContent = hubConfigured ? "Hub 已初始化" : "";
-    for (const id of ["host-data","host-token","host-listen","host-url","host-detect","host-cert","host-key","host-ca","host-init","host-tls-generate","host-tls-install","host-tls-reset","host-firewall-open","host-firewall-remove","host-elevate"]) {
+    for (const id of ["host-data","host-token","host-listen","host-url","host-cert","host-key","host-ca","host-init"]) {
       const el = $(id); if (el) el.disabled = hubConfigured;
+    }
+    for (const id of ["host-detect","host-tls-generate","host-tls-install","host-tls-reset","host-firewall-open","host-firewall-remove"]) {
+      const el = $(id); if (el) el.disabled = false;
     }
     if (body.is_admin === true) {
       $("host-elevate").disabled = true;
@@ -1053,7 +1059,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.39/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.40/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1110,7 +1116,9 @@
       if (!$("host-url").value.trim()) {
         await detectHubURL(false);
       }
-      $("host-cert-status").textContent = body.fingerprint ? ("SHA256 " + body.fingerprint.slice(0, 16) + "…") : (body.output || "");
+      const certStatus = body.fingerprint ? ("SHA256 " + body.fingerprint.slice(0, 16) + "…") : (body.output || "");
+      $("host-cert-status").textContent = certStatus;
+      $("host-global-status").textContent = certStatus;
       return true;
     } catch (err) {
       const message = err.message || t("host.tls_failed");
@@ -1129,9 +1137,11 @@
       });
       if (!body.ok) throw new Error(body.error || t("host.firewall_failed"));
       $("host-firewall-status").textContent = t("host.firewall_ok");
+      $("host-global-status").textContent = t("host.firewall_ok");
     } catch (err) {
       const message = err.message || t("host.firewall_failed");
       $("host-firewall-status").textContent = message;
+      $("host-global-status").textContent = message;
       $("host-error").textContent = message;
       toast(message, true);
     }
@@ -1899,26 +1909,34 @@
     if (!window.confirm(t("host.clear_confirm"))) return;
     $("host-error").textContent = "";
     $("host-output").textContent = "";
+    $("host-global-status").textContent = t("host.clear_working");
     try {
-      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", remove_token:true }) });
+      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", remove_token:true, stop_service:true }) });
       $("host-output").textContent = t("host.clear_done");
+      $("host-global-status").textContent = t("host.clear_done");
       await refreshSettings();
       await refresh();
     } catch (err) {
-      $("host-error").textContent = err.message || t("host.clear_failed");
+      const message = err.message || t("host.clear_failed");
+      $("host-error").textContent = message;
+      $("host-global-status").textContent = message;
     }
   });
   $("host-clear-data-global").addEventListener("click", async () => {
     if (!window.confirm(t("host.clear_confirm"))) return;
     $("host-error").textContent = "";
     $("host-output").textContent = "";
+    $("host-global-status").textContent = t("host.clear_working");
     try {
-      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", remove_token:true }) });
+      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", remove_token:true, stop_service:true }) });
       $("host-output").textContent = t("host.clear_done");
+      $("host-global-status").textContent = t("host.clear_done");
       await refreshSettings();
       await refresh();
     } catch (err) {
-      $("host-error").textContent = err.message || t("host.clear_failed");
+      const message = err.message || t("host.clear_failed");
+      $("host-error").textContent = message;
+      $("host-global-status").textContent = message;
     }
   });
   $("host-url").addEventListener("input", updateAgentCommand);

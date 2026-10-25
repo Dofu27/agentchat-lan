@@ -494,11 +494,11 @@ func pinDirectoryChain(path string) (*pinnedDirectoryChain, error) {
 }
 
 var (
-	knownFolderShell32       = windows.NewLazySystemDLL("shell32.dll")
-	knownFolderOle32         = windows.NewLazySystemDLL("ole32.dll")
+	knownFolderShell32 = windows.NewLazySystemDLL("shell32.dll")
+	knownFolderOle32   = windows.NewLazySystemDLL("ole32.dll")
 	procSHGetKnownFolderPath = knownFolderShell32.NewProc("SHGetKnownFolderPath")
-	procCoTaskMemFree        = knownFolderOle32.NewProc("CoTaskMemFree")
-	folderIDProgramFiles     = windows.GUID{
+	procCoTaskMemFree         = knownFolderOle32.NewProc("CoTaskMemFree")
+	folderIDProgramFiles      = windows.GUID{
 		Data1: 0x905e63b6, Data2: 0xc1bf, Data3: 0x494e,
 		Data4: [8]byte{0xb2, 0x9c, 0x65, 0xb7, 0x32, 0xd3, 0xd2, 0x1a},
 	}
@@ -563,7 +563,7 @@ func sha256File(path string) (string, error) {
 // recorded in expectedCLISHA256. It pins the source without write/delete
 // sharing, verifies the digest, and opens the target ancestors before writing
 // so a junction cannot be used to overwrite an arbitrary directory.
-func ensureProtectedServiceBinary(path string) (string, error) {
+func ensureProtectedServiceBinary(path, service string) (string, error) {
 	expected := strings.ToLower(strings.TrimSpace(expectedCLISHA256))
 	if len(expected) != 64 {
 		return "", errors.New("service payload digest is not embedded in this Console build")
@@ -612,8 +612,18 @@ func ensureProtectedServiceBinary(path string) (string, error) {
 	}
 	backup := ""
 	if _, err := os.Lstat(target); err == nil {
-		if err := ensureServiceStoppedForReplace("AgentChatHub"); err != nil {
-			return "", err
+		service = strings.TrimSpace(service)
+		if service == "" {
+			service = "AgentChatHub"
+		}
+		names := []string{service}
+		if !strings.EqualFold(service, "AgentChatHub") {
+			names = append(names, "AgentChatHub")
+		}
+		for _, name := range names {
+			if err := ensureServiceStoppedForReplace(name); err != nil {
+				return "", err
+			}
 		}
 		backup = target + ".old-" + fmt.Sprintf("%d", time.Now().UnixNano())
 		if err := os.Rename(target, backup); err != nil {

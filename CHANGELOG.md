@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.40] - 2026-10-25
+
+### Fixed
+
+- TLS and firewall controls remain enabled after Hub initialization.
+- Clear Hub data can stop the configured/default Hub service, clears the data
+  path from the config, and removes the managed admin token so re-initialization
+  works.
+- Clear/firewall/certificate operations report status outside the collapsed
+  Host setup body.
+- Service binary replacement checks both the configured service and the default
+  AgentChatHub service.
+
 ## [0.30.39] - 2026-10-25
 
 ### Fixed
