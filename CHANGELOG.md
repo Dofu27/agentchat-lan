@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.44] - 2026-10-26
+
+### Added
+
+- Settings action **Return to Hub setup** switches back to the Hub role,
+  re-enables the first-run welcome, and opens the Host setup page after a
+  previous Join/Client choice.
+
 ## [0.30.43] - 2026-10-26
 
 ### Fixed

@@ -562,6 +562,7 @@
       <span class="hint" data-i18n="settings.admin_token_hint">Required for the local Admin tab. The file is read locally; it is never displayed.</span>
     </div>
     <div class="row" style="margin-top:12px">
+      <button id="settings-return-hub" type="button" data-i18n="settings.return_hub">Return to Hub setup</button>
       <button id="settings-leave-hub" type="button" data-i18n="settings.leave_hub">Leave current hub</button>
       <button id="settings-reset-all" class="danger" type="button" data-i18n="settings.reset_all">Restore all defaults</button>
     </div>
@@ -585,7 +586,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.43</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.44</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -668,7 +669,7 @@
       "settings.agent":"Agent config", "settings.hub":"Hub",
       "settings.admin_token":"Admin token file", "settings.save_token":"Save token",
       "settings.admin_token_hint":"Required for the local Admin tab. The file is read locally; it is never displayed.",
-      "settings.leave_hub":"Leave current hub", "settings.reset_all":"Restore all defaults",
+      "settings.return_hub":"Return to Hub setup", "settings.leave_hub":"Leave current hub", "settings.reset_all":"Restore all defaults",
       "settings.leave_confirm":"Leave the current hub and remove this machine's agent config?",
       "settings.reset_confirm":"Restore all Console settings to defaults? Hub data and the Windows service are not deleted.",
       "settings.leave_done":"Left the hub", "settings.reset_done":"Defaults restored",
@@ -770,7 +771,7 @@
       "settings.agent":"Agent 配置", "settings.hub":"Hub",
       "settings.admin_token":"管理员 token 文件", "settings.save_token":"保存 token",
       "settings.admin_token_hint":"本地管理页需要。文件只在本地读取，不会显示内容。",
-      "settings.leave_hub":"退出当前 Hub", "settings.reset_all":"恢复全部默认设置",
+      "settings.return_hub":"返回 Hub 初始化", "settings.leave_hub":"退出当前 Hub", "settings.reset_all":"恢复全部默认设置",
       "settings.leave_confirm":"退出当前 Hub，并删除这台机器的 Agent 配置？",
       "settings.reset_confirm":"恢复 Console 全部默认设置？不会删除 Hub 数据和 Windows 服务。",
       "settings.leave_done":"已退出当前 Hub", "settings.reset_done":"已恢复默认设置",
@@ -1060,7 +1061,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.43/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.44/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1956,6 +1957,16 @@
       settingsStatus(err.message || String(err), true);
     }
   }
+  $("settings-return-hub").addEventListener("click", async () => {
+    try {
+      await api("/api/settings", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ role:"hub", setup_done:false }) });
+      applyRole("hub");
+      showTab("overview");
+      await refreshSettings();
+    } catch (err) {
+      settingsStatus(err.message || String(err), true);
+    }
+  });
   $("settings-leave-hub").addEventListener("click", () => settingsAction("leave_hub"));
   $("settings-reset-all").addEventListener("click", () => settingsAction("reset_all"));
   $("settings-token-save").addEventListener("click", saveAdminToken);
