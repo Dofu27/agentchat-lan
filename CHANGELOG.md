@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.45] - 2026-10-26
+
+### Changed
+
+- Top navigation now has only Overview and Chat.
+- Settings content is the General subsection of Overview; Bridge, Admin, Logs,
+  and About are Overview subsections.
+- Overview is available for all roles.
+
 ## [0.30.44] - 2026-10-26
 
 ### Added

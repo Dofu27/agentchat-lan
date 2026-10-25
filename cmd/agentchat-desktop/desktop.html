@@ -169,7 +169,7 @@
       <button id="tab-bridge-btn" type="button" class="hidden" style="display:none" data-i18n="tab.bridge">Bridge</button>
       <button id="tab-admin-btn" type="button" class="hidden" style="display:none" data-i18n="tab.admin">Admin</button>
       <button id="tab-logs-btn" type="button" class="hidden" style="display:none" data-i18n="tab.logs">Logs</button>
-      <button id="tab-settings-btn" type="button" data-i18n="tab.settings">Settings</button>
+      <button id="tab-settings-btn" type="button" class="hidden" style="display:none" data-i18n="tab.settings">Settings</button>
       <button id="tab-about-btn" type="button" class="hidden" style="display:none" data-i18n="tab.about">About</button>
     </nav>
   </div>
@@ -186,6 +186,14 @@
     <button id="refresh" type="button">Refresh</button>
   </div>
 </header>
+<nav id="overview-subnav" class="row settings-subnav">
+  <button id="overview-home-btn" type="button" data-i18n="tab.overview">Overview</button>
+  <button id="overview-general-btn" type="button" data-i18n="tab.general">General</button>
+  <button id="overview-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
+  <button id="overview-admin-btn" type="button" data-i18n="tab.admin">Admin</button>
+  <button id="overview-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
+  <button id="overview-about-btn" type="button" data-i18n="tab.about">About</button>
+</nav>
 <main id="overview-view">
   <section class="wide" id="welcome">
     <h2 data-i18n="welcome.title">Welcome to AgentChat LAN</h2>
@@ -541,12 +549,6 @@
 </main>
 <main id="settings-view" class="hidden">
   <section class="wide">
-    <div class="row settings-subnav">
-      <button id="settings-bridge-btn" type="button" data-i18n="tab.bridge">Bridge</button>
-      <button id="settings-admin-btn" type="button" data-i18n="tab.admin">Admin</button>
-      <button id="settings-logs-btn" type="button" data-i18n="tab.logs">Logs</button>
-      <button id="settings-about-btn" type="button" data-i18n="tab.about">About</button>
-    </div>
     <h2 data-i18n="settings.title">Settings</h2>
     <div class="kv">
       <span class="k" data-i18n="settings.config">Desktop config</span><span class="v" id="settings-config"></span>
@@ -586,7 +588,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.44</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.45</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -616,7 +618,7 @@
       "open.admin":"Open Web admin",
       "close.title":"Close AgentChat Console", "close.hint":"Choose what happens. Background and minimize keep the tray icon in the notification area.",
       "close.minimize":"Minimize window", "close.tray":"Run in background (tray)", "close.quit":"Close program", "close.cancel":"Cancel",
-      "tab.overview":"Overview", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.admin":"Admin", "tab.logs":"Logs", "tab.settings":"Settings", "tab.about":"About",
+      "tab.overview":"Overview", "tab.general":"General", "tab.chat":"Chat", "tab.bridge":"Bridge", "tab.admin":"Admin", "tab.logs":"Logs", "tab.settings":"Settings", "tab.about":"About",
       "admin.title":"Administration", "admin.agents":"Agents", "admin.invites":"Invites", "admin.audit":"Audit",
       "admin.create_invite":"Create invite", "admin.invite_created":"Invite created", "admin.no_data":"No data",
       "admin.delete_invite":"Delete", "admin.delete_invite_confirm":"Delete this invite code?",
@@ -718,7 +720,7 @@
       "open.admin":"打开管理网页",
       "close.title":"关闭 AgentChat Console", "close.hint":"选择窗口行为。后台运行和最小化都会保留右下角托盘图标。",
       "close.minimize":"最小化窗口", "close.tray":"后台运行（托盘）", "close.quit":"关闭程序", "close.cancel":"取消",
-      "tab.overview":"概览", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.admin":"管理", "tab.logs":"日志", "tab.settings":"设置", "tab.about":"关于",
+      "tab.overview":"概览", "tab.general":"常规", "tab.chat":"聊天", "tab.bridge":"桥接", "tab.admin":"管理", "tab.logs":"日志", "tab.settings":"设置", "tab.about":"关于",
       "admin.title":"管理", "admin.agents":"Agent", "admin.invites":"邀请码", "admin.audit":"审计",
       "admin.create_invite":"生成邀请码", "admin.invite_created":"邀请码已生成", "admin.no_data":"暂无数据",
       "admin.delete_invite":"删除", "admin.delete_invite_confirm":"删除这个邀请码？",
@@ -982,9 +984,9 @@
   }
   const roleTabs = {
     hub: ["overview", "chat", "bridge", "admin", "logs", "settings", "about"],
-    client: ["chat", "admin", "logs", "settings", "about"],
-    bridge: ["bridge", "admin", "logs", "settings", "about"],
-    observer: ["chat", "admin", "logs", "settings", "about"]
+    client: ["overview", "chat", "admin", "logs", "settings", "about"],
+    bridge: ["overview", "bridge", "admin", "logs", "settings", "about"],
+    observer: ["overview", "chat", "admin", "logs", "settings", "about"]
   };
   let currentRole = "hub";
   function applyRole(role) {
@@ -1061,7 +1063,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.44/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.45/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1903,14 +1905,16 @@
     $("logs-view").classList.toggle("hidden", tab !== "logs");
     $("settings-view").classList.toggle("hidden", tab !== "settings");
     $("about-view").classList.toggle("hidden", tab !== "about");
-    $("tab-overview-btn").classList.toggle("active", tab === "overview");
+    const overviewArea = ["overview","settings","bridge","admin","logs","about"].includes(tab);
+    $("overview-subnav").classList.toggle("hidden", !overviewArea);
+    $("tab-overview-btn").classList.toggle("active", overviewArea);
     $("tab-chat-btn").classList.toggle("active", tab === "chat");
     $("tab-bridge-btn").classList.toggle("active", tab === "bridge");
     $("tab-admin-btn").classList.toggle("active", tab === "admin");
     $("tab-logs-btn").classList.toggle("active", tab === "logs");
-    $("tab-settings-btn").classList.toggle("active", ["settings","bridge","admin","logs","about"].includes(tab));
+    $("tab-settings-btn").classList.toggle("active", tab === "settings");
     $("tab-about-btn").classList.toggle("active", tab === "about");
-    for (const [id, name] of [["settings-bridge-btn","bridge"],["settings-admin-btn","admin"],["settings-logs-btn","logs"],["settings-about-btn","about"]]) {
+    for (const [id, name] of [["overview-home-btn","overview"],["overview-general-btn","settings"],["overview-bridge-btn","bridge"],["overview-admin-btn","admin"],["overview-logs-btn","logs"],["overview-about-btn","about"]]) {
       const btn = $(id); if (btn) btn.classList.toggle("active", tab === name);
     }
     if (tab === "logs") refreshLogs();
@@ -1934,7 +1938,7 @@
   $("tab-admin-btn").addEventListener("click", () => showTab("admin"));
   $("tab-settings-btn").addEventListener("click", () => showTab("settings"));
   $("tab-about-btn").addEventListener("click", () => showTab("about"));
-  for (const [id, name] of [["settings-bridge-btn","bridge"],["settings-admin-btn","admin"],["settings-logs-btn","logs"],["settings-about-btn","about"]]) {
+  for (const [id, name] of [["overview-home-btn","overview"],["overview-general-btn","settings"],["overview-bridge-btn","bridge"],["overview-admin-btn","admin"],["overview-logs-btn","logs"],["overview-about-btn","about"]]) {
     const btn = $(id); if (btn) btn.addEventListener("click", () => showTab(name));
   }
   $("role-save").addEventListener("click", saveRole);
