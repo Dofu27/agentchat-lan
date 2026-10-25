@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.34] - 2026-10-25
+
+### Fixed
+
+- Console installer ships its CLI as `agentchat-console.exe`, so an aliased
+  install directory cannot overwrite or uninstall the Hub service binary.
+- Certificate reset aborts if the old cert/key cannot be read, reports restore
+  failures, and serializes with Hub init/service operations.
+- Installer reports failure to create/write `desktop.json`.
+- Configured Hub always displays the URL/TLS warning.
+
 ## [0.30.33] - 2026-10-25
 
 ### Fixed

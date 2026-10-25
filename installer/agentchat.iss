@@ -1,6 +1,6 @@
 #define MyAppName "AgentChat LAN"
 #ifndef AppVersion
-  #define AppVersion "0.30.33"
+  #define AppVersion "0.30.34"
 #endif
 #ifndef StageDir
   #define StageDir "..\build\inno"
@@ -39,7 +39,7 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 
 [Files]
 Source: "{#StageDir}\AgentChatConsole.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#StageDir}\agentchat.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#StageDir}\agentchat.exe"; DestDir: "{app}"; DestName: "agentchat-console.exe"; Flags: ignoreversion
 Source: "{#StageDir}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: dontcopy
 
 [Icons]
@@ -105,19 +105,24 @@ begin
   end;
 end;
 
-procedure SaveDesktopConfig();
+function SaveDesktopConfig(): Boolean;
 var
   ConfigDir, ConfigPath, Json, Role, HubURL, ExePath: String;
 begin
+  Result := False;
   ConfigDir := ExpandConstant('{userappdata}\AgentChat');
   ConfigPath := ConfigDir + '\desktop.json';
   if FileExists(ConfigPath) then
+  begin
+    Result := True;
     exit;
+  end;
 
-  ForceDirectories(ConfigDir);
+  if not ForceDirectories(ConfigDir) then
+    exit;
   Role := SelectedRole();
   HubURL := Trim(HubPage.Values[0]);
-  ExePath := JsonEscape(ExpandConstant('{app}\agentchat.exe'));
+  ExePath := JsonEscape(ExpandConstant('{app}\agentchat-console.exe'));
 
   Json := '{' + #13#10 +
     '  "title": "AgentChat Console",' + #13#10 +
@@ -130,7 +135,7 @@ begin
     Json := Json + ',' + #13#10 + '  "hub_url": "' + JsonEscape(HubURL) + '"';
   Json := Json + #13#10 + '}' + #13#10;
 
-  SaveStringToFile(ConfigPath, Json, False);
+  Result := SaveStringToFile(ConfigPath, Json, False);
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -160,7 +165,10 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
-    SaveDesktopConfig();
+  begin
+    if not SaveDesktopConfig() then
+      MsgBox('AgentChat could not save desktop.json. The installation files are present, but the role and Hub URL were not saved.', mbError, MB_OK);
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
