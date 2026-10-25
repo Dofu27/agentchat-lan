@@ -1,13 +1,13 @@
 #define MyAppName "AgentChat LAN"
 #ifndef AppVersion
-  #define AppVersion "0.30.34"
+  #define AppVersion "0.30.35"
 #endif
 #ifndef StageDir
   #define StageDir "..\build\inno"
 #endif
 
 [Setup]
-AppId={{8D20A77B-6F0B-4B6E-9A10-7C68B9D3F1A2}
+AppId={{B7A7E6B2-3C8D-4E1F-9A52-6D1C7E4B9F30}
 AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppVerName={#MyAppName} {#AppVersion}
@@ -143,6 +143,12 @@ var
   ResultCode: Integer;
 begin
   Result := '';
+  if FileExists(ExpandConstant('{app}\agentchat.exe')) and
+     not FileExists(ExpandConstant('{app}\agentchat-console.exe')) then
+  begin
+    Result := '检测到旧版 AgentChat Console 目录。请先卸载旧版，并确认 Hub 服务的 agentchat.exe 仍保留，再安装此版本。';
+    exit;
+  end;
   if CompareText(ExpandConstant('{app}'), ExpandConstant('{autopf}\AgentChat')) = 0 then
   begin
     Result := '该目录由 AgentChat Hub 服务使用。请选择 AgentChat Console 专用目录，避免覆盖服务二进制。';

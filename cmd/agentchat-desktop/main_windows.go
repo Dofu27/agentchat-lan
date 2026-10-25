@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	hubpkg "github.com/Dofu27/agentchat-lan/internal/hub"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
@@ -20,7 +21,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	hubpkg "github.com/Dofu27/agentchat-lan/internal/hub"
 	"io"
 	"log"
 	"math/big"
@@ -177,9 +177,7 @@ func main() {
 		cfg.BridgeExec = filepath.Join(filepath.Dir(cfgPath), cfg.BridgeExec)
 	}
 	if cfg.AgentchatPath == "" {
-		if exe, err := os.Executable(); err == nil {
-			cfg.AgentchatPath = filepath.Join(filepath.Dir(exe), "agentchat.exe")
-		}
+		cfg.AgentchatPath = bundledCLIPath()
 	} else if !filepath.IsAbs(cfg.AgentchatPath) && cfgPath != "" {
 		cfg.AgentchatPath = filepath.Join(filepath.Dir(cfgPath), cfg.AgentchatPath)
 	}
@@ -334,54 +332,54 @@ if ($env:ACPICK_KIND -eq "folder") {
 }
 
 var (
-	user32DLL                  = windows.NewLazySystemDLL("user32.dll")
-	shell32DLL                 = windows.NewLazySystemDLL("shell32.dll")
-	procReleaseCapture         = user32DLL.NewProc("ReleaseCapture")
-	procSendMessageW           = user32DLL.NewProc("SendMessageW")
-	procPostMessageW           = user32DLL.NewProc("PostMessageW")
-	procShowWindow             = user32DLL.NewProc("ShowWindow")
-	procIsZoomed               = user32DLL.NewProc("IsZoomed")
-	procGetWindowLong          = user32DLL.NewProc("GetWindowLongPtrW")
-	procSetWindowLong          = user32DLL.NewProc("SetWindowLongPtrW")
-	procSetWindowPos           = user32DLL.NewProc("SetWindowPos")
-	procGetWindowRect          = user32DLL.NewProc("GetWindowRect")
-	procCallWindowProc         = user32DLL.NewProc("CallWindowProcW")
-	procSystemParametersInfo   = user32DLL.NewProc("SystemParametersInfoW")
-	procLoadIconW              = user32DLL.NewProc("LoadIconW")
-	procGetCursorPos           = user32DLL.NewProc("GetCursorPos")
-	procCreatePopupMenu        = user32DLL.NewProc("CreatePopupMenu")
-	procAppendMenuW            = user32DLL.NewProc("AppendMenuW")
-	procTrackPopupMenu         = user32DLL.NewProc("TrackPopupMenu")
-	procDestroyMenu            = user32DLL.NewProc("DestroyMenu")
-	procSetForegroundWindow    = user32DLL.NewProc("SetForegroundWindow")
-	procBringWindowToTop       = user32DLL.NewProc("BringWindowToTop")
-	procEnumWindows            = user32DLL.NewProc("EnumWindows")
-	procGetWindowTextW         = user32DLL.NewProc("GetWindowTextW")
-	procMessageBoxW            = user32DLL.NewProc("MessageBoxW")
+	user32DLL                = windows.NewLazySystemDLL("user32.dll")
+	shell32DLL               = windows.NewLazySystemDLL("shell32.dll")
+	procReleaseCapture       = user32DLL.NewProc("ReleaseCapture")
+	procSendMessageW         = user32DLL.NewProc("SendMessageW")
+	procPostMessageW         = user32DLL.NewProc("PostMessageW")
+	procShowWindow           = user32DLL.NewProc("ShowWindow")
+	procIsZoomed             = user32DLL.NewProc("IsZoomed")
+	procGetWindowLong        = user32DLL.NewProc("GetWindowLongPtrW")
+	procSetWindowLong        = user32DLL.NewProc("SetWindowLongPtrW")
+	procSetWindowPos         = user32DLL.NewProc("SetWindowPos")
+	procGetWindowRect        = user32DLL.NewProc("GetWindowRect")
+	procCallWindowProc       = user32DLL.NewProc("CallWindowProcW")
+	procSystemParametersInfo = user32DLL.NewProc("SystemParametersInfoW")
+	procLoadIconW            = user32DLL.NewProc("LoadIconW")
+	procGetCursorPos         = user32DLL.NewProc("GetCursorPos")
+	procCreatePopupMenu      = user32DLL.NewProc("CreatePopupMenu")
+	procAppendMenuW          = user32DLL.NewProc("AppendMenuW")
+	procTrackPopupMenu       = user32DLL.NewProc("TrackPopupMenu")
+	procDestroyMenu          = user32DLL.NewProc("DestroyMenu")
+	procSetForegroundWindow  = user32DLL.NewProc("SetForegroundWindow")
+	procBringWindowToTop     = user32DLL.NewProc("BringWindowToTop")
+	procEnumWindows          = user32DLL.NewProc("EnumWindows")
+	procGetWindowTextW       = user32DLL.NewProc("GetWindowTextW")
+	procMessageBoxW          = user32DLL.NewProc("MessageBoxW")
 	procRegisterWindowMessageW = user32DLL.NewProc("RegisterWindowMessageW")
-	procShellNotifyIconW       = shell32DLL.NewProc("Shell_NotifyIconW")
-	procShellExecuteW          = shell32DLL.NewProc("ShellExecuteW")
-	procExtractIconExW         = shell32DLL.NewProc("ExtractIconExW")
-	dwmapiDLL                  = windows.NewLazySystemDLL("dwmapi.dll")
-	procGetLongPathNameW       = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetLongPathNameW")
-	secureKernel32DLL          = windows.NewLazySystemDLL("kernel32.dll")
-	procCreateDirectoryW       = secureKernel32DLL.NewProc("CreateDirectoryW")
-	procCreateFileSecureW      = secureKernel32DLL.NewProc("CreateFileW")
-	procDwmSetAttribute        = dwmapiDLL.NewProc("DwmSetWindowAttribute")
-	uxthemeDLL                 = windows.NewLazySystemDLL("uxtheme.dll")
-	procSetWindowTheme         = uxthemeDLL.NewProc("SetWindowTheme")
+	procShellNotifyIconW     = shell32DLL.NewProc("Shell_NotifyIconW")
+	procShellExecuteW        = shell32DLL.NewProc("ShellExecuteW")
+	procExtractIconExW       = shell32DLL.NewProc("ExtractIconExW")
+	dwmapiDLL                = windows.NewLazySystemDLL("dwmapi.dll")
+	procGetLongPathNameW     = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetLongPathNameW")
+	secureKernel32DLL        = windows.NewLazySystemDLL("kernel32.dll")
+	procCreateDirectoryW     = secureKernel32DLL.NewProc("CreateDirectoryW")
+	procCreateFileSecureW    = secureKernel32DLL.NewProc("CreateFileW")
+	procDwmSetAttribute      = dwmapiDLL.NewProc("DwmSetWindowAttribute")
+	uxthemeDLL               = windows.NewLazySystemDLL("uxtheme.dll")
+	procSetWindowTheme       = uxthemeDLL.NewProc("SetWindowTheme")
 )
 
 const (
-	wmClose    = 0x0010
-	wmDestroy  = 0x0002
-	wmNull     = 0x0000
-	wmTray     = 0x8001
-	trayShowID = 1001
-	trayExitID = 1002
-	swHide     = 0
-	swMinimize = 6
-	swRestore  = 9
+	wmClose      = 0x0010
+	wmDestroy    = 0x0002
+	wmNull       = 0x0000
+	wmTray       = 0x8001
+	trayShowID   = 1001
+	trayExitID   = 1002
+	swHide       = 0
+	swMinimize   = 6
+	swRestore    = 9
 )
 
 type trayGuid struct {
@@ -410,10 +408,10 @@ type notifyIconData struct {
 }
 
 var (
-	trayIconAdded     bool
+	trayIconAdded    bool
 	taskbarCreatedMsg uint32
-	closeDialogEval   func()
-	allowClose        atomic.Bool
+	closeDialogEval  func()
+	allowClose       atomic.Bool
 )
 
 func registerTaskbarCreated() {
@@ -1000,7 +998,7 @@ func bridgeResult(cfg config, action string) map[string]any {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
-	protected, err := ensureProtectedServiceBinary(cfg.AgentchatPath)
+	protected, err := ensureProtectedServiceBinary(resolvedCLIPath(cfg.AgentchatPath))
 	if err != nil {
 		result["ok"] = false
 		result["error"] = err.Error()
@@ -1170,7 +1168,7 @@ func (a *app) connectorStatus() map[string]any {
 		"ready":        cfg.AgentConfig != "" && cfg.AgentchatPath != "",
 	}
 	if cfg.AgentConfig != "" && cfg.AgentchatPath != "" {
-		out["mcp"] = codexMCPBlock(cfg.AgentchatPath, cfg.AgentConfig)
+		out["mcp"] = codexMCPBlock(resolvedCLIPath(cfg.AgentchatPath), cfg.AgentConfig)
 	}
 	return out
 }
@@ -1256,7 +1254,7 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Codex config path must end in .toml"})
 			return
 		}
-		block := codexMCPBlock(cfg.AgentchatPath, cfg.AgentConfig)
+		block := codexMCPBlock(resolvedCLIPath(cfg.AgentchatPath), cfg.AgentConfig)
 		backup, err := writeCodexMCP(path, block)
 		out := map[string]any{"ok": err == nil, "connector": "codex", "config": path, "backup": backup, "mcp": block}
 		if err != nil {
@@ -1306,7 +1304,7 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.Connector = "dsh"
 		cfg.BridgeName = name
-		hook, err := writeConnectorHook(name, dshBridgeExec(cfg.AgentchatPath, cfg.AgentConfig, dsh, script, home, workdir))
+		hook, err := writeConnectorHook(name, dshBridgeExec(resolvedCLIPath(cfg.AgentchatPath), cfg.AgentConfig, dsh, script, home, workdir))
 		if err != nil {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
 			return
@@ -1950,13 +1948,7 @@ func (a *app) handleHubService(w http.ResponseWriter, r *http.Request) {
 	result := map[string]any{"action": req.Action}
 	switch req.Action {
 	case "install":
-		source := cfg.AgentchatPath
-		if consoleExe, exeErr := os.Executable(); exeErr == nil {
-			bundled := filepath.Join(filepath.Dir(consoleExe), "agentchat.exe")
-			if _, statErr := os.Stat(bundled); statErr == nil {
-				source = bundled
-			}
-		}
+		source := resolvedCLIPath(cfg.AgentchatPath)
 		protected, err := ensureProtectedServiceBinary(source)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
@@ -2941,6 +2933,28 @@ func (a *app) handleChat(w http.ResponseWriter, r *http.Request) {
 	out["agent_name"] = agent.AgentName
 	out["agent_id"] = agent.AgentID
 	writeJSON(w, http.StatusOK, out)
+}
+
+func bundledCLIPath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Dir(exe)
+	for _, name := range []string{"agentchat-console.exe", "agentchat.exe"} {
+		p := filepath.Join(dir, name)
+		if info, err := os.Stat(p); err == nil && info.Mode().IsRegular() {
+			return p
+		}
+	}
+	return ""
+}
+
+func resolvedCLIPath(configured string) string {
+	if bundled := bundledCLIPath(); bundled != "" {
+		return bundled
+	}
+	return configured
 }
 
 func (a *app) handleBridge(w http.ResponseWriter, r *http.Request) {

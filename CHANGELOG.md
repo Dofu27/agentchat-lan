@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.35] - 2026-10-25
+
+### Fixed
+
+- CLI resolution prefers the bundled `agentchat-console.exe`; old adjacent
+  `agentchat.exe` files and old config paths no longer override it.
+- Inno Setup uses a new AppId and refuses the legacy install layout, avoiding
+  inheritance of the historical uninstall-log ownership.
+- CLI runtime version now comes from the same version source as the package.
+
 ## [0.30.34] - 2026-10-25
 
 ### Fixed

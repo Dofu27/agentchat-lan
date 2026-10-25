@@ -4,7 +4,7 @@ set -euo pipefail
 # Build the Inno Setup wizard. Requires ISCC.exe (Inno Setup 6) on PATH or
 # ISCC environment variable pointing to it.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${VERSION:-0.30.33}"
+VERSION="${VERSION:-0.30.35}"
 STAGE="$ROOT/build/inno-stage"
 DIST="$ROOT/dist"
 mkdir -p "$STAGE" "$DIST"
