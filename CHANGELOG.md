@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.43] - 2026-10-26
+
+### Fixed
+
+- One-click self-join backs up an orphaned `agentchat.json` and joins with the
+  new Hub instead of failing with "agent_config already exists".
+
 ## [0.30.42] - 2026-10-26
 
 ### Added
