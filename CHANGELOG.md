@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.51] - 2026-10-27
+
+### Added
+
+- Host setup now generates two separate agent instructions from the current
+  configuration:
+  - Agent join instruction, including a required one-time invite code.
+  - Hub creation instruction, with the selected database and attachment paths.
+- Instructions update automatically when Hub/Agent fields change.
+
 ## [0.30.50] - 2026-10-27
 
 ### Added

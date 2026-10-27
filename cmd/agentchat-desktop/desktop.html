@@ -230,9 +230,17 @@
       <li data-i18n="host.step5">Open the LAN firewall port. This step requires running the Console as administrator.</li>
     </ol>
     <div class="field" style="margin-bottom:10px">
-      <label data-i18n="host.agent_command">Command to send to an agent</label>
-      <textarea id="agent-command" rows="3" readonly style="width:100%"></textarea>
-      <button id="copy-agent-command" type="button" data-i18n="host.copy_command">Copy command</button>
+      <label data-i18n="host.agent_join_command">Agent join instruction</label>
+      <input id="agent-invite" type="text" autocomplete="off" placeholder="One-time invite code from the Hub admin (required)" data-i18n-placeholder="host.invite_placeholder">
+      <textarea id="agent-join-command" rows="7" readonly style="width:100%"></textarea>
+      <button id="copy-agent-join-command" type="button" data-i18n="host.copy_join_command">Copy join instruction</button>
+      <span class="hint" data-i18n="host.join_hint">An agent joining a LAN Hub must ask the Hub admin for a one-time invite code first. Without it, do not join and do not create a Hub.</span>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label data-i18n="host.hub_create_command">Hub creation instruction</label>
+      <textarea id="hub-create-command" rows="8" readonly style="width:100%"></textarea>
+      <button id="copy-hub-create-command" type="button" data-i18n="host.copy_create_command">Copy creation instruction</button>
+      <span class="hint" data-i18n="host.create_hint">Only run this on the machine that will host the Hub. It creates the database, admin token, and service; it does not join the agent.</span>
     </div>
     <div class="row">
       <div class="field">
@@ -586,7 +594,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.50</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.51</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -642,6 +650,11 @@
       "host.step5":"Open the LAN firewall port. This requires running the Console as administrator.",
       "host.elevate":"Restart as administrator", "host.elevate_hint":"Required to install the protected service binary, control the Windows service, and open the firewall.",
       "host.agent_command":"Command to send to an agent", "host.copy_command":"Copy command",
+      "host.agent_join_command":"Agent join instruction", "host.copy_join_command":"Copy join instruction",
+      "host.hub_create_command":"Hub creation instruction", "host.copy_create_command":"Copy creation instruction",
+      "host.invite_placeholder":"One-time invite code from the Hub admin (required)",
+      "host.join_hint":"An agent joining a LAN Hub must ask the Hub admin for a one-time invite code first. Without it, do not join and do not create a Hub.",
+      "host.create_hint":"Only run this on the machine that will host the Hub. It creates the database, admin token, and service; it does not join the agent.",
       "host.elevate_failed":"Administrator restart was cancelled or failed.",
       "host.tls_generate":"Generate certificate", "host.tls_install":"Install certificate for this user",
       "host.tls_reset":"Reset certificate", "host.tls_reset_confirm":"Delete the trusted certificate and generate/install a new one? Restart the Hub service afterward.",
@@ -745,6 +758,11 @@
       "host.step5":"开放局域网防火墙端口。此步骤需要以管理员身份运行 Console。",
       "host.elevate":"以管理员身份重启", "host.elevate_hint":"安装受保护的服务二进制、控制 Windows 服务、开放防火墙都需要管理员权限。",
       "host.agent_command":"发给 Agent 的配置指令", "host.copy_command":"复制指令",
+      "host.agent_join_command":"Agent 加入指令", "host.copy_join_command":"复制加入指令",
+      "host.hub_create_command":"Hub 创建指令", "host.copy_create_command":"复制创建指令",
+      "host.invite_placeholder":"Hub 管理员提供的一次性邀请码（必填）",
+      "host.join_hint":"Agent 加入局域网 Hub 前必须先向 Hub 管理员索取一次性邀请码；没有邀请码不要加入，也不要创建 Hub。",
+      "host.create_hint":"只在实际作为 Hub 主机的机器上执行。它只创建数据库、admin token 和服务，不加入 Agent。",
       "host.elevate_failed":"管理员重启被取消或失败。",
       "host.tls_generate":"生成证书", "host.tls_install":"为当前用户安装证书",
       "host.tls_reset":"重置证书", "host.tls_reset_confirm":"删除已信任证书，并重新生成和安装新证书？完成后需要重启 Hub 服务。",
@@ -1044,6 +1062,7 @@
       $("host-elevate").textContent = t("host.elevate");
     }
     if (!hubConfigured && !$("host-url").value.trim()) detectHubURL(false).catch(() => {});
+    updateAgentCommands();
     applyRole(body.role || "hub");
   }
   async function initHub() {
@@ -1069,17 +1088,50 @@
       toast(message, true);
     }
   }
-  function updateAgentCommand() {
-    const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
-    $("agent-command").value =
-      "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.50/docs/AGENT_GUIDE.md\n\n" +
-      "确认版本与参数：\n" +
-      "agentchat version\n" +
-      "agentchat join --help\n\n" +
-      "然后执行：\n" +
-      "agentchat join --hub " + url + " --invite <INVITE> --name <AGENT_NAME> --kind dsh\n\n" +
-      "如果是 Codex 或 DSH，请继续按文档配置对应的 MCP/bridge。";
+  function updateAgentCommands() {
+    const cli = "C:\\Program Files\\AgentChat Console\\agentchat-console.exe";
+    const url = ($("host-url").value.trim() || "https://127.0.0.1:8787").replace(/\/$/, "");
+    const data = $("host-data").value.trim() || "<HUB_DATA>";
+    const files = $("host-files").value.trim() || "<HUB_FILES>";
+    const token = $("host-token").value.trim() || "<ADMIN_TOKEN_FILE>";
+    const listen = $("host-listen").value.trim() || "0.0.0.0:8787";
+    const cert = $("host-cert").value.trim() || "<GENERATE_TLS_CERT>";
+    const key = $("host-key").value.trim() || "<GENERATE_TLS_KEY>";
+    const invite = $("agent-invite").value.trim() || "<ASK_HUB_ADMIN_FOR_INVITE_CODE>";
+    const ca = $("host-cert").value.trim() || "<HUB_SERVER_CERT>";
+    $("agent-join-command").value = [
+      "你是运行在 Windows 上的 Agent，拥有命令执行权限。",
+      "任务：加入已有 AgentChat LAN Hub。不要创建 Hub，不要修改 Hub 数据。",
+      "",
+      "加入前必须先向 Hub 管理员索取一次性邀请码；没有邀请码不要执行 join。",
+      "",
+      "$CLI = \"" + cli + "\"",
+      "$HUB = \"" + url + "\"",
+      "$INVITE = \"" + invite + "\"",
+      "$CA = \"" + ca + "\"",
+      "",
+      "& $CLI join $HUB --name <AGENT_NAME> --kind dsh --code $INVITE --ca-file $CA --config <AGENT_CONFIG_JSON>",
+      "& $CLI me --config <AGENT_CONFIG_JSON>",
+      "",
+      "加入成功后，再按概览 → 桥接配置 DSH 桥接。",
+      "不要把 token 或 admin token 输出到聊天。"
+    ].join("\n");
+    $("hub-create-command").value = [
+      "你是运行在 Windows 上的 Agent，拥有命令执行权限。",
+      "任务：只在这台 Hub 主机创建 AgentChat LAN Hub。不要加入 Agent，不要删除已有数据。",
+      "",
+      "$CLI = \"" + cli + "\"",
+      "& $CLI hub init --data \"" + data + "\" --admin-token-file \"" + token + "\"",
+      "",
+      "生成或选择 TLS 证书后启动 Hub：",
+      "& $CLI hub serve --data \"" + data + "\" --files-dir \"" + files + "\" --listen \"" + listen + "\" --tls-cert \"" + cert + "\" --tls-key \"" + key + "\"",
+      "",
+      "健康检查：",
+      "curl.exe -k \"" + url + "/healthz\"",
+      "",
+      "然后安装并启动 AgentChatHub Windows 服务，开放防火墙 8787。",
+      "创建 Hub 不等于 Agent 加入 Hub。"
+    ].join("\n");
   }
   function addPathPicker(inputID, kind, title, filter) {
     const input = $(inputID);
@@ -1101,7 +1153,7 @@
       if (!info || !info.preferred) return;
       if (!$("host-url").value.trim() || showToast) {
         $("host-url").value = info.preferred;
-        updateAgentCommand();
+        updateAgentCommands();
       }
       const match = $("host-url").value.match(/^[a-z]+:\/\/([^:/]+)/i);
       const ip = match ? match[1] : "";
@@ -2007,15 +2059,21 @@
       $("host-global-status").textContent = message;
     }
   });
-  $("host-url").addEventListener("input", updateAgentCommand);
+  for (const id of ["host-url","host-data","host-files","host-token","host-listen","host-cert","host-key","agent-invite"]) {
+    $(id).addEventListener("input", updateAgentCommands);
+  }
   $("host-detect").addEventListener("click", () => detectHubURL(true));
   $("host-toggle").addEventListener("click", () => {
     const body = $("host-body");
     body.classList.toggle("hidden");
     $("host-toggle").textContent = body.classList.contains("hidden") ? "展开设置" : "收起设置";
   });
-  $("copy-agent-command").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText($("agent-command").value); toast(t("host.copy_command")); }
+  $("copy-agent-join-command").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("agent-join-command").value); toast(t("host.copy_join_command")); }
+    catch (err) { toast(err.message || String(err), true); }
+  });
+  $("copy-hub-create-command").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText($("hub-create-command").value); toast(t("host.copy_create_command")); }
     catch (err) { toast(err.message || String(err), true); }
   });
   addPathPicker("host-data", "folder", t("host.data"), "");
@@ -2025,7 +2083,7 @@
   addPathPicker("host-key", "file", t("host.key"), "Keys|*.key;*.pem|All files|*.*");
   addPathPicker("connector-path", "file", t("bridge.binary"), "Executables|*.exe|All files|*.*");
   addPathPicker("connector-agent-config", "file", t("chat.config"), "JSON|*.json|All files|*.*");
-  updateAgentCommand();
+  updateAgentCommands();
   $("host-elevate").addEventListener("click", async () => {
     try {
       const ok = window.__winElevate ? await window.__winElevate() : false;
