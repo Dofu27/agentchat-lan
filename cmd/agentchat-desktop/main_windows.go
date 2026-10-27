@@ -1197,6 +1197,20 @@ func (a *app) connectorStatus() map[string]any {
 // ensureDshBridgeAgent creates a dedicated DSH identity instead of reusing
 // the human Console identity. The bridge must never send as the human agent:
 // the agent loop intentionally ignores messages authored by its own identity.
+func (a *app) absoluteCAFile() string {
+	a.mu.RLock()
+	ca, configPath := a.cfg.CAFile, a.configPath
+	a.mu.RUnlock()
+	ca = strings.TrimSpace(ca)
+	if ca == "" || filepath.IsAbs(ca) {
+		return ca
+	}
+	if configPath == "" {
+		return ca
+	}
+	return filepath.Join(filepath.Dir(configPath), ca)
+}
+
 func (a *app) validateDshAgentConfig(path string) (agentConfigFile, error) {
 	if err := a.validateAgentConfigFile(path); err != nil {
 		return agentConfigFile{}, err
@@ -1222,6 +1236,30 @@ func (a *app) validateDshAgentConfig(path string) (agentConfigFile, error) {
 	return existing, nil
 }
 
+func (a *app) backfillAgentCA(path string) error {
+	ca := a.absoluteCAFile()
+	if ca == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var cfg agentconfig.Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+	if strings.TrimSpace(cfg.TLSCAFile) != "" {
+		return nil
+	}
+	cfg.TLSCAFile = ca
+	updated, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(updated, '\n'), 0o600)
+}
+
 func (a *app) ensureDshBridgeAgent(base config) (string, error) {
 	if strings.TrimSpace(base.AgentConfig) == "" {
 		return "", errors.New("join a hub as a human agent first")
@@ -1239,6 +1277,9 @@ func (a *app) ensureDshBridgeAgent(base config) (string, error) {
 			if _, err := a.validateDshAgentConfig(path); err != nil {
 				return "", fmt.Errorf("existing DSH agent config is invalid: %w", err)
 			}
+			if err := a.backfillAgentCA(path); err != nil {
+				return "", fmt.Errorf("cannot update DSH TLS CA: %w", err)
+			}
 			return path, nil
 		} else if !isMissingPath(err) {
 			return "", err
@@ -1252,6 +1293,9 @@ func (a *app) ensureDshBridgeAgent(base config) (string, error) {
 	if _, err := os.Stat(path); err == nil {
 		if _, err := a.validateDshAgentConfig(path); err != nil {
 			return "", fmt.Errorf("existing DSH agent config is invalid: %w", err)
+		}
+		if err := a.backfillAgentCA(path); err != nil {
+			return "", fmt.Errorf("cannot update DSH TLS CA: %w", err)
 		}
 		return path, nil
 	} else if !isMissingPath(err) {
@@ -1303,10 +1347,7 @@ func (a *app) ensureDshBridgeAgent(base config) (string, error) {
 	for _, room := range joined.Rooms {
 		rooms = append(rooms, room.ID)
 	}
-	caFile := strings.TrimSpace(base.CAFile)
-	if caFile != "" && !filepath.IsAbs(caFile) && a.configPath != "" {
-		caFile = filepath.Join(filepath.Dir(a.configPath), caFile)
-	}
+	caFile := a.absoluteCAFile()
 	agentCfg := agentconfig.Config{
 		HubURL: base.HubURL, Token: joined.Token, AgentID: joined.Agent.ID,
 		AgentName: joined.Agent.Name, AgentKind: joined.Agent.Kind, Rooms: rooms,
@@ -1316,9 +1357,11 @@ func (a *app) ensureDshBridgeAgent(base config) (string, error) {
 		if data, marshalErr := json.MarshalIndent(agentCfg, "", "  "); marshalErr == nil {
 			if writeErr := createSecureTokenFile(pending, string(data)); writeErr == nil {
 				return "", fmt.Errorf("save DSH agent config: %w (recovery file written to %s; retry configuration)", err, pending)
+			} else {
+				return "", fmt.Errorf("save DSH agent config: %w (recovery file %s could not be written: %v)", err, pending, writeErr)
 			}
 		}
-		return "", fmt.Errorf("save DSH agent config: %w", err)
+		return "", fmt.Errorf("save DSH agent config: %w (recovery data could not be marshaled)", err)
 	}
 	_ = os.Remove(pending)
 	return path, nil
@@ -1592,7 +1635,7 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 	agentCfg := agentconfig.Config{
 		HubURL: hubURL, Token: joined.Token, AgentID: joined.Agent.ID,
 		AgentName: joined.Agent.Name, AgentKind: joined.Agent.Kind, Rooms: rooms,
-		TLSCAFile: a.cfg.CAFile,
+		TLSCAFile: a.absoluteCAFile(),
 	}
 	if err := agentconfig.SaveNew(savePath, &agentCfg); err != nil {
 		if errors.Is(err, os.ErrExist) {
@@ -1611,9 +1654,16 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := os.Rename(savePath, path); err != nil {
-			_ = os.Rename(backup, path)
-			_ = os.Remove(savePath)
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot install new agent config"})
+			restoreErr := os.Rename(backup, path)
+			removeErr := os.Remove(savePath)
+			msg := "cannot install new agent config"
+			if restoreErr != nil {
+				msg += "; restoring backup failed: " + restoreErr.Error()
+			}
+			if removeErr != nil {
+				msg += "; removing staged config failed: " + removeErr.Error()
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg, "backup": backup})
 			return
 		}
 	}
@@ -2039,11 +2089,14 @@ func (a *app) handleHubClearData(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "deleted": abs, "token_deleted": false, "error": "cannot resolve admin token path; Hub data was deleted but the token was not"})
 			return
 		}
-		if tokenData, readErr := os.ReadFile(tokenAbs); readErr == nil {
-			if strings.TrimSpace(a.token) == "" || strings.TrimSpace(string(tokenData)) != strings.TrimSpace(a.token) {
-				writeJSON(w, http.StatusConflict, map[string]any{"ok": false, "deleted": abs, "token_deleted": false, "error": "admin token identity does not match; refusing to delete it"})
-				return
-			}
+		tokenData, readErr := os.ReadFile(tokenAbs)
+		if readErr != nil && !os.IsNotExist(readErr) {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "deleted": abs, "token_deleted": false, "error": "cannot read admin token; refusing to delete"})
+			return
+		}
+		if readErr == nil && (strings.TrimSpace(a.token) == "" || strings.TrimSpace(string(tokenData)) != strings.TrimSpace(a.token)) {
+			writeJSON(w, http.StatusConflict, map[string]any{"ok": false, "deleted": abs, "token_deleted": false, "error": "admin token identity does not match; refusing to delete it"})
+			return
 		}
 		if err := os.Remove(tokenAbs); err == nil || os.IsNotExist(err) {
 			tokenDeleted = true
@@ -2184,8 +2237,12 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	if err := prepareAttachmentDirectory(attachmentDir); err != nil {
 		dataGuard.Close()
 		dataGuard = nil
-		_ = os.RemoveAll(req.Data)
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "attachment directory: " + err.Error()})
+		cleanupErr := os.RemoveAll(req.Data)
+		msg := "attachment directory: " + err.Error()
+		if cleanupErr != nil {
+			msg += "; cleanup failed: " + cleanupErr.Error()
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": msg})
 		return
 	}
 	hubMarker := protocol.NewToken("hub")

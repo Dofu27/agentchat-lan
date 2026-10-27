@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.54] - 2026-10-28
+
+### Security
+
+- Attachment ACL checks use MAXIMUM_ALLOWED and reject any untrusted
+  Authenticated Users/Everyone/inherited ACE on the storage leaf.
+- Clear treats token read errors other than not-found as fatal.
+- Initialization cleanup reports removal errors.
+- DSH pending write failures preserve both the original and recovery errors.
+- TLS CA paths are resolved consistently for join and existing DSH configs.
+- Rename rollback failures report backup and restore errors.
+
 ## [0.30.53] - 2026-10-28
 
 ### Security

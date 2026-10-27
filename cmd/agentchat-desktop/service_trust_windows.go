@@ -368,12 +368,12 @@ func ordinaryUserCanWritePath(sd *windows.SECURITY_DESCRIPTOR, token windows.Tok
 	privileges := make([]uint64, 512)
 	size := uint32(len(privileges) * 8)
 	var granted, allowed uint32
-	r, _, callErr := accessCheckProc.Call(uintptr(unsafe.Pointer(absolute)), uintptr(token), uintptr(windows.FILE_GENERIC_WRITE), uintptr(unsafe.Pointer(&mapping)), uintptr(unsafe.Pointer(&privileges[0])), uintptr(unsafe.Pointer(&size)), uintptr(unsafe.Pointer(&granted)), uintptr(unsafe.Pointer(&allowed)))
+	r, _, callErr := accessCheckProc.Call(uintptr(unsafe.Pointer(absolute)), uintptr(token), uintptr(windows.MAXIMUM_ALLOWED), uintptr(unsafe.Pointer(&mapping)), uintptr(unsafe.Pointer(&privileges[0])), uintptr(unsafe.Pointer(&size)), uintptr(unsafe.Pointer(&granted)), uintptr(unsafe.Pointer(&allowed)))
 	runtime.KeepAlive(absolute)
 	if r == 0 {
 		return false, fmt.Errorf("AccessCheck attachment directory: %w", callErr)
 	}
-	const writeAccess = windows.FILE_GENERIC_WRITE | 0x2 /* FILE_ADD_FILE */ | 0x4 /* FILE_ADD_SUBDIRECTORY */
+	const writeAccess = windows.FILE_GENERIC_WRITE | 0x2 /* FILE_ADD_FILE */ | 0x4 /* FILE_ADD_SUBDIRECTORY */ | windows.FILE_WRITE_DATA | windows.FILE_APPEND_DATA
 	return allowed != 0 && granted&writeAccess != 0, nil
 }
 
@@ -402,6 +402,12 @@ func rejectOrdinaryAttachmentWriters(path string) error {
 	}
 	if canWrite {
 		return errors.New("ordinary user can write attachment content")
+	}
+	sddl := strings.ToUpper(sd.String())
+	for _, sid := range []string{";;;BU)", ";;;AU)", ";;;WD)"} {
+		if strings.Contains(sddl, sid) {
+			return errors.New("attachment directory grants an untrusted user or inherited ACE")
+		}
 	}
 	return rejectForeignServiceWriters(sd)
 }
