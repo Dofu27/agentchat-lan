@@ -65,7 +65,7 @@ func (a *App) hubUsage() {
 
 Usage:
   agentchat hub init   --data <dir> [--admin-token-file <path>] [--resume-init] [--json]
-  agentchat hub serve  --data <dir> [--listen 127.0.0.1:8787]
+  agentchat hub serve  --data <dir> [--files-dir <dir>] [--listen 127.0.0.1:8787]
                        [--tls-cert <path> --tls-key <path>]
                        [--federation-config <path>] (two-node PoC only)
                        [--max-storage-bytes <n>]
@@ -152,6 +152,7 @@ func (a *App) hubServeContext(ctx context.Context, args []string) (exit int) {
 	fs := a.newFlagSet("hub serve")
 	logging := logFlags(fs)
 	data := fs.String("data", "./data", "data directory")
+	filesDir := fs.String("files-dir", "", "attachment directory (default <data>/files)")
 	listen := fs.String("listen", "127.0.0.1:8787", "listen address")
 	certFile := fs.String("tls-cert", "", "TLS certificate PEM file (requires --tls-key)")
 	keyFile := fs.String("tls-key", "", "TLS private key PEM file (requires --tls-cert)")
@@ -228,10 +229,15 @@ func (a *App) hubServeContext(ctx context.Context, args []string) (exit int) {
 		FileUploadsPerMinute: *uploadsPerMinute,
 		MaxFileSize:          protocol.MaxFileSize,
 		MaxStorageBytes:      *maxStorageBytes,
-		FileDir:              filepath.Join(*data, "files"),
-		Logger:               log.New(a.Stderr, "hub ", log.LstdFlags),
-		Federation:           fed,
-		ReadReceipts:         *readReceipts,
+		FileDir: func() string {
+			if strings.TrimSpace(*filesDir) != "" {
+				return filepath.Clean(strings.TrimSpace(*filesDir))
+			}
+			return filepath.Join(*data, "files")
+		}(),
+		Logger:       log.New(a.Stderr, "hub ", log.LstdFlags),
+		Federation:   fed,
+		ReadReceipts: *readReceipts,
 	})
 	ln, err := net.Listen("tcp", *listen)
 	if err != nil {

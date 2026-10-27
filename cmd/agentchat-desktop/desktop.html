@@ -235,13 +235,18 @@
     </div>
     <div class="row">
       <div class="field">
-        <label for="host-data" data-i18n="host.data">Data directory</label>
-        <input id="host-data" type="text" autocomplete="off" placeholder="C:\Users\...\AgentChat\hub-data">
-        <span class="hint" data-i18n="host.data_hint">Where the database and uploaded files are stored.</span>
+        <label for="host-data" data-i18n="host.data">Database directory</label>
+        <input id="host-data" type="text" autocomplete="off" placeholder="C:\ProgramData\AgentChat\hub">
+        <span class="hint" data-i18n="host.data_hint">Small, protected database: rooms, members, messages, invites.</span>
+      </div>
+      <div class="field">
+        <label for="host-files" data-i18n="host.files">Attachment directory</label>
+        <input id="host-files" type="text" autocomplete="off" placeholder="D:\AgentChatData\files">
+        <span class="hint" data-i18n="host.files_hint">Large uploaded files. Can be on a larger local disk.</span>
       </div>
       <div class="field">
         <label for="host-token" data-i18n="host.token">Admin token file</label>
-        <input id="host-token" type="text" autocomplete="off" placeholder="C:\Users\...\AgentChat\admin.token">
+        <input id="host-token" type="text" autocomplete="off" placeholder="C:\ProgramData\AgentChat\admin.token">
         <span class="hint" data-i18n="host.token_hint">The admin token is written here once. Keep it private.</span>
       </div>
     </div>
@@ -580,7 +585,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.46</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.48</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -644,7 +649,8 @@
       "host.firewall_remove":"Remove firewall rule", "host.firewall_ok":"Firewall rule updated",
       "host.firewall_working":"Updating firewall…",
       "host.firewall_failed":"Firewall change failed; run the Console as administrator",
-      "host.data":"Data directory", "host.data_hint":"Where the database and uploaded files are stored.",
+      "host.data":"Database directory", "host.data_hint":"Small, protected database: rooms, members, messages, invites.",
+      "host.files":"Attachment directory", "host.files_hint":"Large uploaded files. Can be on a larger local disk.",
       "host.token":"Admin token file", "host.token_hint":"The admin token is written here once. Keep it private.",
       "host.listen":"Listen address", "host.listen_hint":"Use 127.0.0.1 for this machine only; 0.0.0.0:8787 for LAN.",
       "host.url":"Hub URL", "host.url_hint":"URL agents use to reach this hub; include https if TLS is enabled.",
@@ -746,7 +752,8 @@
       "host.firewall_remove":"删除防火墙规则", "host.firewall_ok":"防火墙规则已更新",
       "host.firewall_working":"正在更新防火墙…",
       "host.firewall_failed":"防火墙修改失败；请以管理员身份运行 Console",
-      "host.data":"数据目录", "host.data_hint":"数据库和上传文件存放的位置。",
+      "host.data":"数据库目录", "host.data_hint":"小型受保护数据库：房间、成员、消息和邀请码。",
+      "host.files":"附件目录", "host.files_hint":"大容量上传文件存放位置，可选择空间较大的本地磁盘。",
       "host.token":"管理员 token 文件", "host.token_hint":"管理员 token 只写入一次，请妥善保管。",
       "host.listen":"监听地址", "host.listen_hint":"127.0.0.1 只允许本机；局域网用 0.0.0.0:8787。",
       "host.url":"Hub URL", "host.url_hint":"Agent 访问此 Hub 的地址；启用 TLS 时写 https。",
@@ -1001,6 +1008,7 @@
     $("settings-error").textContent = "";
     $("welcome").classList.toggle("hidden", !!body.setup_done);
     if (!$("host-data").value) $("host-data").value = body.hub_data || body.default_data || "";
+    if (!$("host-files").value) $("host-files").value = body.hub_files || (body.hub_data ? body.hub_data + "\\files" : "");
     if (!$("host-token").value) $("host-token").value = body.token_file || body.default_token || "";
     const hubConfigured = !!body.hub_data;
     $("host-setup").classList.toggle("hidden", body.role !== "hub");
@@ -1013,7 +1021,7 @@
     if (!$("host-url-warning").textContent) $("host-url-warning").textContent = t("host.url_warn");
     $("host-url-warning-global").textContent = $("host-url-warning").textContent;
     $("host-configured-note").textContent = hubConfigured ? "Hub 已初始化" : "";
-    for (const id of ["host-data","host-token","host-listen","host-url","host-cert","host-key","host-ca","host-init"]) {
+    for (const id of ["host-data","host-files","host-token","host-listen","host-url","host-cert","host-key","host-ca","host-init"]) {
       const el = $(id); if (el) el.disabled = hubConfigured;
     }
     for (const id of ["host-detect","host-tls-generate","host-tls-install","host-tls-reset","host-firewall-open","host-firewall-remove"]) {
@@ -1035,6 +1043,7 @@
     try {
       const body = await api("/api/hub/init", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
         data: $("host-data").value.trim(),
+        files: $("host-files").value.trim(),
         token_file: $("host-token").value.trim(),
         listen: $("host-listen").value.trim(),
         hub_url: $("host-url").value.trim(),
@@ -1055,7 +1064,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.46/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.48/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1922,7 +1931,7 @@
       await api("/api/settings", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ action }) });
       settingsStatus(action === "leave_hub" ? t("settings.leave_done") : t("settings.reset_done"), false);
       if (action === "reset_all") {
-        for (const id of ["host-data","host-token","host-listen","host-url","host-cert","host-key","host-ca"]) {
+        for (const id of ["host-data","host-files","host-token","host-listen","host-url","host-cert","host-key","host-ca"]) {
           const el = $(id); if (el) el.value = "";
         }
         $("host-body").classList.remove("hidden");
@@ -1999,6 +2008,7 @@
     catch (err) { toast(err.message || String(err), true); }
   });
   addPathPicker("host-data", "folder", t("host.data"), "");
+  addPathPicker("host-files", "folder", t("host.files"), "");
   addPathPicker("host-token", "save", t("host.token"), "All files|*.*");
   addPathPicker("host-cert", "file", t("host.cert"), "Certificates|*.crt;*.pem|All files|*.*");
   addPathPicker("host-key", "file", t("host.key"), "Keys|*.key;*.pem|All files|*.*");

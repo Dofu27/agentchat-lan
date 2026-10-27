@@ -67,6 +67,7 @@ type config struct {
 	Role              string            `json:"role,omitempty"`
 	SetupDone         bool              `json:"setup_done,omitempty"`
 	HubData           string            `json:"hub_data,omitempty"`
+	HubFiles          string            `json:"hub_files,omitempty"`
 	HubListen         string            `json:"hub_listen,omitempty"`
 	HubCert           string            `json:"hub_tls_cert,omitempty"`
 	HubKey            string            `json:"hub_tls_key,omitempty"`
@@ -1731,6 +1732,33 @@ func mergeChains(dst, src *pinnedDirectoryChain) {
 	src.handles = nil
 }
 
+// prepareAttachmentDirectory creates a dedicated attachment directory. Unlike
+// the SQLite data directory it may live on a large user-selected volume, so it
+// does not require every ancestor to be protected; the final directory is
+// created with an admin/SYSTEM-only DACL and reparse points are rejected.
+func prepareAttachmentDirectory(path string) error {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "" || !filepath.IsAbs(path) {
+		return errors.New("attachment path must be absolute")
+	}
+	if info, err := os.Lstat(path); err == nil {
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return errors.New("attachment path is not a real directory")
+		}
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	parent := filepath.Dir(path)
+	if err := os.MkdirAll(parent, 0o700); err != nil {
+		return fmt.Errorf("create attachment parent: %w", err)
+	}
+	if err := createSecureDirectory(path, "O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"); err != nil {
+		return fmt.Errorf("create attachment directory: %w", err)
+	}
+	return nil
+}
+
 func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 	data := filepath.Clean(dataPath)
 	parent := filepath.Dir(data)
@@ -1897,6 +1925,7 @@ func (a *app) handleHubClearData(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Data      string `json:"data"`
+		Files     string `json:"files"`
 		TokenFile string `json:"token_file"`
 		Listen    string `json:"listen"`
 		HubURL    string `json:"hub_url"`
@@ -1908,7 +1937,7 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
 		return
 	}
-	for _, p := range []string{req.Data, req.TokenFile, req.TLSCert, req.TLSKey, req.TLSCA} {
+	for _, p := range []string{req.Data, req.Files, req.TokenFile, req.TLSCert, req.TLSKey, req.TLSCA} {
 		if p != "" && (!filepath.IsAbs(p) || strings.ContainsRune(p, 0)) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "paths must be absolute"})
 			return
@@ -1974,9 +2003,18 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	attachmentDir := strings.TrimSpace(req.Files)
+	if attachmentDir == "" {
+		attachmentDir = filepath.Join(req.Data, "files")
+	}
+	if err := prepareAttachmentDirectory(attachmentDir); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "attachment directory: " + err.Error()})
+		return
+	}
 	candidate := base
 	candidate.Service = "AgentChatHub"
 	candidate.HubData = req.Data
+	candidate.HubFiles = attachmentDir
 	candidate.TokenFile = req.TokenFile
 	candidate.HubListen = req.Listen
 	candidate.HubCert = req.TLSCert
@@ -2053,7 +2091,7 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	} else {
 		binPath := quoteWindowsArg(candidate.AgentchatPath) + " service run --name AgentChatHub --log " +
 			quoteWindowsArg(filepath.Join(req.Data, "hub.log")) + " -- hub serve --data " +
-			quoteWindowsArg(req.Data) + " --listen " + quoteWindowsArg(req.Listen)
+			quoteWindowsArg(req.Data) + " --files-dir " + quoteWindowsArg(attachmentDir) + " --listen " + quoteWindowsArg(req.Listen)
 		if req.TLSCert != "" {
 			binPath += " --tls-cert " + quoteWindowsArg(req.TLSCert) + " --tls-key " + quoteWindowsArg(req.TLSKey)
 		}
@@ -2119,7 +2157,11 @@ func hubServiceBinPath(cfg config, guard *serviceBinaryGuard) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	args := []string{executable, "service", "run", "--name", "AgentChatHub", "--log", filepath.Join(cfg.HubData, "hub.log"), "--", "hub", "serve", "--data", cfg.HubData, "--listen", cfg.HubListen}
+	filesDir := strings.TrimSpace(cfg.HubFiles)
+	if filesDir == "" {
+		filesDir = filepath.Join(cfg.HubData, "files")
+	}
+	args := []string{executable, "service", "run", "--name", "AgentChatHub", "--log", filepath.Join(cfg.HubData, "hub.log"), "--", "hub", "serve", "--data", cfg.HubData, "--files-dir", filesDir, "--listen", cfg.HubListen}
 	if cfg.HubCert != "" {
 		args = append(args, "--tls-cert", cfg.HubCert, "--tls-key", cfg.HubKey)
 	}
@@ -2733,7 +2775,7 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"role": a.cfg.Role, "setup_done": a.cfg.SetupDone, "is_admin": windows.GetCurrentProcessToken().IsElevated(), "config_path": a.configPath,
 		"hub_url": a.cfg.HubURL, "agent_config": a.cfg.AgentConfig,
 		"token_file": a.cfg.TokenFile,
-		"hub_data":   a.cfg.HubData, "hub_listen": a.cfg.HubListen,
+		"hub_data":   a.cfg.HubData, "hub_files": a.cfg.HubFiles, "hub_listen": a.cfg.HubListen,
 		"hub_tls_cert": a.cfg.HubCert, "hub_tls_key": a.cfg.HubKey,
 		"default_data":  defaultData,
 		"default_token": filepath.Join(filepath.Dir(defaultData), "admin.token"),

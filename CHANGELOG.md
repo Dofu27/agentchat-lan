@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.48] - 2026-10-27
+
+### Added
+
+- Split attachment storage. The SQLite database remains in the protected
+  `hub_data` directory; large uploaded files can use a separate
+  `hub_files` directory on another local disk.
+- Host setup now has a Database directory and an Attachment directory.
+- `hub serve --files-dir` and the Windows service binary path pass the
+  attachment directory through to the Hub.
+
 ## [0.30.47] - 2026-10-27
 
 ### Fixed
