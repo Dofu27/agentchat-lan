@@ -131,7 +131,8 @@
   .chat-composer textarea { flex:1; min-height:104px; max-height:34vh; resize:vertical; background:#0f1620; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 11px; font:inherit; }
   .mention-menu { position:absolute; left:0; bottom:58px; z-index:20; min-width:180px; max-height:180px; overflow:auto; background:#101a26; border:1px solid var(--line); border-radius:8px; padding:4px; box-shadow:0 8px 24px rgba(0,0,0,.35); }
   .mention-menu button { display:block; width:100%; text-align:left; background:transparent; border:0; padding:5px 7px; font-size:12px; color:var(--text); }
-  .mention-menu button:hover { background:#1b2a3a; }
+  .mention-menu button:hover, .mention-menu button.active { background:#1b2a3a; }
+  .mention-menu button.active { outline:1px solid var(--accent); }
   .chat-header-tools { gap:8px; flex-wrap:nowrap; }
   .chat-header-tools input { width:clamp(150px, 22vw, 320px); min-width:110px; }
   .chat-attach { margin-top:6px; gap:8px; align-items:center; }
@@ -585,7 +586,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.49</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.50</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -966,6 +967,14 @@
   let chatRead = {};
   try { chatRead = JSON.parse(localStorage.getItem("agentchat_read") || "{}") || {}; } catch (_) { chatRead = {}; }
   const chatState = { room: "general", rooms: [], agents: [], messages: [], oldest: 0, last: 0, loading: false, timer: null, read: chatRead };
+  let mentionIndex = 0;
+  function selectMention(index) {
+    const buttons = [...$("chat-mentions").querySelectorAll("button")];
+    if (!buttons.length) return;
+    mentionIndex = (index + buttons.length) % buttons.length;
+    buttons.forEach((b, i) => b.classList.toggle("active", i === mentionIndex));
+    buttons[mentionIndex].scrollIntoView({ block:"nearest" });
+  }
   async function refreshLogs() {
     if (logsBusy) return;
     logsBusy = true;
@@ -1064,7 +1073,7 @@
     const url = ($("host-url").value || "https://127.0.0.1:8787").replace(/\/$/, "");
     $("agent-command").value =
       "先阅读：\n" +
-      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.49/docs/AGENT_GUIDE.md\n\n" +
+      "https://github.com/Dofu27/agentchat-lan/blob/v0.30.50/docs/AGENT_GUIDE.md\n\n" +
       "确认版本与参数：\n" +
       "agentchat version\n" +
       "agentchat join --help\n\n" +
@@ -1511,9 +1520,11 @@
         e.preventDefault();
         insertChatMention(agent.name);
       });
+      b.addEventListener("mouseenter", () => selectMention([...box.querySelectorAll("button")].indexOf(b)));
       box.appendChild(b);
     }
     box.classList.remove("hidden");
+    selectMention(0);
   }
   function insertChatMention(name) {
     const input = $("chat-input");
@@ -2079,9 +2090,20 @@
   $("chat-send").addEventListener("click", chatSend);
   $("chat-input").addEventListener("keydown", (e) => {
     const menu = $("chat-mentions");
-    if ((e.key === "Tab" || e.key === "Enter") && !menu.classList.contains("hidden")) {
-      const first = menu.querySelector("button");
-      if (first) { e.preventDefault(); first.dispatchEvent(new MouseEvent("mousedown", { bubbles:true })); return; }
+    const open = !menu.classList.contains("hidden");
+    if (open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      selectMention(mentionIndex + (e.key === "ArrowDown" ? 1 : -1));
+      return;
+    }
+    if (open && (e.key === "Tab" || e.key === "Enter")) {
+      const buttons = menu.querySelectorAll("button");
+      const chosen = buttons[mentionIndex] || buttons[0];
+      if (chosen) {
+        e.preventDefault();
+        chosen.dispatchEvent(new MouseEvent("mousedown", { bubbles:true }));
+        return;
+      }
     }
     if (e.key === "Escape") { closeChatMentions(); return; }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); closeChatMentions(); chatSend(); }
