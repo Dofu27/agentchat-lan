@@ -366,6 +366,7 @@ var (
 	procExtractIconExW         = shell32DLL.NewProc("ExtractIconExW")
 	dwmapiDLL                  = windows.NewLazySystemDLL("dwmapi.dll")
 	procGetLongPathNameW       = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetLongPathNameW")
+	procGetDriveTypeW          = windows.NewLazySystemDLL("kernel32.dll").NewProc("GetDriveTypeW")
 	secureKernel32DLL          = windows.NewLazySystemDLL("kernel32.dll")
 	procCreateDirectoryW       = secureKernel32DLL.NewProc("CreateDirectoryW")
 	procCreateFileSecureW      = secureKernel32DLL.NewProc("CreateFileW")
@@ -1270,26 +1271,10 @@ func (a *app) backfillAgentCA(path string) error {
 	if err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".dsh-ca-*.tmp")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
+	tmpName := filepath.Join(filepath.Dir(path), fmt.Sprintf(".dsh-ca-%d.tmp", time.Now().UnixNano()))
 	defer os.Remove(tmpName)
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(append(updated, '\n')); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
+	if err := createSecureTokenFile(tmpName, string(append(updated, '\n'))); err != nil {
+		return fmt.Errorf("write protected CA recovery file: %w", err)
 	}
 	return os.Rename(tmpName, path)
 }
@@ -1916,6 +1901,42 @@ func mergeChains(dst, src *pinnedDirectoryChain) {
 // the SQLite data directory it may live on a large user-selected volume, so it
 // does not require every ancestor to be protected; the final directory is
 // created with an admin/SYSTEM-only DACL and reparse points are rejected.
+func validateAttachmentLocation(path string) error {
+	if strings.HasPrefix(path, `\\`) {
+		return errors.New("attachment path must not be a UNC path")
+	}
+	vol := filepath.VolumeName(path)
+	if len(vol) != 2 || vol[1] != ':' {
+		return errors.New("attachment path must be on a local drive")
+	}
+	rootPtr, err := windows.UTF16PtrFromString(vol + `\`)
+	if err != nil {
+		return err
+	}
+	const driveRemote = 4
+	if kind, _, _ := procGetDriveTypeW.Call(uintptr(unsafe.Pointer(rootPtr))); kind == driveRemote {
+		return errors.New("attachment path must not be on a network drive")
+	}
+	current := vol + `\`
+	for _, part := range strings.Split(strings.TrimPrefix(path, current), `\`) {
+		if part == "" {
+			continue
+		}
+		current = filepath.Join(current, part)
+		info, err := os.Lstat(current)
+		if isMissingPath(err) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("attachment path contains a reparse point: %s", current)
+		}
+	}
+	return nil
+}
+
 func prepareAttachmentDirectory(path string, allowUnprotected bool) error {
 	path = filepath.Clean(strings.TrimSpace(path))
 	if path == "" || !filepath.IsAbs(path) {
@@ -1924,6 +1945,9 @@ func prepareAttachmentDirectory(path string, allowUnprotected bool) error {
 	vol := filepath.VolumeName(path)
 	if vol == "" || strings.EqualFold(path, filepath.Clean(vol+`\`)) {
 		return errors.New("attachment path must not be a volume root")
+	}
+	if err := validateAttachmentLocation(path); err != nil {
+		return err
 	}
 	if allowUnprotected {
 		if info, err := os.Lstat(path); err == nil {
@@ -2291,6 +2315,14 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 			dataGuard.Close()
 		}
 	}()
+	if req.AllowUnprotectedFiles {
+		for _, p := range []string{req.TokenFile, req.TLSCert, req.TLSKey} {
+			if p != "" && withinPath(p, attachmentDir) {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "admin token and TLS files must not be inside the unprotected attachment directory"})
+				return
+			}
+		}
+	}
 	if err := prepareAttachmentDirectory(attachmentDir, req.AllowUnprotectedFiles); err != nil {
 		dataGuard.Close()
 		dataGuard = nil
@@ -2984,6 +3016,9 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 				candidate.Role = "hub"
 				candidate.HubURL = ""
 				candidate.HubData = ""
+				candidate.HubFiles = ""
+				candidate.HubMarker = ""
+				candidate.AllowUnprotectedFiles = false
 				candidate.HubListen = ""
 				candidate.HubCert = ""
 				candidate.HubKey = ""

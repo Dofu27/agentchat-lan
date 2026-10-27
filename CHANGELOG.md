@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.56] - 2026-10-28
+
+### Security
+
+- Non-sensitive attachment mode rejects UNC/network drives and ancestor
+  reparse points.
+- Default attachment ACL checks reject OIIO/CIIO/OICIIO inherit-only ACEs.
+- Reset all clears the non-sensitive attachment opt-in and attachment path.
+- Admin token/TLS files may not be inside the unprotected attachment tree.
+- CA backfill uses a protected DACL for the temporary file.
+
+### Build
+
+- Rebuild from a clean exact tag so payload buildinfo reports
+  `vcs.modified=false`.
+
 ## [0.30.55] - 2026-10-28
 
 ### Added
