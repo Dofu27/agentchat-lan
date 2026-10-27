@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.52] - 2026-10-28
+
+### Security
+
+- Attachment directories now require a protected, pinned parent chain.
+- Clear Hub data only deletes the configured managed Hub data directory.
+- Clear refuses to proceed when the service state is unknown or not stopped.
+- Hub initialization prepares the protected database directory before the
+  default attachment directory.
+- Existing DSH bridge configs must be an independent `dsh` identity.
+- DSH agent configs preserve the configured TLS CA.
+- New DSH identities write a pending recovery config if local save fails.
+- Manual replace joins keep the original agent config until the new join and
+  save succeed, restoring it on failure.
+- Token deletion failures are reported instead of claiming full success.
+- Generated PowerShell instructions use single-quoted literals.
+- Windows tests assert the `--files-dir` service argument.
+
+### Added
+
+- Installer page to select the Hub attachment directory.
+- `hub_files` is saved into desktop.json during Hub installation.
+
 ## [0.30.51] - 2026-10-27
 
 ### Added

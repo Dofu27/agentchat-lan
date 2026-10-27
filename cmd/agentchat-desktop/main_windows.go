@@ -795,6 +795,7 @@ func (a *app) api(next http.Handler) http.Handler {
 type agentConfigFile struct {
 	HubURL    string `json:"hub_url"`
 	AgentName string `json:"agent_name"`
+	AgentKind string `json:"agent_kind"`
 	AgentID   string `json:"agent_id"`
 	Token     string `json:"token"`
 }
@@ -1196,12 +1197,44 @@ func (a *app) ensureDshBridgeAgent(base config) (string, error) {
 		return "", errors.New("join a hub as a human agent first")
 	}
 	path := filepath.Join(filepath.Dir(base.AgentConfig), "dsh-agent.json")
+	if strings.EqualFold(filepath.Clean(path), filepath.Clean(base.AgentConfig)) {
+		return "", errors.New("DSH bridge config must not be the human agent config")
+	}
+	pending := path + ".pending"
+	if _, err := os.Stat(pending); err == nil {
+		if err := a.validateAgentConfigFile(pending); err != nil {
+			return "", fmt.Errorf("pending DSH agent config is invalid: %w", err)
+		}
+		if err := os.Rename(pending, path); err != nil {
+			return "", fmt.Errorf("recover pending DSH agent config: %w", err)
+		}
+	} else if !isMissingPath(err) {
+		return "", err
+	}
 	if _, err := os.Stat(path); err == nil {
 		if err := a.validateAgentConfigFile(path); err != nil {
 			return "", fmt.Errorf("existing DSH agent config is invalid: %w", err)
 		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		var existing agentConfigFile
+		if err := json.Unmarshal(data, &existing); err != nil {
+			return "", err
+		}
+		if !strings.EqualFold(existing.AgentName, "dsh") || !strings.EqualFold(existing.AgentKind, "dsh") {
+			return "", errors.New("existing DSH agent config does not have name/kind dsh")
+		}
+		human, err := a.loadAgentConfig()
+		if err != nil {
+			return "", err
+		}
+		if strings.EqualFold(existing.AgentID, human.AgentID) {
+			return "", errors.New("existing DSH agent config reuses the human agent identity")
+		}
 		return path, nil
-	} else if !os.IsNotExist(err) {
+	} else if !isMissingPath(err) {
 		return "", err
 	}
 	endpoint, err := a.adminEndpoint()
@@ -1253,10 +1286,17 @@ func (a *app) ensureDshBridgeAgent(base config) (string, error) {
 	agentCfg := agentconfig.Config{
 		HubURL: base.HubURL, Token: joined.Token, AgentID: joined.Agent.ID,
 		AgentName: joined.Agent.Name, AgentKind: joined.Agent.Kind, Rooms: rooms,
+		TLSCAFile: base.CAFile,
 	}
 	if err := agentconfig.SaveNew(path, &agentCfg); err != nil {
+		if data, marshalErr := json.MarshalIndent(agentCfg, "", "  "); marshalErr == nil {
+			if writeErr := os.WriteFile(pending, append(data, '\n'), 0o600); writeErr == nil {
+				return "", fmt.Errorf("save DSH agent config: %w (recovery file written to %s; retry configuration)", err, pending)
+			}
+		}
 		return "", fmt.Errorf("save DSH agent config: %w", err)
 	}
+	_ = os.Remove(pending)
 	return path, nil
 }
 
@@ -1482,19 +1522,20 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 		}
 		path = filepath.Join(filepath.Dir(base), "agentchat.json")
 	}
+	hadExisting := false
 	if _, err := os.Stat(path); err == nil {
 		if !req.Replace {
 			writeJSON(w, http.StatusConflict, map[string]any{"error": "agent_config already exists"})
 			return
 		}
-		backup := path + ".bak-" + time.Now().UTC().Format("20060102T150405Z")
-		if err := os.Rename(path, backup); err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot back up existing agent_config"})
-			return
-		}
-	} else if !os.IsNotExist(err) {
+		hadExisting = true
+	} else if !isMissingPath(err) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot inspect agent_config"})
 		return
+	}
+	savePath := path
+	if hadExisting {
+		savePath = path + ".new-" + time.Now().UTC().Format("20060102T150405Z")
 	}
 	body, _ := json.Marshal(protocol.JoinRequest{InviteCode: req.Invite, Name: req.Name, Kind: req.Kind})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -1527,8 +1568,9 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 	agentCfg := agentconfig.Config{
 		HubURL: hubURL, Token: joined.Token, AgentID: joined.Agent.ID,
 		AgentName: joined.Agent.Name, AgentKind: joined.Agent.Kind, Rooms: rooms,
+		TLSCAFile: a.cfg.CAFile,
 	}
-	if err := agentconfig.SaveNew(path, &agentCfg); err != nil {
+	if err := agentconfig.SaveNew(savePath, &agentCfg); err != nil {
 		if errors.Is(err, os.ErrExist) {
 			writeJSON(w, http.StatusConflict, map[string]any{"error": "agent_config already exists"})
 			return
@@ -1536,11 +1578,32 @@ func (a *app) handleJoin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save agent config"})
 		return
 	}
+	backup := ""
+	if hadExisting {
+		backup = path + ".bak-" + time.Now().UTC().Format("20060102T150405Z")
+		if err := os.Rename(path, backup); err != nil {
+			_ = os.Remove(savePath)
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot back up existing agent_config"})
+			return
+		}
+		if err := os.Rename(savePath, path); err != nil {
+			_ = os.Rename(backup, path)
+			_ = os.Remove(savePath)
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot install new agent config"})
+			return
+		}
+	}
 	a.mu.Lock()
 	candidate := a.cfg
 	candidate.AgentConfig = path
 	if err := a.saveConfig(candidate); err != nil {
 		a.mu.Unlock()
+		if hadExisting {
+			_ = os.Remove(path)
+			_ = os.Rename(backup, path)
+		} else {
+			_ = os.Remove(path)
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot save desktop config"})
 		return
 	}
@@ -1741,33 +1804,40 @@ func prepareAttachmentDirectory(path string) error {
 	if path == "" || !filepath.IsAbs(path) {
 		return errors.New("attachment path must be absolute")
 	}
+	parent := filepath.Dir(path)
+	parentInfo, err := os.Lstat(parent)
+	if err != nil {
+		return fmt.Errorf("attachment parent must already exist and be protected: %w", err)
+	}
+	if !parentInfo.IsDir() || parentInfo.Mode()&os.ModeSymlink != 0 {
+		return errors.New("attachment parent must be a real directory")
+	}
+	parentChain, err := pinDataDirectoryChain(parent)
+	if err != nil {
+		return fmt.Errorf("attachment parent is not a protected directory: %w", err)
+	}
+	defer parentChain.Close()
 	if info, err := os.Lstat(path); err == nil {
 		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 			return errors.New("attachment path is not a real directory")
 		}
-		return nil
-	} else if !os.IsNotExist(err) {
+	} else if isMissingPath(err) {
+		if err := createSecureDirectory(path, "O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"); err != nil {
+			return fmt.Errorf("create attachment directory: %w", err)
+		}
+	} else {
 		return err
 	}
-	parent := filepath.Dir(path)
-	if err := os.MkdirAll(parent, 0o700); err != nil {
-		return fmt.Errorf("create attachment parent: %w", err)
+	pathChain, err := pinDataDirectoryChain(path)
+	if err != nil {
+		return fmt.Errorf("attachment directory identity check failed: %w", err)
 	}
-	if err := createSecureDirectory(path, "O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"); err != nil {
-		return fmt.Errorf("create attachment directory: %w", err)
-	}
+	pathChain.Close()
 	return nil
 }
 
 func isMissingPath(err error) bool {
-	if err == nil {
-		return false
-	}
-	if os.IsNotExist(err) {
-		return true
-	}
-	text := strings.ToLower(err.Error())
-	return strings.Contains(text, "cannot find the file") || strings.Contains(text, "cannot find the path")
+	return err != nil && (os.IsNotExist(err) || errors.Is(err, os.ErrNotExist))
 }
 
 func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
@@ -1846,10 +1916,11 @@ func (a *app) handleHubClearData(w http.ResponseWriter, r *http.Request) {
 	data, service := a.cfg.HubData, a.cfg.Service
 	a.mu.RUnlock()
 	if strings.TrimSpace(data) == "" {
-		data = strings.TrimSpace(req.Data)
-	}
-	if data == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "hub data path is not configured"})
+		return
+	}
+	if strings.TrimSpace(req.Data) != "" && !strings.EqualFold(filepath.Clean(req.Data), filepath.Clean(data)) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "data path does not match the configured Hub data directory"})
 		return
 	}
 	// Older configs can name a service that no longer exists while the default
@@ -1859,7 +1930,12 @@ func (a *app) handleHubClearData(w http.ResponseWriter, r *http.Request) {
 			service = "AgentChatHub"
 		}
 	}
-	if st, err := serviceStatus(service); err == nil && st["state"] == "running" {
+	st, err := serviceStatus(service)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot query Hub service state; refusing to delete"})
+		return
+	}
+	if st["installed"] == true && st["state"] != "stopped" {
 		if !req.StopService {
 			writeJSON(w, http.StatusConflict, map[string]any{"error": "stop the Hub service before deleting its data"})
 			return
@@ -1892,10 +1968,9 @@ func (a *app) handleHubClearData(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "refusing to delete a volume root"})
 		return
 	}
-	base := strings.ToLower(filepath.Base(abs))
-	parent := strings.ToLower(filepath.Base(filepath.Dir(abs)))
-	if base != "hub-data" && parent != "agentchat" {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "refusing to delete a non-managed data directory"})
+	configuredAbs, err := filepath.Abs(data)
+	if err != nil || !strings.EqualFold(filepath.Clean(configuredAbs), abs) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "refusing to delete an unmanaged data directory"})
 		return
 	}
 	if err := os.RemoveAll(abs); err != nil {
@@ -1907,14 +1982,20 @@ func (a *app) handleHubClearData(w http.ResponseWriter, r *http.Request) {
 		a.mu.RLock()
 		tokenPath := strings.TrimSpace(a.cfg.TokenFile)
 		a.mu.RUnlock()
-		if tokenPath == "" {
-			tokenPath = filepath.Join(filepath.Dir(abs), "admin.token")
+		if tokenPath == "" || !strings.EqualFold(filepath.Base(tokenPath), "admin.token") {
+			writeJSON(w, http.StatusConflict, map[string]any{"ok": false, "deleted": abs, "token_deleted": false, "error": "managed admin token path is not configured; Hub data was deleted but the token was not"})
+			return
 		}
 		tokenAbs, terr := filepath.Abs(tokenPath)
-		if terr == nil && strings.EqualFold(filepath.Base(tokenAbs), "admin.token") {
-			if err := os.Remove(tokenAbs); err == nil || os.IsNotExist(err) {
-				tokenDeleted = true
-			}
+		if terr != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "deleted": abs, "token_deleted": false, "error": "cannot resolve admin token path; Hub data was deleted but the token was not"})
+			return
+		}
+		if err := os.Remove(tokenAbs); err == nil || os.IsNotExist(err) {
+			tokenDeleted = true
+		} else {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "deleted": abs, "token_deleted": false, "error": "Hub data was deleted but the admin token could not be removed"})
+			return
 		}
 	}
 	a.mu.Lock()
@@ -2018,10 +2099,6 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	if attachmentDir == "" {
 		attachmentDir = filepath.Join(req.Data, "files")
 	}
-	if err := prepareAttachmentDirectory(attachmentDir); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "attachment directory: " + err.Error()})
-		return
-	}
 	candidate := base
 	candidate.Service = "AgentChatHub"
 	candidate.HubData = req.Data
@@ -2045,6 +2122,10 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer dataGuard.Close()
+	if err := prepareAttachmentDirectory(attachmentDir); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "attachment directory: " + err.Error()})
+		return
+	}
 	if _, err := os.Stat(req.TokenFile); err == nil {
 		writeJSON(w, http.StatusConflict, map[string]any{"error": "admin token file already exists; remove it to initialize"})
 		return

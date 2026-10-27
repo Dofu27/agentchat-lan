@@ -594,7 +594,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.51</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.52</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -1099,19 +1099,22 @@
     const key = $("host-key").value.trim() || "<GENERATE_TLS_KEY>";
     const invite = $("agent-invite").value.trim() || "<ASK_HUB_ADMIN_FOR_INVITE_CODE>";
     const ca = $("host-cert").value.trim() || "<HUB_SERVER_CERT>";
+    const ps = (value) => "'" + String(value).replace(/'/g, "''") + "'";
     $("agent-join-command").value = [
       "你是运行在 Windows 上的 Agent，拥有命令执行权限。",
       "任务：加入已有 AgentChat LAN Hub。不要创建 Hub，不要修改 Hub 数据。",
       "",
       "加入前必须先向 Hub 管理员索取一次性邀请码；没有邀请码不要执行 join。",
       "",
-      "$CLI = \"" + cli + "\"",
-      "$HUB = \"" + url + "\"",
-      "$INVITE = \"" + invite + "\"",
-      "$CA = \"" + ca + "\"",
+      "$CLI = " + ps(cli),
+      "$HUB = " + ps(url),
+      "$INVITE = " + ps(invite),
+      "$CA = " + ps(ca),
+      "$NAME = " + ps("<AGENT_NAME>"),
+      "$CONFIG = " + ps("<AGENT_CONFIG_JSON>"),
       "",
-      "& $CLI join $HUB --name <AGENT_NAME> --kind dsh --code $INVITE --ca-file $CA --config <AGENT_CONFIG_JSON>",
-      "& $CLI me --config <AGENT_CONFIG_JSON>",
+      "& $CLI join $HUB --name $NAME --kind dsh --code $INVITE --ca-file $CA --config $CONFIG",
+      "& $CLI me --config $CONFIG",
       "",
       "加入成功后，再按概览 → 桥接配置 DSH 桥接。",
       "不要把 token 或 admin token 输出到聊天。"
@@ -1120,14 +1123,22 @@
       "你是运行在 Windows 上的 Agent，拥有命令执行权限。",
       "任务：只在这台 Hub 主机创建 AgentChat LAN Hub。不要加入 Agent，不要删除已有数据。",
       "",
-      "$CLI = \"" + cli + "\"",
-      "& $CLI hub init --data \"" + data + "\" --admin-token-file \"" + token + "\"",
+      "$CLI = " + ps(cli),
+      "$DATA = " + ps(data),
+      "$FILES = " + ps(files),
+      "$TOKEN = " + ps(token),
+      "$LISTEN = " + ps(listen),
+      "$CERT = " + ps(cert),
+      "$KEY = " + ps(key),
+      "$HUB = " + ps(url),
+      "",
+      "& $CLI hub init --data $DATA --admin-token-file $TOKEN",
       "",
       "生成或选择 TLS 证书后启动 Hub：",
-      "& $CLI hub serve --data \"" + data + "\" --files-dir \"" + files + "\" --listen \"" + listen + "\" --tls-cert \"" + cert + "\" --tls-key \"" + key + "\"",
+      "& $CLI hub serve --data $DATA --files-dir $FILES --listen $LISTEN --tls-cert $CERT --tls-key $KEY",
       "",
       "健康检查：",
-      "curl.exe -k \"" + url + "/healthz\"",
+      "curl.exe -k \"$HUB/healthz\"",
       "",
       "然后安装并启动 AgentChatHub Windows 服务，开放防火墙 8787。",
       "创建 Hub 不等于 Agent 加入 Hub。"
@@ -2031,7 +2042,8 @@
     $("host-output").textContent = "";
     $("host-global-status").textContent = t("host.clear_working");
     try {
-      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", data:$("host-data").value.trim(), remove_token:true, stop_service:true }) });
+      const clearResult = await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", data:$("host-data").value.trim(), remove_token:true, stop_service:true }) });
+      if (!clearResult.token_deleted) throw new Error(clearResult.error || "Hub data was deleted, but the admin token was not removed");
       $("host-output").textContent = t("host.clear_done");
       $("host-global-status").textContent = t("host.clear_done");
       await refreshSettings();
@@ -2048,7 +2060,8 @@
     $("host-output").textContent = "";
     $("host-global-status").textContent = t("host.clear_working");
     try {
-      await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", data:$("host-data").value.trim(), remove_token:true, stop_service:true }) });
+      const clearResult = await api("/api/hub/clear-data", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ confirm:"delete-hub-data", data:$("host-data").value.trim(), remove_token:true, stop_service:true }) });
+      if (!clearResult.token_deleted) throw new Error(clearResult.error || "Hub data was deleted, but the admin token was not removed");
       $("host-output").textContent = t("host.clear_done");
       $("host-global-status").textContent = t("host.clear_done");
       await refreshSettings();

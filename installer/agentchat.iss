@@ -1,6 +1,6 @@
 #define MyAppName "AgentChat LAN"
 #ifndef AppVersion
-  #define AppVersion "0.30.51"
+  #define AppVersion "0.30.52"
 #endif
 #ifndef StageDir
   #define StageDir "..\build\inno"
@@ -53,6 +53,7 @@ Filename: "{app}\AgentChatConsole.exe"; Description: "启动 AgentChat Console�
 [Code]
 var
   RolePage: TInputOptionWizardPage;
+  StoragePage: TInputDirWizardPage;
   HubPage: TInputQueryWizardPage;
 
 function WebView2Installed(): Boolean;
@@ -74,6 +75,12 @@ begin
   RolePage.Add('观察者');
   RolePage.Values[0] := True;
 
+  StoragePage := CreateInputDirPage(RolePage.ID,
+    '附件存储目录', '大容量附件放在哪里？',
+    'Hub 数据库仍在 C:\ProgramData\AgentChat。附件目录必须是受保护的本地目录，安装后由 Console 初始化。', False, '');
+  StoragePage.Add('附件目录:');
+  StoragePage.Values[0] := 'C:\ProgramData\AgentChat\files';
+
   HubPage := CreateInputQueryPage(RolePage.ID,
     'Hub 地址', '客户端连接哪个 Hub？',
     '如果暂时不确定，可以留空，稍后在 Console 中加入。');
@@ -85,6 +92,13 @@ begin
   if RolePage.Values[0] then Result := 'hub'
   else if RolePage.Values[1] then Result := 'client'
   else Result := 'observer';
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if (PageID = StoragePage.ID) and (SelectedRole() <> 'hub') then
+    Result := True;
 end;
 
 function JsonEscape(Value: String): String;
@@ -107,7 +121,7 @@ end;
 
 function SaveDesktopConfig(): Boolean;
 var
-  ConfigDir, ConfigPath, Json, Role, HubURL, ExePath: String;
+  ConfigDir, ConfigPath, Json, Role, HubURL, HubFiles, ExePath: String;
 begin
   Result := False;
   ConfigDir := ExpandConstant('{userappdata}\AgentChat');
@@ -122,6 +136,7 @@ begin
     exit;
   Role := SelectedRole();
   HubURL := Trim(HubPage.Values[0]);
+  HubFiles := Trim(StoragePage.Values[0]);
   ExePath := JsonEscape(ExpandConstant('{app}\agentchat-console.exe'));
 
   Json := '{' + #13#10 +
@@ -133,6 +148,8 @@ begin
     '  "setup_done": false';
   if HubURL <> '' then
     Json := Json + ',' + #13#10 + '  "hub_url": "' + JsonEscape(HubURL) + '"';
+  if (Role = 'hub') and (HubFiles <> '') then
+    Json := Json + ',' + #13#10 + '  "hub_files": "' + JsonEscape(HubFiles) + '"';
   Json := Json + #13#10 + '}' + #13#10;
 
   Result := SaveStringToFile(ConfigPath, Json, False);

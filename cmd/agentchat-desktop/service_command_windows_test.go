@@ -50,7 +50,7 @@ func TestServiceCommandUsesPinnedExecutableAndRoundTripsArguments(t *testing.T) 
 	g := &serviceBinaryGuard{objects: []servicePathObject{{h, canonical, id, false}}}
 	defer g.Close()
 	for _, data := range []string{`C:\fixture\data\`, `C:\fixture space\data\`, `C:\fixture&data`, `C:\fixture"quoted`} {
-		cfg := config{AgentchatPath: `C:\different\unverified.exe`, HubData: data, HubListen: "127.0.0.1:8443", HubCert: `C:\cert space\certificate.pem`, HubKey: `C:\key space\key.pem`}
+		cfg := config{AgentchatPath: `C:\different\unverified.exe`, HubData: data, HubFiles: filepath.Join(data, "files"), HubListen: "127.0.0.1:8443", HubCert: `C:\cert space\certificate.pem`, HubKey: `C:\key space\key.pem`}
 		command, err := hubServiceBinPath(cfg, g)
 		if err != nil {
 			t.Fatal(err)
@@ -59,7 +59,7 @@ func TestServiceCommandUsesPinnedExecutableAndRoundTripsArguments(t *testing.T) 
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{canonical, "service", "run", "--name", "AgentChatHub", "--log", filepath.Join(data, "hub.log"), "--", "hub", "serve", "--data", data, "--listen", cfg.HubListen, "--tls-cert", cfg.HubCert, "--tls-key", cfg.HubKey}
+		want := []string{canonical, "service", "run", "--name", "AgentChatHub", "--log", filepath.Join(data, "hub.log"), "--", "hub", "serve", "--data", data, "--files-dir", cfg.HubFiles, "--listen", cfg.HubListen, "--tls-cert", cfg.HubCert, "--tls-key", cfg.HubKey}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("SCM arguments changed: got %q want %q", got, want)
 		}
