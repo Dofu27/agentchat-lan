@@ -1759,6 +1759,17 @@ func prepareAttachmentDirectory(path string) error {
 	return nil
 }
 
+func isMissingPath(err error) bool {
+	if err == nil {
+		return false
+	}
+	if os.IsNotExist(err) {
+		return true
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "cannot find the file") || strings.Contains(text, "cannot find the path")
+}
+
 func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 	data := filepath.Clean(dataPath)
 	parent := filepath.Dir(data)
@@ -1768,7 +1779,7 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 		return nil, err
 	}
 	parentInfo, err := os.Lstat(parent)
-	if os.IsNotExist(err) {
+	if isMissingPath(err) {
 		programData := os.Getenv("ProgramData")
 		if programData == "" || !withinPath(parent, filepath.Join(programData, "AgentChat")) {
 			return fail(errors.New("data parent directory does not exist; create a protected data directory first"))
@@ -1798,7 +1809,7 @@ func prepareDataDirectory(dataPath string) (*pinnedDirectoryChain, error) {
 
 	dataInfo, err := os.Lstat(data)
 	switch {
-	case os.IsNotExist(err):
+	case isMissingPath(err):
 		if err := createSecureDirectory(data, "O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"); err != nil {
 			return fail(fmt.Errorf("create data directory: %w", err))
 		}

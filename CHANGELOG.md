@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.49] - 2026-10-27
+
+### Fixed
+
+- Fresh Hub initialization can create a missing `C:\ProgramData\AgentChat`
+  parent directory when Windows reports a missing path as
+  `GetFileAttributesEx ... cannot find`.
+
 ## [0.30.48] - 2026-10-27
 
 ### Added
