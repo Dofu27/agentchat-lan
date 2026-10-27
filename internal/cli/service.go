@@ -111,7 +111,7 @@ func (a *App) serviceInstall(args []string) int {
 		startup, startupErr := installWindowsStartup(*name, launcher)
 		if startupErr != nil {
 			if err != nil {
-				return a.fail(fmt.Errorf("create scheduled task: %w: %s", err, strings.TrimSpace(string(out))))
+				return a.fail(fmt.Errorf("create scheduled task: %w: %s", err, strings.TrimSpace(decodeConsoleOutput(out))))
 			}
 			return a.fail(fmt.Errorf("Task Scheduler unavailable and Startup install failed: %w", startupErr))
 		}
@@ -143,10 +143,10 @@ WantedBy=default.target
 			return a.fail(err)
 		}
 		if out, err := exec.Command("systemctl", "--user", "daemon-reload").CombinedOutput(); err != nil {
-			return a.fail(fmt.Errorf("systemctl daemon-reload: %w: %s", err, strings.TrimSpace(string(out))))
+			return a.fail(fmt.Errorf("systemctl daemon-reload: %w: %s", err, strings.TrimSpace(decodeConsoleOutput(out))))
 		}
 		if out, err := exec.Command("systemctl", "--user", "enable", "--now", *name).CombinedOutput(); err != nil {
-			return a.fail(fmt.Errorf("systemctl enable: %w: %s", err, strings.TrimSpace(string(out))))
+			return a.fail(fmt.Errorf("systemctl enable: %w: %s", err, strings.TrimSpace(decodeConsoleOutput(out))))
 		}
 		fmt.Fprintf(a.Stdout, "installed systemd user service %s\n", *name)
 		return 0
@@ -173,8 +173,8 @@ func (a *App) serviceUninstall(args []string) int {
 				removeErrs = append(removeErrs, fmt.Sprintf("startup: %v", err))
 			}
 		}
-		if err != nil && !scheduledTaskMissing(string(out)) {
-			return a.fail(fmt.Errorf("delete scheduled task: %w: %s", err, strings.TrimSpace(string(out))))
+		if err != nil && !scheduledTaskMissing(decodeConsoleOutput(out)) {
+			return a.fail(fmt.Errorf("delete scheduled task: %w: %s", err, strings.TrimSpace(decodeConsoleOutput(out))))
 		}
 		if len(removeErrs) > 0 {
 			return a.fail(fmt.Errorf("remove bridge files: %s", strings.Join(removeErrs, "; ")))
@@ -207,7 +207,7 @@ func (a *App) serviceStatus(args []string) int {
 	if runtime.GOOS == "windows" {
 		out, err := exec.Command("schtasks", "/Query", "/TN", *name).CombinedOutput()
 		if err == nil {
-			fmt.Fprint(a.Stdout, string(out))
+			fmt.Fprint(a.Stdout, decodeConsoleOutput(out))
 			return 0
 		}
 		if startup, startupErr := windowsStartupPath(*name); startupErr == nil {
@@ -216,14 +216,14 @@ func (a *App) serviceStatus(args []string) int {
 				return 0
 			}
 		}
-		return a.fail(fmt.Errorf("scheduled task %s is not installed: %s", *name, strings.TrimSpace(string(out))))
+		return a.fail(fmt.Errorf("scheduled task %s is not installed: %s", *name, strings.TrimSpace(decodeConsoleOutput(out))))
 	}
 	if runtime.GOOS == "linux" {
 		out, err := exec.Command("systemctl", "--user", "is-active", *name).CombinedOutput()
 		if err != nil {
-			return a.fail(fmt.Errorf("systemd user service %s is not active: %s", *name, strings.TrimSpace(string(out))))
+			return a.fail(fmt.Errorf("systemd user service %s is not active: %s", *name, strings.TrimSpace(decodeConsoleOutput(out))))
 		}
-		fmt.Fprint(a.Stdout, string(out))
+		fmt.Fprint(a.Stdout, decodeConsoleOutput(out))
 		return 0
 	}
 	return a.fail(fmt.Errorf("service status is not implemented on %s", runtime.GOOS))

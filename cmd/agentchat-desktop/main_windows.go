@@ -50,25 +50,26 @@ import (
 )
 
 type config struct {
-	Service       string            `json:"service"`
-	HubURL        string            `json:"hub_url"`
-	TokenFile     string            `json:"token_file"`
-	CAFile        string            `json:"tls_ca_file,omitempty"`
-	Title         string            `json:"title,omitempty"`
-	Width         int               `json:"width,omitempty"`
-	Height        int               `json:"height,omitempty"`
-	LogFiles      map[string]string `json:"log_files,omitempty"`
-	AgentchatPath string            `json:"agentchat_path,omitempty"`
-	AgentConfig   string            `json:"agent_config,omitempty"`
-	BridgeName    string            `json:"bridge_name,omitempty"`
-	BridgeExec    string            `json:"bridge_exec,omitempty"`
-	Connector     string            `json:"connector,omitempty"`
-	Role          string            `json:"role,omitempty"`
-	SetupDone     bool              `json:"setup_done,omitempty"`
-	HubData       string            `json:"hub_data,omitempty"`
-	HubListen     string            `json:"hub_listen,omitempty"`
-	HubCert       string            `json:"hub_tls_cert,omitempty"`
-	HubKey        string            `json:"hub_tls_key,omitempty"`
+	Service           string            `json:"service"`
+	HubURL            string            `json:"hub_url"`
+	TokenFile         string            `json:"token_file"`
+	CAFile            string            `json:"tls_ca_file,omitempty"`
+	Title             string            `json:"title,omitempty"`
+	Width             int               `json:"width,omitempty"`
+	Height            int               `json:"height,omitempty"`
+	LogFiles          map[string]string `json:"log_files,omitempty"`
+	AgentchatPath     string            `json:"agentchat_path,omitempty"`
+	AgentConfig       string            `json:"agent_config,omitempty"`
+	BridgeAgentConfig string            `json:"bridge_agent_config,omitempty"`
+	BridgeName        string            `json:"bridge_name,omitempty"`
+	BridgeExec        string            `json:"bridge_exec,omitempty"`
+	Connector         string            `json:"connector,omitempty"`
+	Role              string            `json:"role,omitempty"`
+	SetupDone         bool              `json:"setup_done,omitempty"`
+	HubData           string            `json:"hub_data,omitempty"`
+	HubListen         string            `json:"hub_listen,omitempty"`
+	HubCert           string            `json:"hub_tls_cert,omitempty"`
+	HubKey            string            `json:"hub_tls_key,omitempty"`
 }
 
 type app struct {
@@ -974,12 +975,17 @@ func (b *cappedBuffer) String() string {
 }
 
 func bridgeResult(cfg config, action string) map[string]any {
+	bridgeAgentConfig := cfg.BridgeAgentConfig
+	if bridgeAgentConfig == "" {
+		bridgeAgentConfig = cfg.AgentConfig
+	}
 	result := map[string]any{
-		"action":       action,
-		"name":         cfg.BridgeName,
-		"agent_config": cfg.AgentConfig,
-		"agentchat":    cfg.AgentchatPath,
-		"bridge_exec":  cfg.BridgeExec,
+		"action":              action,
+		"name":                cfg.BridgeName,
+		"agent_config":        bridgeAgentConfig,
+		"bridge_agent_config": cfg.BridgeAgentConfig,
+		"agentchat":           cfg.AgentchatPath,
+		"bridge_exec":         cfg.BridgeExec,
 	}
 	if cfg.AgentchatPath == "" {
 		result["ok"] = false
@@ -988,12 +994,12 @@ func bridgeResult(cfg config, action string) map[string]any {
 	}
 	args := []string{"bridge", action, "--name", cfg.BridgeName}
 	if action == "install" {
-		if cfg.AgentConfig == "" {
+		if bridgeAgentConfig == "" {
 			result["ok"] = false
-			result["error"] = "agent_config is not configured"
+			result["error"] = "bridge agent_config is not configured"
 			return result
 		}
-		args = []string{"bridge", "install", "--config", cfg.AgentConfig, "--name", cfg.BridgeName, "--mention-only", "--typing", "--start-now"}
+		args = []string{"bridge", "install", "--config", bridgeAgentConfig, "--name", cfg.BridgeName, "--mention-only", "--typing", "--start-now"}
 		if cfg.BridgeExec != "" {
 			args = append(args, "--exec", cfg.BridgeExec)
 		}
@@ -1064,8 +1070,13 @@ func dshProbe() connectorProbe {
 		filepath.Join(os.Getenv("DSH_HOME"), "DSH Desktop.exe"),
 		filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", "DSH", "DSH Desktop.exe"),
 		filepath.Join(os.Getenv("ProgramFiles"), "DSH", "DSH Desktop.exe"),
+		filepath.Join(os.Getenv("ProgramFiles"), "DSH Desktop", "DSH Desktop.exe"),
 		filepath.Join(os.Getenv("ProgramFiles(x86)"), "DSH", "DSH Desktop.exe"),
+		filepath.Join(os.Getenv("ProgramFiles(x86)"), "DSH Desktop", "DSH Desktop.exe"),
 		filepath.Join(home, "DSH", "DSH Desktop.exe"),
+	}
+	for _, drive := range []string{"D:", "E:", "F:", "G:", "H:", "I:", "J:"} {
+		candidates = append(candidates, filepath.Join(drive, "DSH", "DSH Desktop", "DSH Desktop.exe"))
 	}
 	out.Path = firstExisting(candidates...)
 	if out.Path != "" {
@@ -1162,17 +1173,90 @@ func (a *app) connectorStatus() map[string]any {
 	codex := codexProbe()
 	dsh := dshProbe()
 	out := map[string]any{
-		"agentchat":    cfg.AgentchatPath,
-		"agent_config": cfg.AgentConfig,
-		"connector":    cfg.Connector,
-		"codex":        codex,
-		"dsh":          dsh,
-		"ready":        cfg.AgentConfig != "" && cfg.AgentchatPath != "",
+		"agentchat":           cfg.AgentchatPath,
+		"agent_config":        cfg.AgentConfig,
+		"bridge_agent_config": cfg.BridgeAgentConfig,
+		"connector":           cfg.Connector,
+		"codex":               codex,
+		"dsh":                 dsh,
+		"ready":               cfg.AgentConfig != "" && cfg.AgentchatPath != "",
 	}
 	if cfg.AgentConfig != "" && cfg.AgentchatPath != "" {
 		out["mcp"] = codexMCPBlock(resolvedCLIPath(cfg.AgentchatPath), cfg.AgentConfig)
 	}
 	return out
+}
+
+// ensureDshBridgeAgent creates a dedicated DSH identity instead of reusing
+// the human Console identity. The bridge must never send as the human agent:
+// the agent loop intentionally ignores messages authored by its own identity.
+func (a *app) ensureDshBridgeAgent(base config) (string, error) {
+	if strings.TrimSpace(base.AgentConfig) == "" {
+		return "", errors.New("join a hub as a human agent first")
+	}
+	path := filepath.Join(filepath.Dir(base.AgentConfig), "dsh-agent.json")
+	if _, err := os.Stat(path); err == nil {
+		if err := a.validateAgentConfigFile(path); err != nil {
+			return "", fmt.Errorf("existing DSH agent config is invalid: %w", err)
+		}
+		return path, nil
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	endpoint, err := a.adminEndpoint()
+	if err != nil {
+		return "", err
+	}
+	inviteBody, _ := json.Marshal(map[string]any{"room": "general", "uses": 1, "ttl_seconds": 3600})
+	data, status, err := endpoint.raw(http.MethodPost, "/v1/admin/invites", inviteBody)
+	if err != nil {
+		return "", fmt.Errorf("create DSH invite: %w", err)
+	}
+	if status < 200 || status >= 300 {
+		return "", fmt.Errorf("create DSH invite: hub returned HTTP %d", status)
+	}
+	var invite struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(data, &invite); err != nil || invite.Code == "" {
+		return "", errors.New("create DSH invite: invalid hub response")
+	}
+	joinBody, _ := json.Marshal(protocol.JoinRequest{InviteCode: invite.Code, Name: "dsh", Kind: "dsh"})
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base.HubURL+"/v1/join", bytes.NewReader(joinBody))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := a.http
+	if client == nil {
+		return "", errors.New("hub client is not configured")
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("join DSH agent: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("join DSH agent: hub returned HTTP %d (is the name dsh already used?)", resp.StatusCode)
+	}
+	var joined protocol.JoinResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&joined); err != nil || joined.Token == "" || joined.Agent.ID == "" {
+		return "", errors.New("join DSH agent: invalid hub response")
+	}
+	rooms := make([]string, 0, len(joined.Rooms))
+	for _, room := range joined.Rooms {
+		rooms = append(rooms, room.ID)
+	}
+	agentCfg := agentconfig.Config{
+		HubURL: base.HubURL, Token: joined.Token, AgentID: joined.Agent.ID,
+		AgentName: joined.Agent.Name, AgentKind: joined.Agent.Kind, Rooms: rooms,
+	}
+	if err := agentconfig.SaveNew(path, &agentCfg); err != nil {
+		return "", fmt.Errorf("save DSH agent config: %w", err)
+	}
+	return path, nil
 }
 
 func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
@@ -1306,7 +1390,13 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 		}
 		cfg.Connector = "dsh"
 		cfg.BridgeName = name
-		hook, err := writeConnectorHook(name, dshBridgeExec(resolvedCLIPath(cfg.AgentchatPath), cfg.AgentConfig, dsh, script, home, workdir))
+		bridgeAgentConfig, err := a.ensureDshBridgeAgent(cfg)
+		if err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
+			return
+		}
+		cfg.BridgeAgentConfig = bridgeAgentConfig
+		hook, err := writeConnectorHook(name, dshBridgeExec(resolvedCLIPath(cfg.AgentchatPath), bridgeAgentConfig, dsh, script, home, workdir))
 		if err != nil {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
 			return

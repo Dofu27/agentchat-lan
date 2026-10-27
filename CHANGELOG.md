@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.47] - 2026-10-27
+
+### Fixed
+
+- DSH bridge now creates a dedicated `dsh` agent identity (`dsh-agent.json`)
+  instead of reusing the human Console agent. The agent loop ignores messages
+  from its own identity, so the old setup could never receive its own mentions.
+- DSH bridge detection also checks common non-C-drive installs.
+- Windows console output from `schtasks`/`sc` is decoded with the OEM code page
+  instead of being shown as mojibake.
+
 ## [0.30.46] - 2026-10-26
 
 ### Changed
