@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.53] - 2026-10-28
+
+### Security
+
+- Existing attachment directories reject ordinary-user write access and
+  inherited child-write ACEs, not just path replacement.
+- Clear Hub data verifies a persisted Hub marker and the admin token identity.
+- Clear checks both the configured service and AgentChatHub.
+- Failed attachment validation removes only a data directory created by this
+  initialization attempt.
+- DSH bridge install refuses to fall back to the human identity.
+- Pending DSH configs are validated before replacing an existing config, and
+  are written with a protected DACL.
+- Relative TLS CA paths are resolved against the desktop config.
+- Rollback failures are surfaced instead of ignored.
+
 ## [0.30.52] - 2026-10-28
 
 ### Security

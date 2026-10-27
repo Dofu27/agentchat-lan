@@ -359,6 +359,53 @@ func ordinaryUserCanReplacePath(sd *windows.SECURITY_DESCRIPTOR, token windows.T
 	return allowed != 0 && granted&replacement != 0, nil
 }
 
+func ordinaryUserCanWritePath(sd *windows.SECURITY_DESCRIPTOR, token windows.Token) (bool, error) {
+	absolute, err := sd.ToAbsolute()
+	if err != nil {
+		return false, err
+	}
+	mapping := fileGenericMapping{windows.FILE_GENERIC_READ, windows.FILE_GENERIC_WRITE, windows.FILE_GENERIC_EXECUTE, 0x1f01ff}
+	privileges := make([]uint64, 512)
+	size := uint32(len(privileges) * 8)
+	var granted, allowed uint32
+	r, _, callErr := accessCheckProc.Call(uintptr(unsafe.Pointer(absolute)), uintptr(token), uintptr(windows.FILE_GENERIC_WRITE), uintptr(unsafe.Pointer(&mapping)), uintptr(unsafe.Pointer(&privileges[0])), uintptr(unsafe.Pointer(&size)), uintptr(unsafe.Pointer(&granted)), uintptr(unsafe.Pointer(&allowed)))
+	runtime.KeepAlive(absolute)
+	if r == 0 {
+		return false, fmt.Errorf("AccessCheck attachment directory: %w", callErr)
+	}
+	const writeAccess = windows.FILE_GENERIC_WRITE | 0x2 /* FILE_ADD_FILE */ | 0x4 /* FILE_ADD_SUBDIRECTORY */
+	return allowed != 0 && granted&writeAccess != 0, nil
+}
+
+func rejectOrdinaryAttachmentWriters(path string) error {
+	p, err := windows.UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	h, err := windows.CreateFile(p, windows.GENERIC_READ|windows.READ_CONTROL, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseHandle(h)
+	sd, err := windows.GetSecurityInfo(h, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return err
+	}
+	token, err := ordinaryUserToken()
+	if err != nil {
+		return err
+	}
+	defer token.Close()
+	canWrite, err := ordinaryUserCanWritePath(sd, token)
+	if err != nil {
+		return err
+	}
+	if canWrite {
+		return errors.New("ordinary user can write attachment content")
+	}
+	return rejectForeignServiceWriters(sd)
+}
+
 func openDataDirectory(path string) (windows.Handle, error) {
 	p, err := windows.UTF16PtrFromString(path)
 	if err != nil {
