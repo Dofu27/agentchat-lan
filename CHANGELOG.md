@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.55] - 2026-10-28
+
+### Added
+
+- Explicit non-sensitive attachment mode: a user-writable attachment folder
+  can be selected with a warning. The database, admin token, and TLS material
+  remain protected.
+- Clear still never deletes the external attachment folder.
+
 ## [0.30.54] - 2026-10-28
 
 ### Security

@@ -252,6 +252,7 @@
         <label for="host-files" data-i18n="host.files">Attachment directory</label>
         <input id="host-files" type="text" autocomplete="off" placeholder="D:\AgentChatData\files">
         <span class="hint" data-i18n="host.files_hint">Large uploaded files. Can be on a larger local disk.</span>
+        <label class="check"><input id="host-files-insecure" type="checkbox"> <span data-i18n="host.files_insecure">Allow a user-writable attachment folder (non-sensitive files only)</span></label>
       </div>
       <div class="field">
         <label for="host-token" data-i18n="host.token">Admin token file</label>
@@ -594,7 +595,7 @@
   <section class="wide">
     <h2 data-i18n="about.title">About AgentChat LAN</h2>
     <div class="kv">
-      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.54</span>
+      <span class="k" data-i18n="about.version">Version</span><span class="v" id="about-version">v0.30.55</span>
       <span class="k" data-i18n="about.author">Author</span><span class="v">豆腐</span>
       <span class="k" data-i18n="about.license">License</span><span class="v">MIT</span>
       <span class="k" data-i18n="about.feedback">Feedback</span>
@@ -665,6 +666,7 @@
       "host.firewall_failed":"Firewall change failed; run the Console as administrator",
       "host.data":"Database directory", "host.data_hint":"Small, protected database: rooms, members, messages, invites.",
       "host.files":"Attachment directory", "host.files_hint":"Large uploaded files. Can be on a larger local disk.",
+      "host.files_insecure":"Allow a user-writable attachment folder (non-sensitive files only)",
       "host.token":"Admin token file", "host.token_hint":"The admin token is written here once. Keep it private.",
       "host.listen":"Listen address", "host.listen_hint":"Use 127.0.0.1 for this machine only; 0.0.0.0:8787 for LAN.",
       "host.url":"Hub URL", "host.url_hint":"URL agents use to reach this hub; include https if TLS is enabled.",
@@ -773,6 +775,7 @@
       "host.firewall_failed":"防火墙修改失败；请以管理员身份运行 Console",
       "host.data":"数据库目录", "host.data_hint":"小型受保护数据库：房间、成员、消息和邀请码。",
       "host.files":"附件目录", "host.files_hint":"大容量上传文件存放位置，可选择空间较大的本地磁盘。",
+      "host.files_insecure":"允许普通用户可写的附件目录（仅限非敏感文件）",
       "host.token":"管理员 token 文件", "host.token_hint":"管理员 token 只写入一次，请妥善保管。",
       "host.listen":"监听地址", "host.listen_hint":"127.0.0.1 只允许本机；局域网用 0.0.0.0:8787。",
       "host.url":"Hub URL", "host.url_hint":"Agent 访问此 Hub 的地址；启用 TLS 时写 https。",
@@ -1036,6 +1039,7 @@
     $("welcome").classList.toggle("hidden", !!body.setup_done);
     if (!$("host-data").value) $("host-data").value = body.hub_data || body.default_data || "";
     if (!$("host-files").value) $("host-files").value = body.hub_files || (body.hub_data ? body.hub_data + "\\files" : "");
+    $("host-files-insecure").checked = body.allow_unprotected_files === true;
     if (!$("host-token").value) $("host-token").value = body.token_file || body.default_token || "";
     const hubConfigured = !!body.hub_data;
     $("host-setup").classList.toggle("hidden", body.role !== "hub");
@@ -1048,7 +1052,7 @@
     if (!$("host-url-warning").textContent) $("host-url-warning").textContent = t("host.url_warn");
     $("host-url-warning-global").textContent = $("host-url-warning").textContent;
     $("host-configured-note").textContent = hubConfigured ? "Hub 已初始化" : "";
-    for (const id of ["host-data","host-files","host-token","host-listen","host-url","host-cert","host-key","host-ca","host-init"]) {
+    for (const id of ["host-data","host-files","host-token","host-listen","host-url","host-cert","host-key","host-ca","host-init","host-files-insecure"]) {
       const el = $(id); if (el) el.disabled = hubConfigured;
     }
     for (const id of ["host-detect","host-tls-generate","host-tls-install","host-tls-reset","host-firewall-open","host-firewall-remove"]) {
@@ -1072,6 +1076,7 @@
       const body = await api("/api/hub/init", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
         data: $("host-data").value.trim(),
         files: $("host-files").value.trim(),
+        allow_unprotected_files: $("host-files-insecure").checked,
         token_file: $("host-token").value.trim(),
         listen: $("host-listen").value.trim(),
         hub_url: $("host-url").value.trim(),

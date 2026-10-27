@@ -50,28 +50,29 @@ import (
 )
 
 type config struct {
-	Service           string            `json:"service"`
-	HubURL            string            `json:"hub_url"`
-	TokenFile         string            `json:"token_file"`
-	CAFile            string            `json:"tls_ca_file,omitempty"`
-	Title             string            `json:"title,omitempty"`
-	Width             int               `json:"width,omitempty"`
-	Height            int               `json:"height,omitempty"`
-	LogFiles          map[string]string `json:"log_files,omitempty"`
-	AgentchatPath     string            `json:"agentchat_path,omitempty"`
-	AgentConfig       string            `json:"agent_config,omitempty"`
-	BridgeAgentConfig string            `json:"bridge_agent_config,omitempty"`
-	BridgeName        string            `json:"bridge_name,omitempty"`
-	BridgeExec        string            `json:"bridge_exec,omitempty"`
-	Connector         string            `json:"connector,omitempty"`
-	Role              string            `json:"role,omitempty"`
-	SetupDone         bool              `json:"setup_done,omitempty"`
-	HubData           string            `json:"hub_data,omitempty"`
-	HubFiles          string            `json:"hub_files,omitempty"`
-	HubMarker         string            `json:"hub_marker,omitempty"`
-	HubListen         string            `json:"hub_listen,omitempty"`
-	HubCert           string            `json:"hub_tls_cert,omitempty"`
-	HubKey            string            `json:"hub_tls_key,omitempty"`
+	Service               string            `json:"service"`
+	HubURL                string            `json:"hub_url"`
+	TokenFile             string            `json:"token_file"`
+	CAFile                string            `json:"tls_ca_file,omitempty"`
+	Title                 string            `json:"title,omitempty"`
+	Width                 int               `json:"width,omitempty"`
+	Height                int               `json:"height,omitempty"`
+	LogFiles              map[string]string `json:"log_files,omitempty"`
+	AgentchatPath         string            `json:"agentchat_path,omitempty"`
+	AgentConfig           string            `json:"agent_config,omitempty"`
+	BridgeAgentConfig     string            `json:"bridge_agent_config,omitempty"`
+	BridgeName            string            `json:"bridge_name,omitempty"`
+	BridgeExec            string            `json:"bridge_exec,omitempty"`
+	Connector             string            `json:"connector,omitempty"`
+	Role                  string            `json:"role,omitempty"`
+	SetupDone             bool              `json:"setup_done,omitempty"`
+	HubData               string            `json:"hub_data,omitempty"`
+	HubFiles              string            `json:"hub_files,omitempty"`
+	HubMarker             string            `json:"hub_marker,omitempty"`
+	AllowUnprotectedFiles bool              `json:"allow_unprotected_files,omitempty"`
+	HubListen             string            `json:"hub_listen,omitempty"`
+	HubCert               string            `json:"hub_tls_cert,omitempty"`
+	HubKey                string            `json:"hub_tls_key,omitempty"`
 }
 
 type app struct {
@@ -1202,13 +1203,25 @@ func (a *app) absoluteCAFile() string {
 	ca, configPath := a.cfg.CAFile, a.configPath
 	a.mu.RUnlock()
 	ca = strings.TrimSpace(ca)
-	if ca == "" || filepath.IsAbs(ca) {
-		return ca
+	if ca == "" {
+		return ""
+	}
+	if configPath != "" && !filepath.IsAbs(configPath) {
+		if abs, err := filepath.Abs(configPath); err == nil {
+			configPath = abs
+		}
+	}
+	if filepath.IsAbs(ca) {
+		return filepath.Clean(ca)
 	}
 	if configPath == "" {
 		return ca
 	}
-	return filepath.Join(filepath.Dir(configPath), ca)
+	abs, err := filepath.Abs(filepath.Join(filepath.Dir(configPath), ca))
+	if err != nil {
+		return ca
+	}
+	return abs
 }
 
 func (a *app) validateDshAgentConfig(path string) (agentConfigFile, error) {
@@ -1249,7 +1262,7 @@ func (a *app) backfillAgentCA(path string) error {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return err
 	}
-	if strings.TrimSpace(cfg.TLSCAFile) != "" {
+	if cfg.TLSCAFile != "" && filepath.IsAbs(cfg.TLSCAFile) {
 		return nil
 	}
 	cfg.TLSCAFile = ca
@@ -1257,7 +1270,28 @@ func (a *app) backfillAgentCA(path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(updated, '\n'), 0o600)
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".dsh-ca-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(append(updated, '\n')); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 func (a *app) ensureDshBridgeAgent(base config) (string, error) {
@@ -1882,10 +1916,31 @@ func mergeChains(dst, src *pinnedDirectoryChain) {
 // the SQLite data directory it may live on a large user-selected volume, so it
 // does not require every ancestor to be protected; the final directory is
 // created with an admin/SYSTEM-only DACL and reparse points are rejected.
-func prepareAttachmentDirectory(path string) error {
+func prepareAttachmentDirectory(path string, allowUnprotected bool) error {
 	path = filepath.Clean(strings.TrimSpace(path))
 	if path == "" || !filepath.IsAbs(path) {
 		return errors.New("attachment path must be absolute")
+	}
+	vol := filepath.VolumeName(path)
+	if vol == "" || strings.EqualFold(path, filepath.Clean(vol+`\`)) {
+		return errors.New("attachment path must not be a volume root")
+	}
+	if allowUnprotected {
+		if info, err := os.Lstat(path); err == nil {
+			if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+				return errors.New("attachment path is not a real directory")
+			}
+			return nil
+		} else if !isMissingPath(err) {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			return fmt.Errorf("create attachment parent: %w", err)
+		}
+		if err := createSecureDirectory(path, "O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"); err != nil {
+			return fmt.Errorf("create attachment directory: %w", err)
+		}
+		return nil
 	}
 	parent := filepath.Dir(path)
 	parentInfo, err := os.Lstat(parent)
@@ -2124,14 +2179,15 @@ func (a *app) handleHubClearData(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Data      string `json:"data"`
-		Files     string `json:"files"`
-		TokenFile string `json:"token_file"`
-		Listen    string `json:"listen"`
-		HubURL    string `json:"hub_url"`
-		TLSCert   string `json:"tls_cert"`
-		TLSKey    string `json:"tls_key"`
-		TLSCA     string `json:"tls_ca"`
+		Data                  string `json:"data"`
+		Files                 string `json:"files"`
+		AllowUnprotectedFiles bool   `json:"allow_unprotected_files"`
+		TokenFile             string `json:"token_file"`
+		Listen                string `json:"listen"`
+		HubURL                string `json:"hub_url"`
+		TLSCert               string `json:"tls_cert"`
+		TLSKey                string `json:"tls_key"`
+		TLSCA                 string `json:"tls_ca"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid request"})
@@ -2211,6 +2267,7 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	candidate.Service = "AgentChatHub"
 	candidate.HubData = req.Data
 	candidate.HubFiles = attachmentDir
+	candidate.AllowUnprotectedFiles = req.AllowUnprotectedFiles
 	candidate.TokenFile = req.TokenFile
 	candidate.HubListen = req.Listen
 	candidate.HubCert = req.TLSCert
@@ -2234,7 +2291,7 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 			dataGuard.Close()
 		}
 	}()
-	if err := prepareAttachmentDirectory(attachmentDir); err != nil {
+	if err := prepareAttachmentDirectory(attachmentDir, req.AllowUnprotectedFiles); err != nil {
 		dataGuard.Close()
 		dataGuard = nil
 		cleanupErr := os.RemoveAll(req.Data)
@@ -2249,8 +2306,12 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 	if err := os.WriteFile(filepath.Join(req.Data, ".agentchat-hub"), []byte(hubMarker), 0o600); err != nil {
 		dataGuard.Close()
 		dataGuard = nil
-		_ = os.RemoveAll(req.Data)
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot write Hub identity marker"})
+		cleanupErr := os.RemoveAll(req.Data)
+		msg := "cannot write Hub identity marker"
+		if cleanupErr != nil {
+			msg += "; cleanup failed: " + cleanupErr.Error()
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": msg})
 		return
 	}
 	candidate.HubMarker = hubMarker
@@ -2995,8 +3056,10 @@ func (a *app) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"role": a.cfg.Role, "setup_done": a.cfg.SetupDone, "is_admin": windows.GetCurrentProcessToken().IsElevated(), "config_path": a.configPath,
 		"hub_url": a.cfg.HubURL, "agent_config": a.cfg.AgentConfig,
 		"token_file": a.cfg.TokenFile,
-		"hub_data":   a.cfg.HubData, "hub_files": a.cfg.HubFiles, "hub_listen": a.cfg.HubListen,
-		"hub_tls_cert": a.cfg.HubCert, "hub_tls_key": a.cfg.HubKey,
+		"hub_data":   a.cfg.HubData, "hub_files": a.cfg.HubFiles,
+		"allow_unprotected_files": a.cfg.AllowUnprotectedFiles,
+		"hub_listen":              a.cfg.HubListen,
+		"hub_tls_cert":            a.cfg.HubCert, "hub_tls_key": a.cfg.HubKey,
 		"default_data":  defaultData,
 		"default_token": filepath.Join(filepath.Dir(defaultData), "admin.token"),
 	})
