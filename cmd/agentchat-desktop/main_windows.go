@@ -1933,6 +1933,17 @@ func validateAttachmentLocation(path string) error {
 		if info.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("attachment path contains a reparse point: %s", current)
 		}
+		ptr, err := windows.UTF16PtrFromString(current)
+		if err != nil {
+			return err
+		}
+		attrs, err := windows.GetFileAttributes(ptr)
+		if err != nil {
+			return err
+		}
+		if attrs&windows.FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+			return fmt.Errorf("attachment path contains a reparse point: %s", current)
+		}
 	}
 	return nil
 }
@@ -2305,6 +2316,21 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "hub TLS client could not be built"})
 		return
 	}
+	if req.AllowUnprotectedFiles {
+		for _, p := range []string{req.TokenFile, req.TLSCert, req.TLSKey} {
+			if p != "" && withinPath(p, attachmentDir) {
+				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "admin token and TLS files must not be inside the unprotected attachment directory"})
+				return
+			}
+		}
+	}
+	if _, err := os.Stat(req.TokenFile); err == nil {
+		writeJSON(w, http.StatusConflict, map[string]any{"error": "admin token file already exists; remove it to initialize"})
+		return
+	} else if !isMissingPath(err) {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot inspect admin token file"})
+		return
+	}
 	dataGuard, err := prepareDataDirectory(req.Data)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
@@ -2315,14 +2341,6 @@ func (a *app) handleHubInit(w http.ResponseWriter, r *http.Request) {
 			dataGuard.Close()
 		}
 	}()
-	if req.AllowUnprotectedFiles {
-		for _, p := range []string{req.TokenFile, req.TLSCert, req.TLSKey} {
-			if p != "" && withinPath(p, attachmentDir) {
-				writeJSON(w, http.StatusBadRequest, map[string]any{"error": "admin token and TLS files must not be inside the unprotected attachment directory"})
-				return
-			}
-		}
-	}
 	if err := prepareAttachmentDirectory(attachmentDir, req.AllowUnprotectedFiles); err != nil {
 		dataGuard.Close()
 		dataGuard = nil

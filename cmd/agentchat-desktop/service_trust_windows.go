@@ -404,6 +404,9 @@ func rejectOrdinaryAttachmentWriters(path string) error {
 		return errors.New("ordinary user can write attachment content")
 	}
 	sddl := strings.ToUpper(sd.String())
+	if strings.Contains(sddl, "NP") {
+		return errors.New("attachment directory has an inherit-only no-propagate ACE")
+	}
 	for _, flag := range []string{"OIIO", "CIIO", "OICIIO"} {
 		if strings.Contains(sddl, flag) {
 			return errors.New("attachment directory has an inherit-only ACE")

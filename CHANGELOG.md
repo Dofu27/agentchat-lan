@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.57] - 2026-10-28
+
+### Security
+
+- Attachment ancestor checks use Windows reparse attributes, catching junctions
+  that do not set Go's ModeSymlink bit.
+- Attachment ACL checks reject no-propagate (`NP`) inherit-only ACEs.
+- Token/TLS overlap and existing-token checks run before creating data.
+
 ## [0.30.56] - 2026-10-28
 
 ### Security
