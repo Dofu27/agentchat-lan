@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.58] - 2026-10-28
+
+### Security
+
+- Default Hub TLS material moves to the protected machine-wide
+  `C:\ProgramData\AgentChat\tls` directory and is created with a protected
+  DACL.
+- Clear Hub data renames the managed directory to a quarantine path before
+  recursive removal; removal failures return the quarantine path.
+
 ## [0.30.57] - 2026-10-28
 
 ### Security

@@ -2161,8 +2161,13 @@ func (a *app) handleHubClearData(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, map[string]any{"error": "Hub data directory identity could not be verified; refusing to delete"})
 		return
 	}
-	if err := os.RemoveAll(abs); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot delete hub data"})
+	quarantine := abs + ".deleting-" + time.Now().UTC().Format("20060102T150405Z")
+	if err := os.Rename(abs, quarantine); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot quarantine hub data; nothing was deleted"})
+		return
+	}
+	if err := os.RemoveAll(quarantine); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "deleted": abs, "quarantine": quarantine, "error": "hub data was moved but could not be removed; inspect the quarantine path"})
 		return
 	}
 	tokenDeleted := false
@@ -2647,7 +2652,10 @@ func (a *app) handleHubFirewall(w http.ResponseWriter, r *http.Request) {
 }
 
 func localTLSFiles() (string, string, string) {
-	base := os.Getenv("LOCALAPPDATA")
+	base := os.Getenv("ProgramData")
+	if base == "" {
+		base = os.Getenv("LOCALAPPDATA")
+	}
 	if base == "" {
 		base = os.TempDir()
 	}
@@ -2657,7 +2665,14 @@ func localTLSFiles() (string, string, string) {
 
 func generateHubCertificate() (string, string, string, error) {
 	dir, certPath, keyPath := localTLSFiles()
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dir), 0o700); err != nil {
+		return "", "", "", err
+	}
+	if _, err := os.Lstat(dir); isMissingPath(err) {
+		if err := createSecureDirectory(dir, "O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"); err != nil {
+			return "", "", "", err
+		}
+	} else if err != nil {
 		return "", "", "", err
 	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -2702,10 +2717,12 @@ func generateHubCertificate() (string, string, string, error) {
 		return "", "", "", err
 	}
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	if err := os.WriteFile(certPath, certPEM, 0o644); err != nil {
+	_ = os.Remove(certPath)
+	_ = os.Remove(keyPath)
+	if err := createSecureTokenFile(certPath, string(certPEM)); err != nil {
 		return "", "", "", err
 	}
-	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+	if err := createSecureTokenFile(keyPath, string(keyPEM)); err != nil {
 		return "", "", "", err
 	}
 	return certPath, keyPath, fmt.Sprintf("%x", sha256.Sum256(der)), nil
