@@ -80,8 +80,8 @@ func (a *App) cmdDshBridge(args []string) int {
 	if err := json.NewDecoder(os.Stdin).Decode(&msg); err != nil {
 		return a.fail(fmt.Errorf("decode AgentChat message: %w", err))
 	}
-	if strings.TrimSpace(msg.Text) == "" {
-		return a.fail(fmt.Errorf("message has no text"))
+	if strings.TrimSpace(msg.Text) == "" && len(msg.Files) == 0 {
+		return a.fail(fmt.Errorf("message has no text or attachments"))
 	}
 	if !safeMessageID(msg.ID) {
 		return a.fail(fmt.Errorf("message id is missing or unsafe; idempotent DSH delivery is impossible"))
@@ -117,6 +117,11 @@ func (a *App) cmdDshBridge(args []string) int {
 	defer release()
 
 	statePath := filepath.Join(stateDir, msg.ID+".json")
+	c, err := a.newClient(cfg)
+	if err != nil {
+		return a.fail(err)
+	}
+	defer c.HTTP.CloseIdleConnections()
 	state, stateErr := readDSHState(statePath)
 	if stateErr != nil {
 		return a.fail(fmt.Errorf("read DSH state: %w", stateErr))
@@ -136,7 +141,30 @@ func (a *App) cmdDshBridge(args []string) int {
 			return a.fail(fmt.Errorf("record DSH run: %w", err))
 		}
 		sessionID := readDSHSession(sessionPath)
-		final, newSession, parseErr := runDSH(*dsh, *dshScript, *dshHome, *profile, *workdir, *timeout, stateDir, sessionID, dshPrompt(cfg.AgentName, msg))
+		attachmentPaths := []string{}
+		if len(msg.Files) > 0 {
+			base := *workdir
+			if base == "" {
+				base, _ = os.UserHomeDir()
+			}
+			attachmentDir := filepath.Join(base, ".agentchat-attachments", msg.ID)
+			if err := os.MkdirAll(attachmentDir, 0o700); err != nil {
+				return a.fail(fmt.Errorf("create attachment directory: %w", err))
+			}
+			downloadCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+			for i, ref := range msg.Files {
+				name := safeAttachmentName(ref.Name)
+				dest := filepath.Join(attachmentDir, fmt.Sprintf("%02d-%s", i+1, name))
+				info, err := c.DownloadFile(downloadCtx, ref.ID, dest)
+				if err != nil {
+					cancel()
+					return a.fail(fmt.Errorf("download attachment %s: %w", ref.Name, err))
+				}
+				attachmentPaths = append(attachmentPaths, info.Path)
+			}
+			cancel()
+		}
+		final, newSession, parseErr := runDSH(*dsh, *dshScript, *dshHome, *profile, *workdir, *timeout, stateDir, sessionID, dshPrompt(cfg.AgentName, msg, attachmentPaths...))
 		if parseErr != nil {
 			_ = writeDSHState(statePath, dshState{Status: "failed", ErrorClass: parseErr.Error()})
 			return a.fail(parseErr)
@@ -156,11 +184,6 @@ func (a *App) cmdDshBridge(args []string) int {
 		fmt.Fprintln(a.Stdout, state.Final)
 		return 0
 	}
-	c, err := a.newClient(cfg)
-	if err != nil {
-		return a.fail(err)
-	}
-	defer c.HTTP.CloseIdleConnections()
 	sendCtx, sendCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer sendCancel()
 	if _, err := c.SendMessage(sendCtx, msg.Room, protocol.SendMessageRequest{Text: state.Final, ClientMsgID: state.ClientID}); err != nil {
@@ -349,14 +372,31 @@ func safeMessageID(id string) bool {
 	return true
 }
 
-func dshPrompt(agentName string, msg protocol.Message) string {
+func safeAttachmentName(name string) string {
+	name = strings.ReplaceAll(name, `\`, `/`)
+	name = filepath.Base(name)
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == "/" {
+		return "attachment.bin"
+	}
+	return name
+}
+
+func dshPrompt(agentName string, msg protocol.Message, attachmentPaths ...string) string {
 	name := agentName
 	if name == "" {
 		name = "the agent"
 	}
-	return fmt.Sprintf("You are %s, a participant in AgentChat LAN room %q. "+
+	prompt := fmt.Sprintf("You are %s, a participant in AgentChat LAN room %q. "+
 		"Reply to this message from %s. Return only the reply text; do not include a transcript or tool log.\n\n%s",
 		name, msg.Room, msg.From.Name, msg.Text)
+	if len(attachmentPaths) > 0 {
+		prompt += "\n\nAttachments downloaded by the AgentChat bridge:\n"
+		for _, path := range attachmentPaths {
+			prompt += "- " + path + "\n"
+		}
+	}
+	return prompt
 }
 
 func readDSHSession(path string) string {

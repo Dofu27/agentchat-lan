@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.59] - 2026-10-28
+
+### Added
+
+- DSH bridge downloads message attachments with the agent token into a
+  per-message directory under the DSH workdir and includes the local paths in
+  the DSH prompt.
+- Attachment-only messages can trigger the DSH bridge.
+
 ## [0.30.58] - 2026-10-28
 
 ### Security
