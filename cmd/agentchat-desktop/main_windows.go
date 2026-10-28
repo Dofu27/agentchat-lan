@@ -1386,6 +1386,13 @@ func (a *app) ensureDshBridgeAgent(base config) (string, error) {
 	return path, nil
 }
 
+func normalizeWindowsDrivePath(path string) string {
+	if len(path) >= 2 && path[1] == ':' && len(path) > 2 && path[2] != '\\' && path[2] != '/' {
+		return path[:2] + `\` + path[2:]
+	}
+	return path
+}
+
 func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		writeJSON(w, http.StatusOK, a.connectorStatus())
@@ -1487,9 +1494,9 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, out)
 	case "dsh":
 		probe := dshProbe()
-		dsh := strings.TrimSpace(req.Path)
+		dsh := normalizeWindowsDrivePath(strings.TrimSpace(req.Path))
 		if dsh == "" {
-			dsh = probe.Path
+			dsh = normalizeWindowsDrivePath(probe.Path)
 		}
 		if dsh == "" {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "DSH Desktop.exe not found; set the path manually"})
@@ -2776,19 +2783,23 @@ func resetLocalCertificate() (string, string, string, error) {
 		restoreErr := restore()
 		return "", "", "", fmt.Errorf("generate certificate: %v (restore: %v)", err, restoreErr)
 	}
-	systemDir, err := windows.GetSystemDirectory()
-	if err != nil {
-		restoreErr := restore()
-		return "", "", "", fmt.Errorf("locate Windows tools: %v (restore: %v)", err, restoreErr)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	if out, err := runBoundedCommand(ctx, filepath.Join(systemDir, "certutil.exe"),
-		[]string{"-addstore", "-user", "Root", cert}, 16<<10); err != nil {
+	if err := installUserRootCertificate(ctx, cert); err != nil {
 		restoreErr := restore()
-		return "", "", "", fmt.Errorf("certificate install failed: %s (restore: %v)", redactOutput(strings.TrimSpace(out)), restoreErr)
+		return "", "", "", fmt.Errorf("certificate install failed: %s (restore: %v)", redactOutput(err.Error()), restoreErr)
 	}
 	return cert, key, fingerprint, nil
+}
+
+func installUserRootCertificate(ctx context.Context, certPath string) error {
+	literal := "'" + strings.ReplaceAll(certPath, "'", "''") + "'"
+	script := "$ErrorActionPreference='Stop'; Import-Certificate -FilePath " + literal + " -CertStoreLocation Cert:\\CurrentUser\\Root | Out-Null"
+	out, err := runBoundedCommand(ctx, "powershell.exe", []string{"-NoProfile", "-NonInteractive", "-Command", script}, 16<<10)
+	if err != nil {
+		return fmt.Errorf("%s: %w", redactOutput(strings.TrimSpace(out)), err)
+	}
+	return nil
 }
 
 func (a *app) handleHubTLS(w http.ResponseWriter, r *http.Request) {
@@ -2840,20 +2851,14 @@ func (a *app) handleHubTLS(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "certificate file not found"})
 			return
 		}
-		systemDir, err := windows.GetSystemDirectory()
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "cannot locate Windows tools"})
-			return
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		_, err = runBoundedCommand(ctx, filepath.Join(systemDir, "certutil.exe"),
-			[]string{"-addstore", "-user", "Root", path}, 16<<10)
-		result := map[string]any{"ok": err == nil, "cert": path}
-		if err != nil {
+		installErr := installUserRootCertificate(ctx, path)
+		result := map[string]any{"ok": installErr == nil, "cert": path}
+		if installErr != nil {
 			result["error"] = "certificate install failed"
 		} else {
-			result["output"] = "证书已安装"
+			result["output"] = "certificate installed"
 			if fingerprint, ferr := certificateFingerprint(path); ferr == nil {
 				result["fingerprint"] = fingerprint
 			}

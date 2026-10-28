@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.60] - 2026-10-28
+
+### Fixed
+
+- Bridge installation starts the scheduled task immediately.
+- Certificate installation uses PowerShell `Import-Certificate` instead of
+  `certutil`, avoiding the cancellation path.
+- DSH drive paths are normalized to add the missing backslash.
+
 ## [0.30.59] - 2026-10-28
 
 ### Added

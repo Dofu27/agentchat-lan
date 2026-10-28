@@ -105,7 +105,11 @@ func (a *App) serviceInstall(args []string) int {
 		cmd := exec.Command("schtasks", "/Create", "/TN", *name, "/SC", "ONLOGON", "/TR", tr, "/F")
 		out, err := cmd.CombinedOutput()
 		if err == nil && exec.Command("schtasks", "/Query", "/TN", *name).Run() == nil {
-			fmt.Fprintf(a.Stdout, "installed scheduled task %s at logon (launcher: %s)\n", *name, launcher)
+			if runOut, runErr := exec.Command("schtasks", "/Run", "/TN", *name).CombinedOutput(); runErr != nil {
+				fmt.Fprintf(a.Stderr, "installed scheduled task %s but could not start it: %s\n", *name, decodeConsoleOutput(runOut))
+				return 1
+			}
+			fmt.Fprintf(a.Stdout, "installed and started scheduled task %s at logon (launcher: %s)\n", *name, launcher)
 			return 0
 		}
 		startup, startupErr := installWindowsStartup(*name, launcher)
