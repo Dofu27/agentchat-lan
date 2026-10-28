@@ -101,7 +101,11 @@ func (a *App) serviceInstall(args []string) int {
 		if err != nil {
 			return a.fail(err)
 		}
-		tr := `cmd /c "` + launcher + `"`
+		hiddenLauncher, err := writeWindowsHiddenLauncher(launcher)
+		if err != nil {
+			return a.fail(err)
+		}
+		tr := `wscript.exe //B "` + hiddenLauncher + `"`
 		cmd := exec.Command("schtasks", "/Create", "/TN", *name, "/SC", "ONLOGON", "/TR", tr, "/F")
 		out, err := cmd.CombinedOutput()
 		if err == nil && exec.Command("schtasks", "/Query", "/TN", *name).Run() == nil {
@@ -170,6 +174,9 @@ func (a *App) serviceUninstall(args []string) int {
 		if launcher, pathErr := windowsLauncherPath(*name); pathErr == nil {
 			if err := os.Remove(launcher); err != nil && !os.IsNotExist(err) {
 				removeErrs = append(removeErrs, fmt.Sprintf("launcher: %v", err))
+			}
+			if err := os.Remove(strings.TrimSuffix(launcher, ".cmd") + ".vbs"); err != nil && !os.IsNotExist(err) {
+				removeErrs = append(removeErrs, fmt.Sprintf("hidden launcher: %v", err))
 			}
 		}
 		if startup, startupErr := windowsStartupPath(*name); startupErr == nil {
@@ -245,6 +252,16 @@ func writeWindowsLauncher(name, exe string, args []string) (string, error) {
 	path := filepath.Join(dir, name+".cmd")
 	line := quoteWindowsCommand(exe) + " " + quoteWindowsArgs(args) + "\r\n"
 	content := "@echo off\r\n" + line
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+func writeWindowsHiddenLauncher(launcher string) (string, error) {
+	path := strings.TrimSuffix(launcher, ".cmd") + ".vbs"
+	content := "Set sh = CreateObject(\"WScript.Shell\")\r\n" +
+		"sh.Run \"cmd /c \" & Chr(34) & \"" + strings.ReplaceAll(launcher, "\"", "\"\"") + "\" & Chr(34), 0, False\r\n"
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		return "", err
 	}

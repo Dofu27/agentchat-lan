@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.62] - 2026-10-28
+
+### Fixed
+
+- Bridge tasks launch through a hidden VBScript wrapper instead of a visible
+  `cmd.exe` window. Closing a terminal no longer kills the bridge.
+
 ## [0.30.61] - 2026-10-28
 
 ### Fixed
