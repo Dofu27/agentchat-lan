@@ -1015,13 +1015,11 @@ func bridgeResult(cfg config, action string) map[string]any {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
-	protected, err := ensureProtectedServiceBinary(resolvedCLIPath(cfg.AgentchatPath), cfg.Service)
-	if err != nil {
-		result["ok"] = false
-		result["error"] = err.Error()
-		return result
+	bridgeCLI := bundledCLIPath()
+	if bridgeCLI == "" {
+		bridgeCLI = resolvedCLIPath(cfg.AgentchatPath)
 	}
-	out, err := runBoundedCommand(ctx, protected, args, 16<<10)
+	out, err := runBoundedCommand(ctx, bridgeCLI, args, 16<<10)
 	result["output"] = redactOutput(strings.TrimSpace(out))
 	result["ok"] = err == nil
 	if err != nil {
@@ -1530,7 +1528,11 @@ func (a *app) handleConnectors(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		cfg.BridgeAgentConfig = bridgeAgentConfig
-		hook, err := writeConnectorHook(name, dshBridgeExec(resolvedCLIPath(cfg.AgentchatPath), bridgeAgentConfig, dsh, script, home, workdir))
+		connectorCLI := bundledCLIPath()
+		if connectorCLI == "" {
+			connectorCLI = resolvedCLIPath(cfg.AgentchatPath)
+		}
+		hook, err := writeConnectorHook(name, dshBridgeExec(connectorCLI, bridgeAgentConfig, dsh, script, home, workdir))
 		if err != nil {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": redactOutput(err.Error())})
 			return

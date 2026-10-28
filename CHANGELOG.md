@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning once it reaches
 v1.0.
 
+## [0.30.61] - 2026-10-28
+
+### Fixed
+
+- Bridge install and DSH hook use the Console-bundled CLI, not the running
+  protected Hub service binary, avoiding "service must be stopped" during
+  bridge installation.
+
 ## [0.30.60] - 2026-10-28
 
 ### Fixed
